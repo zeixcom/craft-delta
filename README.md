@@ -66,7 +66,7 @@ Event::on(
 
 Custom differs must implement `zeixcom\craftdelta\differ\DifferInterface`.
 
-## Roadmap
+## Roadmap
 
 Extend the plugin with the most popular third-party field types like NEO, Hyper, etc.
 
