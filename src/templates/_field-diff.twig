@@ -1,0 +1,29 @@
+{# Individual field diff section #}
+
+<div class="delta-field{{ not diff.hasChanges ? ' delta-field-unchanged' : '' }}" data-field-handle="{{ diff.fieldHandle }}">
+    <button class="delta-field-header"
+            type="button"
+            aria-expanded="true"
+            aria-controls="delta-field-{{ diff.fieldHandle }}">
+        <svg class="delta-field-chevron" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M4.427 7.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 7H4.604a.25.25 0 00-.177.427z"/>
+        </svg>
+        <span class="delta-field-label">{{ diff.fieldLabel }}</span>
+        {% if diff.fieldType != 'attribute' %}
+            <span class="delta-field-type">{{ diff.fieldType|split('\\')|last }}</span>
+        {% endif %}
+    </button>
+    <div class="delta-field-body" id="delta-field-{{ diff.fieldHandle }}">
+        {# Unchanged fields — no diff content #}
+        {% if not diff.hasChanges %}
+            <div class="delta-field-body-padded delta-unchanged-msg">
+                {{ 'No changes'|t('craft-delta') }}
+            </div>
+        {% else %}
+            {% include 'craft-delta/_diff-content' with {
+                diffHtml: diff.diffHtml,
+                fieldType: diff.fieldType
+            } only %}
+        {% endif %}
+    </div>
+</div>

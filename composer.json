@@ -1,0 +1,61 @@
+{
+  "name": "zeixcom/craft-delta",
+  "description": "Inline revision diffing for Craft CMS — see exactly what changed",
+  "type": "craft-plugin",
+  "version": "1.0.0",
+  "keywords": [
+    "craft",
+    "cms",
+    "craftcms",
+    "craft-plugin",
+    "delta",
+    "diff",
+    "revision"
+  ],
+  "license": "proprietary",
+  "support": {
+    "email": "fabian.haefliger@zeix.com"
+  },
+  "require": {
+    "php": ">=8.2",
+    "craftcms/cms": "^5.8.0",
+    "jfcherng/php-diff": "^6.0"
+  },
+  "require-dev": {
+    "craftcms/ecs": "dev-main",
+    "craftcms/phpstan": "dev-main",
+    "phpunit/phpunit": "^11.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "zeixcom\\craftdelta\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "zeixcom\\craftdelta\\tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "handle": "craft-delta",
+    "name": "Delta",
+    "developer": "Zeix AG",
+    "class": "zeixcom\\craftdelta\\Delta"
+  },
+  "scripts": {
+    "test": "phpunit",
+    "check-cs": "ecs check --ansi",
+    "fix-cs": "ecs check --ansi --fix",
+    "phpstan": "phpstan --memory-limit=1G"
+  },
+  "config": {
+    "sort-packages": true,
+    "platform": {
+      "php": "8.2"
+    },
+    "allow-plugins": {
+      "yiisoft/yii2-composer": true,
+      "craftcms/plugin-installer": true
+    }
+  }
+}

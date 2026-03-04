@@ -1,0 +1,138 @@
+{# Diff content renderer — reusable partial for rendering diff HTML.
+   Parameters:
+     - diffHtml:   the raw diff HTML or JSON string
+     - fieldType:  the fully-qualified field class name (used to detect Matrix/Table)
+#}
+
+{% set fieldClass = fieldType|split('\\')|last %}
+
+{% if fieldClass in ['Matrix'] and diffHtml starts with '[' %}
+    {% set changes = diffHtml|json_decode %}
+    {% if changes is iterable %}
+        {% for change in changes %}
+            {% if change.type in ['added', 'removed', 'modified'] %}
+                {% set blockClass = {added: 'delta-block-added', removed: 'delta-block-removed', modified: 'delta-block-modified'} %}
+                {% set blockIcon = {added: '+', removed: '-', modified: '&bull;'} %}
+                <div class="delta-block {{ blockClass[change.type] }}">
+                    {% if change.fieldChanges is defined and change.fieldChanges is iterable %}
+                        <button type="button" class="delta-block-toggle" aria-expanded="true">
+                            <svg class="delta-block-chevron" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M4.427 7.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 7H4.604a.25.25 0 00-.177.427z"/>
+                            </svg>
+                            <span class="delta-block-icon">{{ blockIcon[change.type]|raw }}</span>
+                            <span class="delta-block-type">{{ change.blockType ?? 'Block' }}</span>
+                            <span class="delta-block-summary">{{ change.summary ?? '' }}</span>
+                        </button>
+                        <div class="delta-block-subfields">
+                            {% for fc in change.fieldChanges %}
+                                <div class="delta-block-subfield">
+                                    <div class="delta-block-subfield-label">{{ fc.label ?? fc.handle }}</div>
+                                    {% if fc.diffHtml is defined and fc.diffHtml is not null %}
+                                        {% include 'craft-delta/_diff-content' with {
+                                            diffHtml: fc.diffHtml,
+                                            fieldType: fc.fieldType ?? ''
+                                        } only %}
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <span class="delta-block-icon">{{ blockIcon[change.type]|raw }}</span>
+                        <span class="delta-block-type">{{ change.blockType ?? 'Block' }}</span>
+                        <span class="delta-block-summary">{{ change.summary ?? '' }}</span>
+                    {% endif %}
+                </div>
+            {% elseif change.type == 'reordered' %}
+                <div class="delta-block delta-block-reordered">
+                    <span class="delta-block-icon">&harr;</span>
+                    <span>{{ 'Blocks were reordered'|t('craft-delta') }}</span>
+                </div>
+            {% endif %}
+        {% endfor %}
+    {% else %}
+        <div class="delta-field-body-padded delta-error">
+            {{ 'Unable to parse structured diff.'|t('craft-delta') }}
+        </div>
+    {% endif %}
+
+{% elseif fieldClass in ['Table'] and diffHtml starts with '{' %}
+    {% set data = diffHtml|json_decode %}
+    {% if data is iterable and data.changes is defined %}
+        {% set columns = data.columns ?? {} %}
+        {% set changes = data.changes %}
+        <table class="delta-table-diff">
+            {% if columns|length > 0 %}
+                <thead>
+                    <tr>
+                        <th class="delta-table-status"></th>
+                        {% for key, heading in columns %}
+                            <th>{{ heading }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+            {% endif %}
+            <tbody>
+                {% for change in changes %}
+                    {% if change.type == 'added' %}
+                        <tr class="delta-table-row delta-table-row-added">
+                            <td class="delta-table-status">+</td>
+                            {% for key, heading in columns %}
+                                <td>{{ (change.values[key] ?? '')|e }}</td>
+                            {% endfor %}
+                        </tr>
+                    {% elseif change.type == 'removed' %}
+                        <tr class="delta-table-row delta-table-row-removed">
+                            <td class="delta-table-status">-</td>
+                            {% for key, heading in columns %}
+                                <td>{{ (change.values[key] ?? '')|e }}</td>
+                            {% endfor %}
+                        </tr>
+                    {% elseif change.type == 'modified' %}
+                        {# Show two rows for modified: old values and new values #}
+                        {% set cellMap = {} %}
+                        {% if change.cells is defined %}
+                            {% for cell in change.cells %}
+                                {% set cellMap = cellMap|merge({ (cell.col): cell }) %}
+                            {% endfor %}
+                        {% endif %}
+                        <tr class="delta-table-row delta-table-row-modified-old">
+                            <td class="delta-table-status" rowspan="2">&bull;</td>
+                            {% for key, heading in columns %}
+                                <td{% if cellMap[key] is defined %} class="delta-table-cell-changed"{% endif %}>
+                                    {% if cellMap[key] is defined %}
+                                        <span class="delta-del">{{ cellMap[key].old|e }}</span>
+                                    {% else %}
+                                        {{ change.values[key] is defined ? change.values[key]|e : '' }}
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                        </tr>
+                        <tr class="delta-table-row delta-table-row-modified-new">
+                            {% for key, heading in columns %}
+                                <td{% if cellMap[key] is defined %} class="delta-table-cell-changed"{% endif %}>
+                                    {% if cellMap[key] is defined %}
+                                        <span class="delta-ins">{{ cellMap[key].new|e }}</span>
+                                    {% else %}
+                                        {{ change.values[key] is defined ? change.values[key]|e : '' }}
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                        </tr>
+                    {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="delta-field-body-padded delta-error">
+            {{ 'Unable to parse table diff.'|t('craft-delta') }}
+        </div>
+    {% endif %}
+
+{% elseif diffHtml starts with '<table' %}
+    {{ diffHtml|raw }}
+
+{% else %}
+    <div class="delta-field-body-padded">
+        {{ diffHtml|raw }}
+    </div>
+{% endif %}

@@ -1,0 +1,22 @@
+{% extends '_layouts/cp.twig' %}
+
+{% do view.registerAssetBundle('zeixcom\\craftdelta\\assets\\diff\\DiffAsset') %}
+
+{% set title = 'Compare Revisions'|t('craft-delta') %}
+{% set fullPageForm = false %}
+{% set selectedSubnavItem = null %}
+
+{% block content %}
+    <div class="delta-fullpage" id="delta-fullpage-container"></div>
+
+    {% js %}
+        Craft.Delta.init({{ entryId }}, {
+            showUnchanged: {{ showUnchanged ? 'true' : 'false' }},
+            isDraft: {{ isDraft ? 'true' : 'false' }},
+            draftId: {{ draftId ?? 'null' }},
+            siteId: {{ siteId }}
+        });
+        Craft.Delta.mode = 'fullpage';
+        Craft.Delta.fetchRevisionsAndBuild($('#delta-fullpage-container'));
+    {% endjs %}
+{% endblock %}

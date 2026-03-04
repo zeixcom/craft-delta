@@ -1,0 +1,46 @@
+{# Diff result — rendered inside the toolbar's result container #}
+
+{% set stats = result.getStats() %}
+
+<div class="delta-stats" data-stats>
+    <span>
+        {%- if stats.fieldsChanged == 1 -%}
+            {{ '1 field changed'|t('craft-delta') }}
+        {%- else -%}
+            {{ '{count} fields changed'|t('craft-delta', { count: stats.fieldsChanged }) }}
+        {%- endif -%}
+    </span>
+    {% if stats.additions > 0 %}
+        <span class="delta-stat-added">+{{ stats.additions }}</span>
+    {% endif %}
+    {% if stats.deletions > 0 %}
+        <span class="delta-stat-removed">&minus;{{ stats.deletions }}</span>
+    {% endif %}
+</div>
+
+{% if result.hasChanges() %}
+    {% set grouped = result.fieldDiffs|group('tabName') %}
+
+    {# Attributes (title/slug) — no tab header #}
+    {% if grouped[''] is defined %}
+        {% for diff in grouped[''] %}
+            {% include 'craft-delta/_field-diff' with { diff: diff } %}
+        {% endfor %}
+    {% endif %}
+
+    {# Custom fields grouped by tab #}
+    {% for tabName, diffs in grouped %}
+        {% if tabName != '' %}
+            <div class="delta-tab-group" data-tab="{{ tabName }}">
+                <div class="delta-tab-header">{{ tabName }}</div>
+                {% for diff in diffs %}
+                    {% include 'craft-delta/_field-diff' with { diff: diff } %}
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endfor %}
+{% else %}
+    <div class="delta-empty">
+        <p>{{ 'No changes between these revisions.'|t('craft-delta') }}</p>
+    </div>
+{% endif %}

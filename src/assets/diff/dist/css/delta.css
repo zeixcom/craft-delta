@@ -1,0 +1,831 @@
+/* Craft Delta — Diff Styles
+   Minimal Notion-inspired aesthetic.
+   Three container modes: slideout / modal / fullpage
+*/
+
+/* ═══════════════════════════════════════════
+   CSS Custom Properties
+   ═══════════════════════════════════════════ */
+
+:root {
+    --delta-font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', ui-monospace, monospace;
+    --delta-font-ui: var(--font-family);
+
+    /* Accent palette — clear reds and greens */
+    --delta-add-bg: rgba(40, 167, 69, 0.14);
+    --delta-add-bg-word: rgba(40, 167, 69, 0.35);
+    --delta-add-border: #28a745;
+    --delta-add-text: #1a7f37;
+
+    --delta-del-bg: rgba(215, 58, 73, 0.14);
+    --delta-del-bg-word: rgba(215, 58, 73, 0.35);
+    --delta-del-border: #d73a49;
+    --delta-del-text: #cf222e;
+
+    --delta-mod-bg: rgba(227, 179, 65, 0.12);
+    --delta-mod-border: #e3b341;
+    --delta-mod-text: #9a6700;
+
+    /* Chrome */
+    --delta-panel-bg: var(--white);
+    --delta-header-bg: var(--gray-050);
+    --delta-border: var(--hairline-color);
+    --delta-gutter: var(--gray-050);
+    --delta-gutter-text: var(--light-text-color);
+}
+
+.dark {
+    --delta-add-bg: rgba(40, 167, 69, 0.18);
+    --delta-add-bg-word: rgba(40, 167, 69, 0.38);
+    --delta-add-text: #3fb950;
+
+    --delta-del-bg: rgba(215, 58, 73, 0.18);
+    --delta-del-bg-word: rgba(215, 58, 73, 0.38);
+    --delta-del-text: #f85149;
+
+    --delta-mod-bg: rgba(227, 179, 65, 0.16);
+    --delta-mod-text: #e3b341;
+
+    --delta-panel-bg: var(--gray-900);
+    --delta-header-bg: var(--gray-800);
+    --delta-gutter: var(--gray-800);
+    --delta-gutter-text: var(--medium-text-color);
+}
+
+/* ═══════════════════════════════════════════
+   Container Modes
+   ═══════════════════════════════════════════ */
+
+/* Slideout (default — injected into Craft.Slideout) */
+.delta-slideout {
+    height: 100%;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+/* Modal overlay */
+.delta-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 24px;
+    overflow-y: auto;
+    animation: delta-fade-in 0.15s ease-out;
+}
+
+.dark .delta-modal-overlay {
+    background: rgba(0, 0, 0, 0.7);
+}
+
+.delta-modal {
+    background: var(--delta-panel-bg);
+    border-radius: 8px;
+    width: 92vw;
+    max-width: 1400px;
+    height: calc(100vh - 80px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow:
+        0 24px 80px rgba(0, 0, 0, 0.2),
+        0 0 0 1px var(--delta-border);
+    animation: delta-scale-in 0.2s ease-out;
+}
+
+.delta-modal .delta-slideout {
+    padding: 0;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.delta-result {
+    padding: 16px 20px 20px;
+}
+
+.delta-modal .delta-result {
+    padding: 20px 28px 28px;
+}
+
+/* Full page — uses Craft CP layout */
+.delta-fullpage .delta-slideout {
+    padding: 0;
+    margin: 0 auto;
+}
+
+.delta-fullpage .delta-result {
+    padding: 20px 0 40px;
+}
+
+/* Animations */
+@keyframes delta-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes delta-scale-in {
+    from { opacity: 0; transform: scale(0.97) translateY(8px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ═══════════════════════════════════════════
+   Header / Toolbar
+   ═══════════════════════════════════════════ */
+
+.delta-toolbar {
+    padding: 16px 20px;
+    background: var(--delta-header-bg);
+    border-bottom: 1px solid var(--delta-border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.delta-modal .delta-toolbar {
+    padding: 16px 28px;
+    border-radius: 8px 8px 0 0;
+}
+
+.delta-toolbar-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.delta-toolbar-title {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    flex: 1;
+    color: var(--text-color);
+}
+
+.delta-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.delta-toolbar-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--medium-text-color);
+    font-size: 14px;
+    transition: all 0.1s;
+}
+
+.delta-toolbar-btn:hover {
+    background: var(--gray-200);
+    color: var(--text-color);
+}
+
+.dark .delta-toolbar-btn:hover {
+    background: var(--gray-700);
+}
+
+.delta-toolbar-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Revision selectors row */
+.delta-selectors {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.delta-selectors select {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+}
+
+.delta-swap-btn {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--delta-border);
+    background: var(--delta-panel-bg);
+    cursor: pointer;
+    color: var(--medium-text-color);
+    font-size: 13px;
+    border-radius: 4px;
+    transition: all 0.1s, transform 0.3s ease;
+}
+
+.delta-swap-btn.delta-swap-active {
+    transform: rotate(180deg);
+    transition: transform 0.3s ease;
+}
+
+.delta-swap-btn:hover {
+    background: var(--gray-100);
+    color: var(--text-color);
+    border-color: var(--gray-300);
+}
+
+.dark .delta-swap-btn:hover {
+    background: var(--gray-700);
+    border-color: var(--gray-600);
+}
+
+/* Bottom toolbar row: stats + controls */
+.delta-toolbar-bottom {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* Summary stats — inline in toolbar */
+.delta-stats {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--medium-text-color);
+    flex: 1;
+}
+
+.delta-stat-added {
+    color: var(--delta-add-text) !important;
+}
+
+.delta-stat-removed {
+    color: var(--delta-del-text) !important;
+}
+
+/* Filter toggle */
+.delta-filter-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--medium-text-color);
+    user-select: none;
+    white-space: nowrap;
+}
+
+.delta-filter-toggle:hover {
+    color: var(--text-color);
+}
+
+.delta-filter-toggle input {
+    margin: 0;
+}
+
+/* ═══════════════════════════════════════════
+   Tab Groups
+   ═══════════════════════════════════════════ */
+
+.delta-tab-group {
+    margin-bottom: 4px;
+}
+
+.delta-tab-header {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--medium-text-color);
+    padding: 16px 2px 6px;
+}
+
+.delta-result > .delta-tab-group:first-child .delta-tab-header {
+    padding-top: 0;
+}
+
+/* ═══════════════════════════════════════════
+   Field Sections
+   ═══════════════════════════════════════════ */
+
+.delta-field {
+    border: 1px solid var(--delta-border);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    background: var(--delta-panel-bg);
+}
+
+.delta-field-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: var(--delta-header-bg);
+    border-bottom: 1px solid var(--delta-border);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s;
+}
+
+button.delta-field-header {
+    width: 100%;
+    font: inherit;
+    text-align: left;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.delta-field-header:hover {
+    background: var(--gray-100);
+}
+
+.dark .delta-field-header:hover {
+    background: var(--gray-700);
+}
+
+/* Collapse chevron */
+.delta-field-chevron {
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    color: var(--medium-text-color);
+    transition: transform 0.15s;
+}
+
+.delta-field.is-collapsed .delta-field-chevron {
+    transform: rotate(-90deg);
+}
+
+.delta-field-header .delta-field-label {
+    font-weight: 600;
+    font-size: 12px;
+    flex: 1;
+    letter-spacing: -0.01em;
+}
+
+.delta-field-header .delta-field-type {
+    font-size: 10px;
+    font-family: var(--delta-font-mono);
+    color: var(--delta-gutter-text);
+    background: var(--delta-gutter);
+    padding: 1px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.02em;
+}
+
+.delta-field-body {
+    padding: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+}
+
+.delta-field.is-collapsed .delta-field-body {
+    display: none;
+}
+
+/* ═══════════════════════════════════════════
+   SideBySide Diff Table (shared structure)
+   ═══════════════════════════════════════════ */
+
+.delta-field-body .diff-html {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.delta-field-body .diff-html thead {
+    display: none;
+}
+
+/* Equal-width columns: old | new */
+.delta-field-body .diff-html td.old,
+.delta-field-body .diff-html td.new {
+    width: 50%;
+    padding: 4px 16px;
+    word-break: break-word;
+    white-space: pre-wrap;
+    vertical-align: top;
+    font-size: 13px;
+    line-height: 1.7;
+    border-right: 1px solid var(--delta-border);
+}
+
+.delta-field-body .diff-html td.new {
+    border-right: none;
+}
+
+/* Vertical separator between columns */
+.delta-field-body .diff-html td.old {
+    border-right: 1px solid var(--delta-border);
+}
+
+/* Line number gutters — hidden because the renderer outputs bare
+   <th></th> in insertion/deletion rows which breaks column count. */
+.delta-field-body .diff-html th {
+    display: none;
+}
+
+/* Skipped / context separator */
+.delta-field-body .diff-html .skipped td {
+    padding: 4px 12px;
+    text-align: center;
+    color: var(--delta-gutter-text);
+    font-size: 11px;
+    font-family: var(--delta-font-mono);
+    background: var(--delta-gutter);
+    letter-spacing: 0.05em;
+}
+
+/* Empty cells (line exists on one side only) */
+.delta-field-body .diff-html td.none {
+    background: var(--delta-gutter) !important;
+}
+
+/* Change highlighting — Notion style: subtle tints + underlines */
+.delta-field-body .diff-html .change-eq td {
+    background: transparent;
+}
+
+.delta-field-body .diff-html .change-del td.old {
+    background: rgba(215, 58, 73, 0.04);
+    box-shadow: inset 3px 0 0 var(--delta-del-border);
+}
+
+.delta-field-body .diff-html .change-ins td.new {
+    background: rgba(40, 167, 69, 0.04);
+    box-shadow: inset 3px 0 0 var(--delta-add-border);
+}
+
+.delta-field-body .diff-html .change-rep td.old {
+    background: rgba(215, 58, 73, 0.04);
+    box-shadow: inset 3px 0 0 var(--delta-del-border);
+}
+
+.delta-field-body .diff-html .change-rep td.new {
+    background: rgba(40, 167, 69, 0.04);
+    box-shadow: inset 3px 0 0 var(--delta-add-border);
+}
+
+.delta-field-body .diff-html del {
+    background: none;
+    text-decoration: none;
+    border-bottom: 2px solid var(--delta-del-border);
+    color: var(--delta-del-text);
+    padding-bottom: 1px;
+}
+
+.delta-field-body .diff-html ins {
+    background: none;
+    text-decoration: none;
+    border-bottom: 2px solid var(--delta-add-border);
+    color: var(--delta-add-text);
+    padding-bottom: 1px;
+}
+
+/* ═══════════════════════════════════════════
+   Custom Diff Markup (ScalarDiffer, etc.)
+   ═══════════════════════════════════════════ */
+
+.delta-ins {
+    background: var(--delta-add-bg-word);
+    color: var(--delta-add-text);
+    text-decoration: none;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 500;
+}
+
+.delta-del {
+    background: var(--delta-del-bg-word);
+    color: var(--delta-del-text);
+    text-decoration: line-through;
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+/* Scalar arrow separator */
+.delta-field-body .delta-del + .delta-ins {
+    margin-left: 4px;
+}
+
+/* Option / scalar diff needs padding inside field body */
+.delta-field-body-padded {
+    padding: 12px 16px;
+}
+
+.delta-field-unchanged {
+    opacity: 0.5;
+}
+
+/* When "Changed only" is active, hide unchanged fields via parent class */
+.delta-changed-only .delta-field-unchanged {
+    display: none;
+}
+
+/* Hide entire tab group when all its fields are unchanged */
+.delta-changed-only .delta-tab-group:not(:has(.delta-field:not(.delta-field-unchanged))) {
+    display: none;
+}
+
+.delta-unchanged-msg {
+    color: var(--medium-text-color);
+    font-size: 12px;
+    font-style: italic;
+}
+
+/* ═══════════════════════════════════════════
+   Matrix / Structured Diff Blocks
+   ═══════════════════════════════════════════ */
+
+.delta-block {
+    padding: 8px 12px;
+    margin: 0;
+    font-size: 12px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--delta-border);
+}
+
+.delta-block:last-child {
+    border-bottom: none;
+}
+
+.delta-block-added {
+    background: var(--delta-add-bg);
+    border-left: 3px solid var(--delta-add-border);
+}
+
+.delta-block-removed {
+    background: var(--delta-del-bg);
+    border-left: 3px solid var(--delta-del-border);
+}
+
+.delta-block-modified {
+    background: var(--delta-mod-bg);
+    border-left: 3px solid var(--delta-mod-border);
+}
+
+.delta-block-reordered {
+    background: var(--delta-gutter);
+    border-left: 3px solid var(--medium-text-color);
+    font-style: italic;
+}
+
+.delta-block-icon {
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+    font-family: var(--delta-font-mono);
+}
+
+.delta-block-added .delta-block-icon { color: var(--delta-add-text); }
+.delta-block-removed .delta-block-icon { color: var(--delta-del-text); }
+.delta-block-modified .delta-block-icon { color: var(--delta-mod-text); }
+
+.delta-block-type {
+    font-weight: 600;
+    color: var(--text-color);
+    font-size: 12px;
+}
+
+.delta-block-summary {
+    color: var(--medium-text-color);
+    font-size: 12px;
+}
+
+/* Collapsible modified block toggle */
+.delta-block-toggle {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.delta-block-chevron {
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    color: var(--medium-text-color);
+    transition: transform 0.15s;
+    align-self: center;
+}
+
+.delta-block.is-collapsed .delta-block-chevron {
+    transform: rotate(-90deg);
+}
+
+.delta-block.is-collapsed .delta-block-subfields {
+    display: none;
+}
+
+/* Sub-field diffs within modified Matrix blocks */
+.delta-block-subfields {
+    width: 100%;
+    margin-top: 8px;
+    padding-left: 16px;
+}
+
+/* Tighter spacing for nested blocks */
+.delta-block-subfields .delta-block {
+    margin: 0;
+}
+
+.delta-block-subfield {
+    border-top: 1px solid var(--delta-border);
+    padding: 8px 0 4px 16px;
+}
+
+.delta-block-subfield:first-child {
+    border-top: none;
+}
+
+.delta-block-subfield-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 4px;
+    letter-spacing: 0.01em;
+}
+
+/* Nested diff tables within sub-fields inherit natural sizing */
+.delta-block-subfield .diff-html {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.delta-block-subfield .delta-field-body-padded {
+    padding: 4px 0;
+}
+
+/* Table field diff */
+.delta-table-diff {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.delta-table-diff thead th {
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: left;
+    background: var(--delta-header-bg);
+    border-bottom: 1px solid var(--delta-border);
+    color: var(--medium-text-color);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.delta-table-diff .delta-table-status {
+    width: 32px;
+    text-align: center;
+    font-weight: 700;
+    font-family: var(--delta-font-mono);
+}
+
+.delta-table-diff td {
+    padding: 4px 12px;
+    border-bottom: 1px solid var(--delta-border);
+    vertical-align: top;
+}
+
+.delta-table-row-added { background: var(--delta-add-bg); }
+.delta-table-row-added .delta-table-status { color: var(--delta-add-text); }
+
+.delta-table-row-removed { background: var(--delta-del-bg); }
+.delta-table-row-removed .delta-table-status { color: var(--delta-del-text); }
+.delta-table-row-removed td { text-decoration: line-through; }
+.delta-table-row-removed .delta-table-status { text-decoration: none; }
+
+.delta-table-row-modified-old { background: var(--delta-del-bg); }
+.delta-table-row-modified-new { background: var(--delta-add-bg); }
+.delta-table-row-modified-old .delta-table-status,
+.delta-table-row-modified-new .delta-table-status { color: var(--delta-mod-text); }
+
+.delta-table-cell-changed { font-weight: 500; }
+
+/* ═══════════════════════════════════════════
+   Relational Diff Lines (+/-)
+   ═══════════════════════════════════════════ */
+
+.delta-relation-added,
+.delta-relation-removed {
+    padding: 4px 12px;
+    margin: 0;
+    font-size: 12px;
+    border-bottom: 1px solid var(--delta-border);
+    font-family: var(--delta-font-mono);
+}
+
+.delta-relation-added:last-child,
+.delta-relation-removed:last-child {
+    border-bottom: none;
+}
+
+.delta-relation-added {
+    background: var(--delta-add-bg);
+    color: var(--delta-add-text);
+}
+
+.delta-relation-removed {
+    background: var(--delta-del-bg);
+    color: var(--delta-del-text);
+    text-decoration: line-through;
+}
+
+/* ═══════════════════════════════════════════
+   Loading & Empty States
+   ═══════════════════════════════════════════ */
+
+.delta-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 60px;
+    color: var(--medium-text-color);
+    font-size: 13px;
+    letter-spacing: 0.01em;
+}
+
+.delta-loading .spinner {
+    flex-shrink: 0;
+}
+
+.delta-empty {
+    text-align: center;
+    padding: 60px 24px;
+    color: var(--medium-text-color);
+}
+
+.delta-empty p {
+    margin: 0;
+    font-size: 13px;
+}
+
+/* ═══════════════════════════════════════════
+   Sidebar Compare Button
+   ═══════════════════════════════════════════ */
+
+#delta-meta {
+    padding: 14px 24px !important;
+}
+
+#delta-compare-btn {
+    display: block;
+    width: 100%;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    background: #5a67d8;
+    color: #fff;
+    transition: background 0.15s;
+}
+
+#delta-compare-btn:hover {
+    background: #4c51bf;
+}
+
+.delta-meta-hint {
+    margin: 6px 0 0;
+    font-size: 11px;
+    color: var(--medium-text-color);
+    line-height: 1.4;
+}
+
+.delta-error {
+    color: var(--delta-mod-text);
+    font-style: italic;
+    font-size: 12px;
+}
