@@ -71,6 +71,9 @@ class DiffController extends Controller
             return $this->asFailure('Version not found.');
         }
 
+        // Force chronological order so diff colors stay stable across swaps.
+        [$older, $newer] = $this->sortChronologically($older, $newer);
+
         try {
             $result = $plugin->diff->compare($older, $newer);
 
@@ -195,6 +198,22 @@ class DiffController extends Controller
             'drafts' => $draftOptions,
             'hasCurrent' => $canonical !== null,
         ]);
+    }
+
+    /** @return array{0: Entry, 1: Entry} */
+    private function sortChronologically(Entry $a, Entry $b): array
+    {
+        $aTime = $a->dateUpdated?->getTimestamp() ?? 0;
+        $bTime = $b->dateUpdated?->getTimestamp() ?? 0;
+
+        if ($aTime !== $bTime) {
+            return $aTime < $bTime ? [$a, $b] : [$b, $a];
+        }
+
+        $aNum = $a->revisionNum ?? PHP_INT_MAX;
+        $bNum = $b->revisionNum ?? PHP_INT_MAX;
+
+        return $aNum <= $bNum ? [$a, $b] : [$b, $a];
     }
 
     /**

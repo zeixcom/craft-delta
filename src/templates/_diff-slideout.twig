@@ -21,23 +21,44 @@
 {% if result.hasChanges() %}
     {% set grouped = result.fieldDiffs|group('tabName') %}
 
-    {# Attributes (title/slug) — no tab header #}
+    {% set namedTabs = [] %}
+    {% for tabName, diffs in grouped %}
+        {% if tabName != '' %}
+            {% set namedTabs = namedTabs|merge([{ name: tabName, diffs: diffs, index: loop.index0 }]) %}
+        {% endif %}
+    {% endfor %}
+
+    {% if namedTabs|length > 1 %}
+        <nav class="delta-tabnav" aria-label="{{ 'Jump to section'|t('craft-delta') }}">
+            {% for tab in namedTabs %}
+                {% set changedCount = tab.diffs|filter(d => d.hasChanges)|length %}
+                <a href="#delta-tab-{{ tab.index }}"
+                   class="delta-tabnav-item{{ changedCount > 0 ? ' delta-tabnav-item-changed' : '' }}"
+                   data-tab-target="delta-tab-{{ tab.index }}">
+                    <span class="delta-tabnav-prefix">{{ 'Tab'|t('craft-delta') }}:</span>
+                    {{ tab.name }}
+                    {% if changedCount > 0 %}<span class="delta-tabnav-count">{{ changedCount }}</span>{% endif %}
+                </a>
+            {% endfor %}
+        </nav>
+    {% endif %}
+
     {% if grouped[''] is defined %}
         {% for diff in grouped[''] %}
             {% include 'craft-delta/_field-diff' with { diff: diff } %}
         {% endfor %}
     {% endif %}
 
-    {# Custom fields grouped by tab #}
-    {% for tabName, diffs in grouped %}
-        {% if tabName != '' %}
-            <div class="delta-tab-group" data-tab="{{ tabName }}">
-                <div class="delta-tab-header">{{ tabName }}</div>
-                {% for diff in diffs %}
-                    {% include 'craft-delta/_field-diff' with { diff: diff } %}
-                {% endfor %}
+    {% for tab in namedTabs %}
+        <div class="delta-tab-group" id="delta-tab-{{ tab.index }}" data-tab="{{ tab.name }}">
+            <div class="delta-tab-header">
+                <span class="delta-tab-header-prefix">{{ 'Tab'|t('craft-delta') }}:</span>
+                {{ tab.name }}
             </div>
-        {% endif %}
+            {% for diff in tab.diffs %}
+                {% include 'craft-delta/_field-diff' with { diff: diff } %}
+            {% endfor %}
+        </div>
     {% endfor %}
 {% else %}
     <div class="delta-empty">

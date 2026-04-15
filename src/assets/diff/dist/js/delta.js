@@ -294,20 +294,10 @@
         $newer.val('current');
       }
 
-      var $swapBtn = $('<button type="button" class="delta-swap-btn" title="Swap">\u21C4</button>');
-      $swapBtn.on('click', function () {
-        var o = $older.val(), n = $newer.val();
-        $older.val(n);
-        $newer.val(o);
-        $swapBtn.addClass('delta-swap-active');
-        setTimeout(function () {
-          $swapBtn.removeClass('delta-swap-active');
-        }, 300);
-        self.loadDiff($older.val(), $newer.val());
-      });
+      var $arrow = $('<span class="delta-selectors-arrow" aria-hidden="true">\u2192</span>');
 
       var $selectors = $('<div class="delta-selectors"></div>');
-      $selectors.append($older).append($swapBtn).append($newer);
+      $selectors.append($older).append($arrow).append($newer);
       $toolbar.append($selectors);
 
       // Bottom row: stats + filter
@@ -354,7 +344,12 @@
 
       $container.empty().append($wrapper);
 
-      // Auto-load
+      if (this._resizeHandler) {
+        window.removeEventListener('resize', this._resizeHandler);
+      }
+      this._resizeHandler = function () { self.updateToolbarOffset(); };
+      window.addEventListener('resize', this._resizeHandler);
+
       this.loadDiff($older.val(), $newer.val());
     },
 
@@ -423,6 +418,8 @@
           }
 
           self.bindFieldToggles($result[0]);
+          self.bindTabNav($result[0]);
+          self.updateToolbarOffset();
         })
         .catch(function () {
           if (requestId !== self._loadId) { return; }
@@ -486,6 +483,100 @@
       });
 
       this.applyFilter();
+    },
+
+    // Re-measured on every diff load + window resize because the toolbar
+    // height changes when stats wrap or the filter checkbox is toggled.
+    updateToolbarOffset: function () {
+      if (!this.$wrapper || !this.$wrapper.length) { return; }
+      var wrapper = this.$wrapper[0];
+      var toolbar = wrapper.querySelector('.delta-toolbar');
+      if (!toolbar) { return; }
+      var height = toolbar.getBoundingClientRect().height;
+      wrapper.style.setProperty('--delta-toolbar-height', height + 'px');
+    },
+
+    bindTabNav: function (container) {
+      var self = this;
+      var nav = container.querySelector('.delta-tabnav');
+      if (!nav) { return; }
+
+      var links = nav.querySelectorAll('.delta-tabnav-item');
+      var linksByTarget = {};
+      links.forEach(function (link) {
+        linksByTarget[link.getAttribute('data-tab-target')] = link;
+
+        link.addEventListener('click', function (e) {
+          e.preventDefault();
+          var targetId = link.getAttribute('data-tab-target');
+          var target = container.querySelector('#' + targetId);
+          if (!target || !self.$wrapper || !self.$wrapper.length) { return; }
+
+          var scrollEl = self.$wrapper[0];
+          var toolbar = scrollEl.querySelector('.delta-toolbar');
+          var toolbarHeight = toolbar ? toolbar.getBoundingClientRect().height : 0;
+
+          // Walk offsetParents so we get the real distance to scrollEl,
+          // not the local offset within the (positioned) tab group.
+          var top = 0, node = target;
+          while (node && node !== scrollEl) {
+            top += node.offsetTop;
+            node = node.offsetParent;
+          }
+
+          scrollEl.scrollTo({
+            top: Math.max(0, top - toolbarHeight - 8),
+            behavior: 'smooth',
+          });
+        });
+      });
+
+      if (!self.$wrapper || !self.$wrapper.length) { return; }
+      var scrollEl = self.$wrapper[0];
+      var tabGroups = Array.prototype.slice.call(container.querySelectorAll('.delta-tab-group'));
+      if (tabGroups.length === 0) { return; }
+
+      var setActive = function (id) {
+        links.forEach(function (l) { l.classList.remove('delta-tabnav-item-active'); });
+        var active = id ? linksByTarget[id] : null;
+        if (active) { active.classList.add('delta-tabnav-item-active'); }
+      };
+
+      var updateActive = function () {
+        var toolbar = scrollEl.querySelector('.delta-toolbar');
+        var threshold = (toolbar ? toolbar.getBoundingClientRect().bottom : 0) + 4;
+        var current = null;
+        for (var i = 0; i < tabGroups.length; i++) {
+          var rect = tabGroups[i].getBoundingClientRect();
+          if (rect.top <= threshold) {
+            current = tabGroups[i].id;
+          } else {
+            break;
+          }
+        }
+        if (!current && tabGroups.length > 0) {
+          current = tabGroups[0].id;
+        }
+        setActive(current);
+      };
+
+      var ticking = false;
+      var onScroll = function () {
+        if (ticking) { return; }
+        ticking = true;
+        window.requestAnimationFrame(function () {
+          updateActive();
+          ticking = false;
+        });
+      };
+
+      if (self._tabSpyHandler) {
+        scrollEl.removeEventListener('scroll', self._tabSpyHandler);
+      }
+      self._tabSpyHandler = onScroll;
+      scrollEl.addEventListener('scroll', onScroll, { passive: true });
+
+      updateActive();
     },
   };
 })();

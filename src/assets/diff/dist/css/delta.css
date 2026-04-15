@@ -213,36 +213,16 @@
     font-size: 12px;
 }
 
-.delta-swap-btn {
+.delta-selectors-arrow {
     flex-shrink: 0;
-    width: 28px;
-    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid var(--delta-border);
-    background: var(--delta-panel-bg);
-    cursor: pointer;
+    width: 18px;
     color: var(--medium-text-color);
-    font-size: 13px;
-    border-radius: 4px;
-    transition: all 0.1s, transform 0.3s ease;
-}
-
-.delta-swap-btn.delta-swap-active {
-    transform: rotate(180deg);
-    transition: transform 0.3s ease;
-}
-
-.delta-swap-btn:hover {
-    background: var(--gray-100);
-    color: var(--text-color);
-    border-color: var(--gray-300);
-}
-
-.dark .delta-swap-btn:hover {
-    background: var(--gray-700);
-    border-color: var(--gray-600);
+    font-size: 14px;
+    line-height: 1;
+    user-select: none;
 }
 
 /* Bottom toolbar row: stats + controls */
@@ -300,19 +280,137 @@
 
 .delta-tab-group {
     margin-bottom: 4px;
+    position: relative;
 }
 
 .delta-tab-header {
-    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
+    color: var(--text-color);
+    padding: 10px 16px;
+    margin: 0 -16px;
+    background: var(--delta-header-bg);
+    position: sticky;
+    top: var(--delta-toolbar-height, 120px);
+    z-index: 5;
+    border-top: 1px solid var(--delta-border);
+    border-bottom: 1px solid var(--delta-border);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.delta-tab-header::before {
+    content: '';
+    display: inline-block;
+    width: 3px;
+    height: 14px;
+    background: var(--delta-add-border);
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.delta-tab-header-prefix {
+    font-weight: 600;
     color: var(--medium-text-color);
-    padding: 16px 2px 6px;
+    opacity: 0.8;
+}
+
+.delta-tabnav-prefix {
+    font-weight: 600;
+    opacity: 0.7;
+}
+
+.dark .delta-tab-header {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+}
+
+.delta-modal .delta-tab-header,
+.delta-fullpage .delta-tab-header {
+    margin: 0 -28px;
+    padding-left: 28px;
+    padding-right: 28px;
 }
 
 .delta-result > .delta-tab-group:first-child .delta-tab-header {
-    padding-top: 0;
+    padding-top: 12px;
+}
+
+.delta-tabnav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px 0 14px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--delta-border);
+}
+
+.delta-tabnav-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--medium-text-color);
+    background: var(--delta-gutter);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    text-decoration: none;
+    transition: all 0.1s;
+}
+
+.delta-tabnav-item:hover {
+    color: var(--text-color);
+    background: var(--gray-100);
+    border-color: var(--delta-border);
+}
+
+.dark .delta-tabnav-item:hover {
+    background: var(--gray-700);
+}
+
+.delta-tabnav-item-changed {
+    color: var(--text-color);
+}
+
+.delta-tabnav-item-active {
+    color: #fff;
+    background: var(--delta-add-border);
+    border-color: var(--delta-add-border);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.delta-tabnav-item-active:hover {
+    color: #fff;
+    background: var(--delta-add-border);
+    border-color: var(--delta-add-border);
+}
+
+.delta-tabnav-item-active .delta-tabnav-count {
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
+}
+
+.delta-tabnav-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--delta-add-border);
+    border-radius: 8px;
+}
+
+.delta-changed-only .delta-tabnav-item:not(.delta-tabnav-item-changed) {
+    display: none;
 }
 
 /* ═══════════════════════════════════════════
@@ -758,6 +856,70 @@ button.delta-field-header {
     background: var(--delta-del-bg);
     color: var(--delta-del-text);
     text-decoration: line-through;
+}
+
+.delta-relation-asset {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    font-family: var(--delta-font-ui);
+    font-size: 13px;
+    text-decoration: none;
+}
+
+.delta-relation-asset .delta-relation-sign {
+    flex-shrink: 0;
+    width: 12px;
+    font-family: var(--delta-font-mono);
+    font-weight: 700;
+    font-size: 13px;
+    text-align: center;
+}
+
+.delta-asset-thumb {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 4px;
+    background: var(--delta-gutter);
+    border: 1px solid var(--delta-border);
+}
+
+.delta-asset-thumb-empty {
+    display: inline-block;
+}
+
+.delta-asset-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.delta-asset-filename {
+    font-weight: 600;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.delta-relation-removed.delta-relation-asset .delta-asset-filename {
+    text-decoration: line-through;
+}
+
+.delta-asset-meta {
+    font-size: 11px;
+    font-family: var(--delta-font-mono);
+    color: var(--medium-text-color);
+    text-decoration: none;
+    margin-top: 2px;
+}
+
+.delta-relation-removed.delta-relation-asset .delta-asset-meta {
+    text-decoration: none;
 }
 
 /* ═══════════════════════════════════════════
