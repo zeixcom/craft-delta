@@ -86,4 +86,75 @@ class MergeServiceTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         MergeService::validateAtoms($availableAtoms, $accepted);
     }
+
+    public function testBuildBlockListAcceptedAddedIncludesSourceBlock(): void
+    {
+        $current = [['uid' => 'A', 'content' => 'a']];
+        $source = [['uid' => 'A', 'content' => 'a'], ['uid' => 'X', 'content' => 'x']];
+        $atoms = [['blockUid' => 'X', 'changeType' => 'added']];
+
+        $result = MergeService::buildMatrixBlockList($current, $source, $atoms);
+
+        $uids = array_column($result, 'uid');
+        $this->assertContains('A', $uids);
+        $this->assertContains('X', $uids);
+    }
+
+    public function testBuildBlockListRejectedAddedDoesNotIncludeSourceBlock(): void
+    {
+        $current = [['uid' => 'A', 'content' => 'a']];
+        $source = [['uid' => 'A', 'content' => 'a'], ['uid' => 'X', 'content' => 'x']];
+        $atoms = []; // X-added not accepted
+
+        $result = MergeService::buildMatrixBlockList($current, $source, $atoms);
+
+        $uids = array_column($result, 'uid');
+        $this->assertNotContains('X', $uids);
+    }
+
+    public function testBuildBlockListAcceptedRemovedDropsBlock(): void
+    {
+        $current = [['uid' => 'A', 'content' => 'a'], ['uid' => 'B', 'content' => 'b']];
+        $source = [['uid' => 'A', 'content' => 'a']];
+        $atoms = [['blockUid' => 'B', 'changeType' => 'removed']];
+
+        $result = MergeService::buildMatrixBlockList($current, $source, $atoms);
+
+        $uids = array_column($result, 'uid');
+        $this->assertNotContains('B', $uids);
+    }
+
+    public function testBuildBlockListRejectedRemovedKeepsBlock(): void
+    {
+        $current = [['uid' => 'A', 'content' => 'a'], ['uid' => 'B', 'content' => 'b']];
+        $source = [['uid' => 'A', 'content' => 'a']];
+        $atoms = []; // B-removed rejected
+
+        $result = MergeService::buildMatrixBlockList($current, $source, $atoms);
+
+        $uids = array_column($result, 'uid');
+        $this->assertContains('B', $uids);
+    }
+
+    public function testBuildBlockListAcceptedModifiedReplacesContent(): void
+    {
+        $current = [['uid' => 'A', 'content' => 'old']];
+        $source = [['uid' => 'A', 'content' => 'new']];
+        $atoms = [['blockUid' => 'A', 'changeType' => 'modified']];
+
+        $result = MergeService::buildMatrixBlockList($current, $source, $atoms);
+
+        $this->assertSame('new', $result[0]['content']);
+    }
+
+    public function testBuildBlockListRejectedModifiedKeepsCurrentContent(): void
+    {
+        $current = [['uid' => 'A', 'content' => 'old']];
+        $source = [['uid' => 'A', 'content' => 'new']];
+        $atoms = [];
+
+        $result = MergeService::buildMatrixBlockList($current, $source, $atoms);
+
+        $this->assertSame('old', $result[0]['content']);
+    }
 }

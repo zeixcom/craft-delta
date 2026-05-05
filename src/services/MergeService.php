@@ -88,6 +88,50 @@ class MergeService extends Component
     }
 
     /**
+     * Step A of the Matrix merge: build the surviving block set, before
+     * ordering. Each block is an associative array; this method is content-
+     * agnostic — it operates on UIDs.
+     *
+     * @param array<int, array<string, mixed>> $current        Current blocks
+     * @param array<int, array<string, mixed>> $source         Source blocks
+     * @param array<int, array{blockUid: string, changeType: string}> $atoms Accepted block atoms for this field
+     * @return array<int, array<string, mixed>>                Surviving blocks (order not yet applied)
+     */
+    public static function buildMatrixBlockList(array $current, array $source, array $atoms): array
+    {
+        $sourceByUid = [];
+        foreach ($source as $block) {
+            $sourceByUid[$block['uid']] = $block;
+        }
+
+        $working = [];
+        foreach ($current as $block) {
+            $working[$block['uid']] = $block;
+        }
+
+        foreach ($atoms as $atom) {
+            $uid = $atom['blockUid'];
+            switch ($atom['changeType']) {
+                case 'added':
+                    if (isset($sourceByUid[$uid])) {
+                        $working[$uid] = $sourceByUid[$uid];
+                    }
+                    break;
+                case 'removed':
+                    unset($working[$uid]);
+                    break;
+                case 'modified':
+                    if (isset($sourceByUid[$uid])) {
+                        $working[$uid] = $sourceByUid[$uid];
+                    }
+                    break;
+            }
+        }
+
+        return array_values($working);
+    }
+
+    /**
      * Apply the user's accepted atoms onto a new draft of the canonical entry.
      *
      * @param string[] $acceptedAtoms List of stable atom keys (see spec §5.1)
