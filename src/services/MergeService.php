@@ -185,7 +185,9 @@ class MergeService extends Component
     }
 
     /**
-     * Implemented in Task 7.
+     * Order the surviving blocks under source's spine. Kept current-only blocks
+     * are inserted immediately after the most-recent both-sides anchor in
+     * current's order. Current-only blocks before any anchor go at the front.
      *
      * @param array<string, array<string, mixed>> $survivorsByUid
      * @param array<int, array<string, mixed>> $current
@@ -194,7 +196,58 @@ class MergeService extends Component
      */
     private static function orderBySourceSpine(array $survivorsByUid, array $current, array $source): array
     {
-        throw new \LogicException('orderBySourceSpine implemented in Task 7');
+        // 1. Identify which surviving UIDs are in source (anchors + source-only adds).
+        $sourceUids = [];
+        foreach ($source as $block) {
+            $sourceUids[$block['uid']] = true;
+        }
+
+        // 2. Walk current's order; for each current-only kept survivor, find its
+        //    most-recent both-sides anchor (or null if none yet seen).
+        $anchorByCurrentOnly = [];
+        $currentOnlyOrder = [];
+        $lastAnchor = null;
+
+        foreach ($current as $block) {
+            $uid = $block['uid'];
+            $isSurvivor = isset($survivorsByUid[$uid]);
+            $isInSource = isset($sourceUids[$uid]);
+
+            if ($isSurvivor && $isInSource) {
+                $lastAnchor = $uid;
+            } elseif ($isSurvivor && !$isInSource) {
+                $anchorByCurrentOnly[$uid] = $lastAnchor;
+                $currentOnlyOrder[] = $uid;
+            }
+        }
+
+        // 3. Walk source's order, emitting source survivors. After each anchor,
+        //    flush any current-only blocks that anchor to it.
+        $result = [];
+
+        // Flush current-only blocks with no anchor (lastAnchor was null) first.
+        foreach ($currentOnlyOrder as $uid) {
+            if ($anchorByCurrentOnly[$uid] === null) {
+                $result[] = $survivorsByUid[$uid];
+            }
+        }
+
+        foreach ($source as $block) {
+            $uid = $block['uid'];
+            if (!isset($survivorsByUid[$uid])) {
+                continue; // source block didn't survive (e.g. a source-only block whose 'added' atom was rejected)
+            }
+            $result[] = $survivorsByUid[$uid];
+
+            // Flush current-only blocks anchored to this UID, in their original current-order.
+            foreach ($currentOnlyOrder as $coUid) {
+                if ($anchorByCurrentOnly[$coUid] === $uid) {
+                    $result[] = $survivorsByUid[$coUid];
+                }
+            }
+        }
+
+        return $result;
     }
 
     /**

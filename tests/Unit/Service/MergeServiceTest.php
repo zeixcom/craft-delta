@@ -202,4 +202,95 @@ class MergeServiceTest extends TestCase
 
         $this->assertSame(['A', 'B', 'C'], array_column($result, 'uid'));
     }
+
+    public function testOrderReorderUsesSourceOrderForBothSidesBlocks(): void
+    {
+        $survivors = [
+            ['uid' => 'A'],
+            ['uid' => 'B'],
+            ['uid' => 'C'],
+        ];
+        $current = [['uid' => 'A'], ['uid' => 'B'], ['uid' => 'C']];
+        $source = [['uid' => 'C'], ['uid' => 'B'], ['uid' => 'A']];
+
+        $result = MergeService::orderMatrixBlocks($survivors, $current, $source, true);
+
+        $this->assertSame(['C', 'B', 'A'], array_column($result, 'uid'));
+    }
+
+    public function testOrderReorderInsertsSourceOnlyAddedAtSourcePosition(): void
+    {
+        $survivors = [
+            ['uid' => 'A'],
+            ['uid' => 'X'],
+            ['uid' => 'B'],
+        ];
+        $current = [['uid' => 'A'], ['uid' => 'B']];
+        $source = [['uid' => 'A'], ['uid' => 'X'], ['uid' => 'B']];
+
+        $result = MergeService::orderMatrixBlocks($survivors, $current, $source, true);
+
+        $this->assertSame(['A', 'X', 'B'], array_column($result, 'uid'));
+    }
+
+    /**
+     * Worked example from spec §6.2:
+     * - Current order: A, B, C, D, E (B exists only in current)
+     * - Source order: A, X, C, E, D (X is source-only; D and E reordered)
+     * - User accepts: X-added, reorder. User rejects: B-removed.
+     *
+     * B's anchor in current is A (the most recent both-sides block before B).
+     * Expected result: A, B, X, C, E, D
+     */
+    public function testOrderReorderAnchorRuleFromSpec(): void
+    {
+        $survivors = [
+            ['uid' => 'A'],
+            ['uid' => 'B'], // current-only, kept
+            ['uid' => 'C'],
+            ['uid' => 'D'],
+            ['uid' => 'E'],
+            ['uid' => 'X'], // source-only, added
+        ];
+        $current = [
+            ['uid' => 'A'], ['uid' => 'B'], ['uid' => 'C'], ['uid' => 'D'], ['uid' => 'E'],
+        ];
+        $source = [
+            ['uid' => 'A'], ['uid' => 'X'], ['uid' => 'C'], ['uid' => 'E'], ['uid' => 'D'],
+        ];
+
+        $result = MergeService::orderMatrixBlocks($survivors, $current, $source, true);
+
+        $this->assertSame(['A', 'B', 'X', 'C', 'E', 'D'], array_column($result, 'uid'));
+    }
+
+    public function testOrderReorderMultipleCurrentOnlyBlocksPreserveRelativeOrder(): void
+    {
+        $survivors = [
+            ['uid' => 'A'],
+            ['uid' => 'B1'],
+            ['uid' => 'B2'],
+            ['uid' => 'C'],
+        ];
+        $current = [['uid' => 'A'], ['uid' => 'B1'], ['uid' => 'B2'], ['uid' => 'C']];
+        $source = [['uid' => 'A'], ['uid' => 'C']];
+
+        $result = MergeService::orderMatrixBlocks($survivors, $current, $source, true);
+
+        $this->assertSame(['A', 'B1', 'B2', 'C'], array_column($result, 'uid'));
+    }
+
+    public function testOrderReorderCurrentOnlyBeforeFirstAnchorGoesFirst(): void
+    {
+        $survivors = [
+            ['uid' => 'B'],
+            ['uid' => 'A'],
+        ];
+        $current = [['uid' => 'B'], ['uid' => 'A']];
+        $source = [['uid' => 'A']];
+
+        $result = MergeService::orderMatrixBlocks($survivors, $current, $source, true);
+
+        $this->assertSame(['B', 'A'], array_column($result, 'uid'));
+    }
 }
