@@ -71,6 +71,12 @@ class DiffController extends Controller
             return $this->asFailure('Version not found.');
         }
 
+        // Capture which side carried the canonical entity BEFORE the chronological
+        // sort can swap them. "Source" is whichever side is NOT the canonical.
+        $olderIsCanonical = $older->id === $canonical->id;
+        $newerIsCanonical = $newer->id === $canonical->id;
+        $sourceRef = $olderIsCanonical ? $newerRef : $olderRef;
+
         // Force chronological order so diff colors stay stable across swaps.
         [$older, $newer] = $this->sortChronologically($older, $newer);
 
@@ -80,7 +86,7 @@ class DiffController extends Controller
             // Review mode is available when one side is canonical AND the setting is on.
             $settings = $plugin->getSettings();
             $reviewMode = $settings->enableReviewMode
-                && ($older->id === $canonical->id || $newer->id === $canonical->id);
+                && ($olderIsCanonical || $newerIsCanonical);
 
             $html = Craft::$app->getView()->renderTemplate(
                 'craft-delta/_diff-slideout',
@@ -88,7 +94,7 @@ class DiffController extends Controller
                     'result' => $result,
                     'reviewMode' => $reviewMode,
                     'canonicalSide' => $newer->id === $canonical->id ? 'newer' : 'older',
-                    'sourceRef' => $newer->id === $canonical->id ? $olderRef : $newerRef,
+                    'sourceRef' => $sourceRef,
                     'entryId' => $entryId,
                     'siteId' => $siteId ?? $canonical->siteId,
                     'canonicalUpdatedAt' => $canonical->dateUpdated?->format(\DateTimeInterface::ATOM),
@@ -297,6 +303,7 @@ class DiffController extends Controller
         $sourceRef = (string)$request->getRequiredBodyParam('sourceRef');
         $siteId = $request->getBodyParam('siteId') ? (int)$request->getBodyParam('siteId') : null;
         $acceptedAtoms = $request->getBodyParam('acceptedAtoms');
+        $deleteSourceDraft = (bool)$request->getBodyParam('deleteSourceDraft', false);
 
         if (!is_array($acceptedAtoms) || count($acceptedAtoms) === 0) {
             return $this->asJson([
@@ -319,11 +326,12 @@ class DiffController extends Controller
 
         $this->requireEntryAccess($canonical);
 
-        // Permission: user must be able to publish entries in this section.
+        // Permission: user must hold the dedicated review-mode apply permission
+        // for this section. Granted via Settings → Users → User group permissions.
         $user = Craft::$app->getUser()->getIdentity();
         $section = $canonical->getSection();
-        if (!$user || !$section || !$user->can("saveEntries:{$section->uid}")) {
-            throw new ForbiddenHttpException('Insufficient permissions to publish entries in this section.');
+        if (!$user || !$section || !$user->can("craftdelta-applyReview:{$section->uid}")) {
+            throw new ForbiddenHttpException('You do not have permission to apply review-mode changes for this section.');
         }
 
         $source = $this->resolveVersion($sourceRef, $canonical, $siteId);
@@ -336,7 +344,7 @@ class DiffController extends Controller
         }
 
         try {
-            $published = $plugin->merge->merge($canonical, $source, $acceptedAtoms);
+            $published = $plugin->merge->merge($canonical, $source, $acceptedAtoms, $deleteSourceDraft);
 
             return $this->asJson([
                 'success' => true,

@@ -11,6 +11,8 @@ use craft\base\Plugin;
 use craft\elements\Entry;
 use craft\events\DefineHtmlEvent;
 use craft\events\RegisterUrlRulesEvent;
+use craft\events\RegisterUserPermissionsEvent;
+use craft\services\UserPermissions;
 use craft\web\UrlManager;
 use yii\base\Event;
 use zeixcom\craftdelta\assets\diff\DiffAsset;
@@ -53,6 +55,7 @@ class Delta extends Plugin
 
         $this->registerCpRoutes();
         $this->registerEditorAssets();
+        $this->registerPermissions();
     }
 
     protected function createSettingsModel(): ?Model
@@ -77,6 +80,38 @@ class Delta extends Plugin
             UrlManager::EVENT_REGISTER_CP_URL_RULES,
             function (RegisterUrlRulesEvent $event) {
                 $event->rules['craft-delta/compare'] = 'craft-delta/diff/compare-full-page';
+            }
+        );
+    }
+
+    /**
+     * Register a per-section "Apply review-mode changes" permission. Granting
+     * a user this permission lets them publish accepted review-mode changes
+     * to entries in that section. Without it, review mode is read-only for
+     * the user.
+     */
+    private function registerPermissions(): void
+    {
+        Event::on(
+            UserPermissions::class,
+            UserPermissions::EVENT_REGISTER_PERMISSIONS,
+            function (RegisterUserPermissionsEvent $event) {
+                $sections = Craft::$app->getEntries()->getAllSections();
+                $sectionPermissions = [];
+                foreach ($sections as $section) {
+                    $sectionPermissions["craftdelta-applyReview:{$section->uid}"] = [
+                        'label' => Craft::t('craft-delta', 'Apply review-mode changes for "{section}"', [
+                            'section' => $section->name,
+                        ]),
+                    ];
+                }
+                if (count($sectionPermissions) === 0) {
+                    return;
+                }
+                $event->permissions[] = [
+                    'heading' => Craft::t('craft-delta', 'Craft Delta'),
+                    'permissions' => $sectionPermissions,
+                ];
             }
         );
     }
@@ -107,6 +142,27 @@ class Delta extends Plugin
 
                 $view = Craft::$app->getView();
                 $view->registerAssetBundle(DiffAsset::class);
+
+                // Register every source string the JS layer passes to Craft.t().
+                // Without this, Craft.t() falls back to the source string and
+                // non-English users see English UI for the dynamic JS bits.
+                $view->registerTranslations('craft-delta', [
+                    'Apply {count} accepted',
+                    '{decided} of {total} decided',
+                    'At least two revisions are needed to compare.',
+                    'Changed only',
+                    'Compare Revisions',
+                    'Comparing…',
+                    'Current Draft',
+                    'Current',
+                    'Drafts',
+                    'Expand',
+                    'Failed to load diff.',
+                    'Failed to load revisions.',
+                    'Loading revisions…',
+                    'Open full page',
+                    'Revisions',
+                ]);
 
                 /** @var Settings $settings */
                 $settings = $this->getSettings();

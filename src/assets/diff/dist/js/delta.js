@@ -897,12 +897,15 @@
 
       const progressEl = document.querySelector('[data-review-progress]');
       if (progressEl) {
-        progressEl.textContent = decided + ' of ' + total + ' decided';
+        progressEl.textContent = Craft.t('craft-delta', '{decided} of {total} decided', {
+          decided: decided,
+          total: total,
+        });
       }
 
       const applyBtn = document.querySelector('[data-action="apply"]');
       if (applyBtn) {
-        applyBtn.textContent = 'Apply ' + accepted + ' accepted';
+        applyBtn.textContent = Craft.t('craft-delta', 'Apply {count} accepted', { count: accepted });
         applyBtn.disabled = accepted === 0;
       }
     },
@@ -999,6 +1002,8 @@
       const entryId = toolbar.dataset.entryId;
       const siteId = toolbar.dataset.siteId;
       const sourceRef = toolbar.dataset.sourceRef;
+      const deleteSourceCheckbox = document.querySelector('[data-delete-source-draft]');
+      const deleteSourceDraft = !!(deleteSourceCheckbox && deleteSourceCheckbox.checked);
 
       Craft.sendActionRequest('POST', 'craft-delta/diff/apply', {
         data: {
@@ -1006,6 +1011,7 @@
           siteId: parseInt(siteId, 10),
           sourceRef: sourceRef,
           acceptedAtoms: accepted,
+          deleteSourceDraft: deleteSourceDraft ? 1 : 0,
         },
       }).then(function (response) {
         const data = response.data || {};

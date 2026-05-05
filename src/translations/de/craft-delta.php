@@ -53,4 +53,8 @@ return [
     'Review of {ref}' => 'Überprüfung von {ref}',
     'Enable Review Mode' => 'Review-Modus aktivieren',
     'Show the "Start Review" button on the diff slideout and allow accepting/rejecting changes into a new draft.' => 'Zeigt die Schaltfläche „Überprüfung starten" im Diff-Slideout an und ermöglicht das Übernehmen/Verwerfen von Änderungen in einem neuen Entwurf.',
+    'Also delete source draft' => 'Quell-Entwurf ebenfalls löschen',
+    'Apply review-mode changes for "{section}"' => 'Überprüfungsänderungen für „{section}" anwenden',
+    'Craft Delta' => 'Craft Delta',
+    'You do not have permission to apply review-mode changes for this section.' => 'Sie haben keine Berechtigung, Überprüfungsänderungen für diese Sektion anzuwenden.',
 ];

@@ -53,4 +53,8 @@ return [
     'Review of {ref}' => 'Review of {ref}',
     'Enable Review Mode' => 'Enable Review Mode',
     'Show the "Start Review" button on the diff slideout and allow accepting/rejecting changes into a new draft.' => 'Show the "Start Review" button on the diff slideout and allow accepting/rejecting changes into a new draft.',
+    'Also delete source draft' => 'Also delete source draft',
+    'Apply review-mode changes for "{section}"' => 'Apply review-mode changes for "{section}"',
+    'Craft Delta' => 'Craft Delta',
+    'You do not have permission to apply review-mode changes for this section.' => 'You do not have permission to apply review-mode changes for this section.',
 ];

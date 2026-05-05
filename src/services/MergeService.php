@@ -337,12 +337,15 @@ class MergeService extends Component
     }
 
     /**
-     * Apply the user's accepted atoms onto a new draft of the canonical entry.
+     * Apply the user's accepted atoms onto a new draft of the canonical entry,
+     * then publish that draft via Craft's standard lifecycle.
      *
-     * @param string[] $acceptedAtoms List of stable atom keys (see spec §5.1)
-     * @return Entry The newly saved draft
+     * @param string[] $acceptedAtoms     List of stable atom keys (see spec §5.1)
+     * @param bool     $deleteSourceDraft If true and $source is a draft, delete
+     *                                    it after the publish succeeds.
+     * @return Entry The published canonical entry (with a fresh revision)
      */
-    public function merge(Entry $canonical, Entry $source, array $acceptedAtoms): Entry
+    public function merge(Entry $canonical, Entry $source, array $acceptedAtoms, bool $deleteSourceDraft = false): Entry
     {
         // 1. Re-run a fresh diff and build the available-atoms set.
         $plugin = \zeixcom\craftdelta\Delta::getInstance();
@@ -412,6 +415,12 @@ class MergeService extends Component
         if (!$published instanceof Entry) {
             $errors = $draft->getErrors();
             throw new \RuntimeException('Failed to publish: ' . json_encode($errors));
+        }
+
+        // 9. Optional: delete the source draft if the caller asked for it. Only
+        //    applies when source IS a draft (not canonical, not a revision).
+        if ($deleteSourceDraft && $source->getBehavior('draft') !== null) {
+            \Craft::$app->getElements()->deleteElement($source, true);
         }
 
         return $published;

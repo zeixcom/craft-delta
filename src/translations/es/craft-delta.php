@@ -53,4 +53,8 @@ return [
     'Review of {ref}' => 'Revisión de {ref}',
     'Enable Review Mode' => 'Activar modo de revisión',
     'Show the "Start Review" button on the diff slideout and allow accepting/rejecting changes into a new draft.' => 'Mostrar el botón «Iniciar revisión» en el panel de comparación y permitir aceptar/rechazar cambios en un nuevo borrador.',
+    'Also delete source draft' => 'Eliminar también el borrador de origen',
+    'Apply review-mode changes for "{section}"' => 'Aplicar cambios del modo revisión para «{section}»',
+    'Craft Delta' => 'Craft Delta',
+    'You do not have permission to apply review-mode changes for this section.' => 'No tiene permiso para aplicar cambios del modo revisión en esta sección.',
 ];

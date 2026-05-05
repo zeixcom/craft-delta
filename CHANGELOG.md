@@ -12,7 +12,8 @@
 - `MatrixDiffer` now emits `blockUid` (the canonical block UID) on each change entry — required for atom keys to round-trip across canonical/draft/revision.
 
 ### Changed
-- Apply requires the `saveEntries:<sectionUid>` permission (not `createEntryDrafts`) since accepted changes publish directly to the canonical entry rather than to a separate draft.
+- Apply requires a new per-section permission `craftdelta-applyReview:<sectionUid>` — registered by Craft Delta and visible under Settings → Users → User Groups → Permissions → Craft Delta. Granting just edit/save permissions is no longer enough; admins must explicitly grant this to enable the Apply button for non-admin users. Admins have it automatically.
+- An "Also delete source draft" checkbox appears next to the Apply button when the comparison source is a draft. Off by default. When checked, the source draft is deleted after a successful publish — useful when the draft was a one-shot suggestion. Left unchecked, the draft persists and naturally becomes a queue of rejected changes (re-opening the diff afterward shows only what wasn't accepted).
 
 ## 1.1.0 - 2026-04-15
 

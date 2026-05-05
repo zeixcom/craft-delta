@@ -53,4 +53,8 @@ return [
     'Review of {ref}' => 'Przegląd {ref}',
     'Enable Review Mode' => 'Włącz tryb przeglądu',
     'Show the "Start Review" button on the diff slideout and allow accepting/rejecting changes into a new draft.' => 'Pokazuje przycisk „Rozpocznij przegląd" w panelu porównania i umożliwia akceptowanie/odrzucanie zmian w nowym szkicu.',
+    'Also delete source draft' => 'Usuń także szkic źródłowy',
+    'Apply review-mode changes for "{section}"' => 'Zastosuj zmiany trybu przeglądu dla „{section}"',
+    'Craft Delta' => 'Craft Delta',
+    'You do not have permission to apply review-mode changes for this section.' => 'Nie masz uprawnień do stosowania zmian trybu przeglądu dla tej sekcji.',
 ];

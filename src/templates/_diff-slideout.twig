@@ -31,15 +31,16 @@
     </div>
 
     <div class="delta-review-stepper" data-review-stepper hidden>
-        <span class="delta-review-progress" data-review-progress>
+        <span class="delta-review-progress" data-review-progress
+              title="{{ 'Use J / K to navigate, A / R to decide'|t('craft-delta') }}">
             {{ '{decided} of {total} decided'|t('craft-delta', { decided: 0, total: 0 }) }}
         </span>
-        <button type="button" class="btn" data-action="prev-change">
-            ← {{ 'Prev'|t('craft-delta') }}
-        </button>
-        <button type="button" class="btn" data-action="next-change">
-            {{ 'Next'|t('craft-delta') }} →
-        </button>
+        {% if sourceRef starts with 'draft:' %}
+            <label class="delta-review-cleanup">
+                <input type="checkbox" data-delete-source-draft>
+                {{ 'Also delete source draft'|t('craft-delta') }}
+            </label>
+        {% endif %}
         <button type="button" class="btn submit" data-action="apply" disabled>
             {{ 'Apply {count} accepted'|t('craft-delta', { count: 0 }) }}
         </button>
