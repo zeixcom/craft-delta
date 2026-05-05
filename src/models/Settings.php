@@ -26,6 +26,12 @@ class Settings extends Model
      */
     public bool $defaultShowUnchanged = false;
 
+    /**
+     * Enable review mode UI (Start Review button, accept/reject, apply).
+     * When false, the plugin behaves as a pure read-only diff tool.
+     */
+    public bool $enableReviewMode = true;
+
     protected function defineRules(): array
     {
         $rules = parent::defineRules();
