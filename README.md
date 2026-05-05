@@ -27,6 +27,7 @@ php craft plugin/install craft-delta
 - **"Changed only" filter** — toggle unchanged fields on/off
 - **Diff summary stats** — fields changed, additions/deletions
 - **Translations** — English, German, French, Spanish, Italian, Dutch, Portuguese, Polish
+- **Review Mode** — accept or reject individual changes from inside the diff slideout, then apply all accepted changes as a new draft on the canonical entry. Per-field and per-Matrix-block granularity. Resumable across browser restarts.
 
 ## Usage
 
@@ -37,6 +38,12 @@ Use the two dropdowns to select which versions to compare — Current, any draft
 - Click the **swap** button to reverse the comparison direction
 - Toggle **"Changed only"** to hide unchanged fields
 
+### Review Mode
+
+When comparing a draft or revision against the **current** entry, click **Start Review** in the slideout toolbar. Each changed field gains an **✓ Accept** / **✗ Reject** button pair; Matrix blocks get the same buttons per block. Use **J / K** to step between changes, **A / R** to decide. Click **Apply N accepted** to create a new draft of the canonical entry containing your accepted changes — rejected changes are dropped.
+
+Decisions persist in browser localStorage until you Apply or Cancel. If the canonical entry is edited mid-review, you'll be prompted to start over.
+
 ## Settings
 
 Configure under **Settings > Plugins > Craft Delta**:
@@ -46,6 +53,7 @@ Configure under **Settings > Plugins > Craft Delta**:
 | Diff Context Lines | 3 | Unchanged lines shown around changes |
 | Max Field Length | 50,000 | Characters before showing a simplified diff |
 | Show Unchanged Fields | Off | Show unchanged fields by default |
+| Enable Review Mode | On | Show the "Start Review" button. When off, the plugin behaves as a pure read-only diff tool. |
 
 ## Extending
 
