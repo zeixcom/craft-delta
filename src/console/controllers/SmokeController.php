@@ -17,11 +17,26 @@ use yii\console\ExitCode;
 class SmokeController extends Controller
 {
     /**
-     * Runs the Matrix-apply end-to-end smoke test.
+     * Runs the Matrix `added` end-to-end smoke test.
      */
     public function actionMatrixApply(): int
     {
-        $script = dirname(__DIR__, 3) . '/tests/smoke/matrix-apply-smoke.php';
+        return $this->runScript('matrix-apply-smoke.php');
+    }
+
+    /**
+     * Runs the Matrix `added` + `removed` end-to-end smoke test. Seeds
+     * canonical with 3 known blocks, then drafts a state where one is
+     * removed and one new one is added, and verifies the apply.
+     */
+    public function actionMatrixAddRemove(): int
+    {
+        return $this->runScript('matrix-add-remove-smoke.php');
+    }
+
+    private function runScript(string $name): int
+    {
+        $script = dirname(__DIR__, 3) . '/tests/smoke/' . $name;
         if (!is_file($script)) {
             $this->stderr("Script not found: $script\n");
             return ExitCode::IOERR;
@@ -29,7 +44,7 @@ class SmokeController extends Controller
 
         require $script;
 
-        // matrix-apply-smoke.php calls exit() on failure; if we get here it passed.
+        // Smoke scripts call exit() on failure; if we get here it passed.
         return ExitCode::OK;
     }
 }
