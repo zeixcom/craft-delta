@@ -28,6 +28,7 @@ class MatrixDiffer implements DifferInterface
             if (!isset($newById[$id])) {
                 $change = [
                     'type' => 'removed',
+                    'blockUid' => $entry->canonicalUid,
                     'blockType' => $entry->type->name ?? 'Block',
                     'summary' => $this->summarizeEntry($entry),
                 ];
@@ -43,6 +44,7 @@ class MatrixDiffer implements DifferInterface
             if (!isset($oldById[$id])) {
                 $change = [
                     'type' => 'added',
+                    'blockUid' => $entry->canonicalUid,
                     'blockType' => $entry->type->name ?? 'Block',
                     'summary' => $this->summarizeEntry($entry),
                 ];
@@ -62,6 +64,7 @@ class MatrixDiffer implements DifferInterface
                 if (!empty($fieldChanges)) {
                     $changes[] = [
                         'type' => 'modified',
+                        'blockUid' => $newEntry->canonicalUid,
                         'blockType' => $newEntry->type->name ?? 'Block',
                         'summary' => $this->summarizeEntry($newEntry),
                         'fieldChanges' => $fieldChanges,

@@ -279,6 +279,64 @@ class MergeService extends Component
     }
 
     /**
+     * Apply matrix-block and matrix-reorder atoms onto a draft for one Matrix field.
+     *
+     * @param array<int, array{blockUid: string, changeType: string}> $blockAtoms
+     */
+    private function applyMatrixAtoms(
+        Entry $draft,
+        Entry $source,
+        string $fieldHandle,
+        array $blockAtoms,
+        bool $acceptedReorder,
+    ): void {
+        $current = $this->serializeMatrixBlocks($draft->getFieldValue($fieldHandle));
+        $sourceBlocks = $this->serializeMatrixBlocks($source->getFieldValue($fieldHandle));
+
+        $survivors = self::buildMatrixBlockList($current, $sourceBlocks, $blockAtoms);
+        $ordered = self::orderMatrixBlocks($survivors, $current, $sourceBlocks, $acceptedReorder);
+
+        // Convert back into Craft's Matrix value format. Each block is keyed by
+        // its UID with the block's payload (type, fields). We rebuild the field's
+        // serialized value and let setFieldValue do the rest.
+        $serialized = [];
+        foreach ($ordered as $block) {
+            $serialized[$block['uid']] = $block['payload'];
+        }
+
+        $draft->setFieldValue($fieldHandle, $serialized);
+    }
+
+    /**
+     * Serialize a Craft Matrix field value into [{uid, payload}, ...] form
+     * keyed by current order. The payload is whatever Craft expects on
+     * setFieldValue — for v1 that's the array shape from getSerializedFieldValues.
+     *
+     * Uses canonicalUid so blocks line up across canonical/draft/revision sides
+     * (mirrors MatrixDiffer's canonical-ID matching).
+     *
+     * @param mixed $matrixValue The result of $entry->getFieldValue($handle) for a Matrix field
+     * @return array<int, array{uid: string, payload: array<string, mixed>}>
+     */
+    private function serializeMatrixBlocks(mixed $matrixValue): array
+    {
+        $result = [];
+        // $matrixValue is typically a Craft\elements\db\EntryQuery (Matrix blocks
+        // are entries in Craft 5). Iterating gives Block entries; each has a
+        // canonicalUid and a serializeFieldValues method.
+        foreach ($matrixValue as $block) {
+            $result[] = [
+                'uid' => $block->canonicalUid,
+                'payload' => [
+                    'type' => $block->type->handle,
+                    'fields' => $block->getSerializedFieldValues(),
+                ],
+            ];
+        }
+        return $result;
+    }
+
+    /**
      * Apply the user's accepted atoms onto a new draft of the canonical entry.
      *
      * @param string[] $acceptedAtoms List of stable atom keys (see spec §5.1)
@@ -286,7 +344,129 @@ class MergeService extends Component
      */
     public function merge(Entry $canonical, Entry $source, array $acceptedAtoms): Entry
     {
-        // TODO: implemented across Tasks 3-9.
-        throw new \LogicException('MergeService::merge not implemented yet.');
+        // 1. Re-run a fresh diff and build the available-atoms set.
+        $plugin = \zeixcom\craftdelta\Delta::getInstance();
+        $freshDiff = $plugin->diff->compare($canonical, $source);
+        $availableAtoms = $this->collectAvailableAtoms($freshDiff);
+
+        // 2. Validate every accepted atom is still present in the fresh diff.
+        self::validateAtoms($availableAtoms, $acceptedAtoms);
+
+        // 3. Group accepted atoms by kind / Matrix field.
+        $fieldAtoms = [];
+        $matrixBlockAtomsByHandle = [];
+        $reorderAcceptedHandles = [];
+
+        foreach ($acceptedAtoms as $atom) {
+            $parsed = self::parseAtomKey($atom);
+            switch ($parsed['kind']) {
+                case 'field':
+                    $fieldAtoms[] = $atom;
+                    break;
+                case 'matrix-block':
+                    $h = $parsed['fieldHandle'];
+                    $matrixBlockAtomsByHandle[$h] ??= [];
+                    $matrixBlockAtomsByHandle[$h][] = [
+                        'blockUid' => $parsed['blockUid'],
+                        'changeType' => $parsed['changeType'],
+                    ];
+                    break;
+                case 'matrix-reorder':
+                    $reorderAcceptedHandles[$parsed['fieldHandle']] = true;
+                    break;
+            }
+        }
+
+        // 4. Create a draft of the canonical entry.
+        $user = \Craft::$app->getUser()->getIdentity();
+        $draft = \Craft::$app->getDrafts()->createDraft(
+            $canonical,
+            $user?->id ?? 0,
+            \Craft::t('craft-delta', 'Review of {ref}', ['ref' => $this->humanRefForSource($source)]),
+        );
+
+        // 5. Apply field atoms.
+        $this->applyFieldAtoms($draft, $source, $fieldAtoms);
+
+        // 6. Apply Matrix atoms — one call per Matrix field.
+        //    Include fields with reorder-only atoms (no block atoms).
+        $matrixHandles = array_unique(array_merge(
+            array_keys($matrixBlockAtomsByHandle),
+            array_keys($reorderAcceptedHandles),
+        ));
+        foreach ($matrixHandles as $handle) {
+            $blockAtoms = $matrixBlockAtomsByHandle[$handle] ?? [];
+            $acceptedReorder = isset($reorderAcceptedHandles[$handle]);
+            $this->applyMatrixAtoms($draft, $source, $handle, $blockAtoms, $acceptedReorder);
+        }
+
+        // 7. ONE save — never per field.
+        if (!\Craft::$app->getElements()->saveElement($draft)) {
+            $errors = $draft->getErrors();
+            throw new \RuntimeException('Draft validation failed: ' . json_encode($errors));
+        }
+
+        return $draft;
+    }
+
+    /**
+     * Walk the fresh DiffResult and collect the full set of atom keys it offers.
+     * Mirrors the keys the client emits in data-atom-id.
+     *
+     * @return string[]
+     */
+    private function collectAvailableAtoms(\zeixcom\craftdelta\models\DiffResult $diff): array
+    {
+        $atoms = [];
+
+        foreach ($diff->fieldDiffs as $fd) {
+            if (!$fd->hasChanges) {
+                continue;
+            }
+
+            $isMatrix = str_contains($fd->fieldType, '\\Matrix');
+            if (!$isMatrix) {
+                $atoms[] = 'field:' . $fd->fieldHandle;
+                continue;
+            }
+
+            // Matrix field — diffHtml is JSON describing block changes.
+            $changes = json_decode($fd->diffHtml, true);
+            if (!is_array($changes)) {
+                continue;
+            }
+
+            $hasReorder = false;
+            foreach ($changes as $change) {
+                $type = $change['type'] ?? null;
+                if ($type === 'reordered') {
+                    $hasReorder = true;
+                    continue;
+                }
+                if (in_array($type, ['added', 'removed', 'modified'], true)
+                    && !empty($change['blockUid'])
+                ) {
+                    $atoms[] = 'matrix-block:' . $fd->fieldHandle . ':' . $change['blockUid'] . ':' . $type;
+                }
+            }
+
+            if ($hasReorder) {
+                $atoms[] = 'matrix-reorder:' . $fd->fieldHandle;
+            }
+        }
+
+        return $atoms;
+    }
+
+    private function humanRefForSource(Entry $source): string
+    {
+        if ($source->revisionNum !== null) {
+            return 'Rev ' . $source->revisionNum;
+        }
+        $behavior = $source->getBehavior('draft');
+        if ($behavior !== null) {
+            return $behavior->draftName ?? 'Draft';
+        }
+        return 'Source';
     }
 }
