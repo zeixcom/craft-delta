@@ -269,4 +269,87 @@ class DiffController extends Controller
 
         return $revision;
     }
+
+    /**
+     * Apply accepted review-mode atoms to a new draft of the canonical entry.
+     */
+    public function actionApply(): Response
+    {
+        $this->requireAcceptsJson();
+        $this->requireCpRequest();
+        $this->requirePostRequest();
+
+        $request = Craft::$app->getRequest();
+        $entryId = (int)$request->getRequiredBodyParam('entryId');
+        $sourceRef = (string)$request->getRequiredBodyParam('sourceRef');
+        $siteId = $request->getBodyParam('siteId') ? (int)$request->getBodyParam('siteId') : null;
+        $acceptedAtoms = $request->getBodyParam('acceptedAtoms');
+
+        if (!is_array($acceptedAtoms) || count($acceptedAtoms) === 0) {
+            return $this->asJson([
+                'success' => false,
+                'errorCode' => 'no-changes',
+                'error' => Craft::t('craft-delta', 'No changes to apply.'),
+            ])->setStatusCode(422);
+        }
+
+        $plugin = Delta::getInstance();
+
+        $canonical = $plugin->revision->getCanonical($entryId, $siteId);
+        if (!$canonical instanceof Entry) {
+            return $this->asJson([
+                'success' => false,
+                'errorCode' => 'source-not-found',
+                'error' => Craft::t('craft-delta', 'Entry not found.'),
+            ])->setStatusCode(422);
+        }
+
+        $this->requireEntryAccess($canonical);
+
+        // Permission: user must be able to create drafts on this section.
+        $user = Craft::$app->getUser()->getIdentity();
+        $section = $canonical->getSection();
+        if (!$user || !$section || !$user->can("createEntryDrafts:{$section->uid}")) {
+            throw new ForbiddenHttpException('Insufficient permissions to create a draft on this section.');
+        }
+
+        $source = $this->resolveVersion($sourceRef, $canonical, $siteId);
+        if (!$source instanceof Entry) {
+            return $this->asJson([
+                'success' => false,
+                'errorCode' => 'source-not-found',
+                'error' => Craft::t('craft-delta', 'Source version not found.'),
+            ])->setStatusCode(422);
+        }
+
+        try {
+            $draft = $plugin->merge->merge($canonical, $source, $acceptedAtoms);
+
+            return $this->asJson([
+                'success' => true,
+                'draftId' => $draft->draftId,
+                'draftEditUrl' => $draft->getCpEditUrl(),
+            ]);
+        } catch (\zeixcom\craftdelta\services\StaleAtomException $e) {
+            return $this->asJson([
+                'success' => false,
+                'errorCode' => 'stale-atoms',
+                'error' => Craft::t('craft-delta', 'The entry has changed since you started reviewing. Please reload the diff and restart your review.'),
+            ])->setStatusCode(422);
+        } catch (\InvalidArgumentException $e) {
+            Craft::warning("Apply rejected malformed atom: {$e->getMessage()}", __METHOD__);
+            return $this->asJson([
+                'success' => false,
+                'errorCode' => 'stale-atoms',
+                'error' => Craft::t('craft-delta', 'The entry has changed since you started reviewing. Please reload the diff and restart your review.'),
+            ])->setStatusCode(422);
+        } catch (\Throwable $e) {
+            Craft::error("Apply failed: {$e->getMessage()}", __METHOD__);
+            return $this->asJson([
+                'success' => false,
+                'errorCode' => 'validation-failed',
+                'error' => $e->getMessage(),
+            ])->setStatusCode(422);
+        }
+    }
 }
