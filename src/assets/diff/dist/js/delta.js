@@ -420,6 +420,11 @@
           self.bindFieldToggles($result[0]);
           self.bindTabNav($result[0]);
           self.updateToolbarOffset();
+
+          const toolbar = document.querySelector('[data-review-toolbar]');
+          if (toolbar) {
+            Craft.Delta.reviewMode.checkForPriorState(toolbar);
+          }
         })
         .catch(function () {
           if (requestId !== self._loadId) { return; }
@@ -705,6 +710,69 @@
         this.intersectionObserver.disconnect();
         this.intersectionObserver = null;
       }
+    },
+
+    /**
+     * Look up prior state for this comparison; if found, surface a banner
+     * with "Resume" / "Start fresh" options. Called when the slideout's
+     * diff content has just been rendered — NOT when entering review mode.
+     */
+    checkForPriorState: function (toolbar) {
+      const entryId = toolbar.dataset.entryId;
+      const siteId = toolbar.dataset.siteId;
+      const sourceRef = toolbar.dataset.sourceRef;
+      const userId = (Craft.userId || '0');
+      const liveUpdatedAt = toolbar.dataset.canonicalUpdatedAt;
+
+      const key = 'craftdelta:review:' + userId + ':' + entryId + ':' + siteId + ':' + sourceRef;
+      let raw;
+      try { raw = localStorage.getItem(key); } catch (e) { return; }
+      if (!raw) return;
+
+      let parsed;
+      try { parsed = JSON.parse(raw); } catch (e) { return; }
+      if (!parsed || !parsed.decisions) return;
+
+      const banner = document.querySelector('[data-review-banner]');
+      if (!banner) return;
+
+      // Stale check
+      if (parsed.canonicalUpdatedAt && parsed.canonicalUpdatedAt !== liveUpdatedAt) {
+        try { localStorage.removeItem(key); } catch (e) {}
+        banner.textContent = 'The entry has changed since your last review; starting fresh.';
+        banner.removeAttribute('hidden');
+        return;
+      }
+
+      const total = document.querySelectorAll('[data-atom-id]').length;
+      const decided = Object.keys(parsed.decisions).length;
+
+      banner.innerHTML = '';
+      const text = document.createElement('span');
+      text.textContent = 'Resume previous review (' + decided + ' of ' + total + ' decided)? ';
+      banner.appendChild(text);
+
+      const resume = document.createElement('button');
+      resume.type = 'button';
+      resume.className = 'btn submit';
+      resume.textContent = 'Resume';
+      resume.addEventListener('click', function () {
+        Craft.Delta.reviewMode.enter(toolbar);
+        banner.setAttribute('hidden', '');
+      });
+      banner.appendChild(resume);
+
+      const fresh = document.createElement('button');
+      fresh.type = 'button';
+      fresh.className = 'btn';
+      fresh.textContent = 'Start fresh';
+      fresh.addEventListener('click', function () {
+        try { localStorage.removeItem(key); } catch (e) {}
+        banner.setAttribute('hidden', '');
+      });
+      banner.appendChild(fresh);
+
+      banner.removeAttribute('hidden');
     },
 
     enter: function (toolbar) {

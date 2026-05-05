@@ -91,6 +91,7 @@ class DiffController extends Controller
                     'sourceRef' => $newer->id === $canonical->id ? $olderRef : $newerRef,
                     'entryId' => $entryId,
                     'siteId' => $siteId ?? $canonical->siteId,
+                    'canonicalUpdatedAt' => $canonical->dateUpdated?->format(\DateTimeInterface::ATOM),
                 ],
             );
 
