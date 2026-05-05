@@ -858,7 +858,7 @@
         if (action === 'next-change') { self.next(); return; }
         if (action === 'prev-change') { self.prev(); return; }
 
-        // 'apply' handled in Task 16
+        if (action === 'apply') { self.apply(); return; }
       });
     },
 
@@ -898,6 +898,80 @@
       }
       try { localStorage.removeItem(this.storageKey); } catch (e) {}
       this.exit();
+    },
+
+    apply: function () {
+      const self = this;
+      const accepted = Object.entries(this.state)
+        .filter(function (kv) { return kv[1] === 'accepted'; })
+        .map(function (kv) { return kv[0]; });
+
+      if (accepted.length === 0) return;
+
+      const confirmed = confirm(
+        'Create a new draft with ' + accepted.length + ' accepted changes? Rejected changes will not affect the entry.'
+      );
+      if (!confirmed) return;
+
+      const toolbar = document.querySelector('[data-review-toolbar]');
+      const entryId = toolbar.dataset.entryId;
+      const siteId = toolbar.dataset.siteId;
+      const sourceRef = toolbar.dataset.sourceRef;
+
+      Craft.sendActionRequest('POST', 'craft-delta/diff/apply', {
+        data: {
+          entryId: parseInt(entryId, 10),
+          siteId: parseInt(siteId, 10),
+          sourceRef: sourceRef,
+          acceptedAtoms: accepted,
+        },
+      }).then(function (response) {
+        const data = response.data || {};
+        if (data.success) {
+          self.handleApplySuccess(data);
+        } else {
+          self.handleApplyError(data);
+        }
+      }).catch(function (err) {
+        const data = (err && err.response && err.response.data) || {};
+        self.handleApplyError(data);
+      });
+    },
+
+    handleApplySuccess: function (data) {
+      try { localStorage.removeItem(this.storageKey); } catch (e) {}
+      this.exit();
+      const goNow = confirm('Draft created. Open it now?');
+      if (goNow && data.draftEditUrl) {
+        window.location.href = data.draftEditUrl;
+      }
+    },
+
+    handleApplyError: function (data) {
+      const banner = document.querySelector('[data-review-banner]');
+      switch (data.errorCode) {
+        case 'stale-atoms':
+          try { localStorage.removeItem(this.storageKey); } catch (e) {}
+          if (banner) {
+            banner.textContent = data.error || 'The entry has changed since you started reviewing; restarting.';
+            banner.removeAttribute('hidden');
+          }
+          // Trigger a fresh diff reload if a helper exists; otherwise no-op.
+          if (typeof Craft.Delta.reload === 'function') {
+            Craft.Delta.reload();
+          }
+          break;
+        case 'validation-failed':
+          // Preserve localStorage; show the error
+          alert((data.error || 'Validation failed.') + '\n\nYour decisions are still saved. Adjust and try again.');
+          break;
+        case 'no-changes':
+          // Shouldn't happen — apply button is disabled when 0 accepted
+          alert(data.error || 'No changes to apply.');
+          break;
+        default:
+          alert((data.error || 'Apply failed.') + '\n\nYour decisions are still saved.');
+      }
     },
   };
 
