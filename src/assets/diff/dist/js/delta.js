@@ -739,7 +739,7 @@
       // Stale check
       if (parsed.canonicalUpdatedAt && parsed.canonicalUpdatedAt !== liveUpdatedAt) {
         try { localStorage.removeItem(key); } catch (e) {}
-        banner.textContent = 'The entry has changed since your last review; starting fresh.';
+        banner.textContent = Craft.t('craft-delta', 'The entry has changed since your last review; starting fresh.');
         banner.removeAttribute('hidden');
         return;
       }
@@ -749,13 +749,16 @@
 
       banner.innerHTML = '';
       const text = document.createElement('span');
-      text.textContent = 'Resume previous review (' + decided + ' of ' + total + ' decided)? ';
+      text.textContent = Craft.t('craft-delta', 'Resume previous review ({decided} of {total} decided)?', {
+        decided: decided,
+        total: total,
+      }) + ' ';
       banner.appendChild(text);
 
       const resume = document.createElement('button');
       resume.type = 'button';
       resume.className = 'btn submit';
-      resume.textContent = 'Resume';
+      resume.textContent = Craft.t('craft-delta', 'Resume');
       resume.addEventListener('click', function () {
         Craft.Delta.reviewMode.enter(toolbar);
         banner.setAttribute('hidden', '');
@@ -765,7 +768,7 @@
       const fresh = document.createElement('button');
       fresh.type = 'button';
       fresh.className = 'btn';
-      fresh.textContent = 'Start fresh';
+      fresh.textContent = Craft.t('craft-delta', 'Start fresh');
       fresh.addEventListener('click', function () {
         try { localStorage.removeItem(key); } catch (e) {}
         banner.setAttribute('hidden', '');
@@ -979,7 +982,7 @@
     cancel: function () {
       const decided = Object.keys(this.state).length;
       if (decided > 0) {
-        if (!confirm('Discard ' + decided + ' decisions?')) return;
+        if (!confirm(Craft.t('craft-delta', 'Discard {decided} decisions?', { decided: decided }))) return;
       }
       try { localStorage.removeItem(this.storageKey); } catch (e) {}
       this.exit();
@@ -993,9 +996,11 @@
 
       if (accepted.length === 0) return;
 
-      const confirmed = confirm(
-        'Publish ' + accepted.length + ' accepted changes to this entry? This creates a new revision. Rejected changes will not affect the entry.'
-      );
+      const confirmed = confirm(Craft.t(
+        'craft-delta',
+        'Publish {count} accepted changes to this entry? This creates a new revision. Rejected changes will not affect the entry.',
+        { count: accepted.length }
+      ));
       if (!confirmed) return;
 
       const toolbar = document.querySelector('[data-review-toolbar]');
@@ -1029,7 +1034,7 @@
     handleApplySuccess: function (data) {
       try { localStorage.removeItem(this.storageKey); } catch (e) {}
       this.exit();
-      const goNow = confirm('Changes published. Open the entry?');
+      const goNow = confirm(Craft.t('craft-delta', 'Changes published. Open the entry?'));
       if (goNow && data.entryEditUrl) {
         window.location.href = data.entryEditUrl;
       }
@@ -1041,7 +1046,7 @@
         case 'stale-atoms':
           try { localStorage.removeItem(this.storageKey); } catch (e) {}
           if (banner) {
-            banner.textContent = data.error || 'The entry has changed since you started reviewing; restarting.';
+            banner.textContent = data.error || Craft.t('craft-delta', 'The entry has changed since you started reviewing. Please reload the diff and restart your review.');
             banner.removeAttribute('hidden');
           }
           // Trigger a fresh diff reload if a helper exists; otherwise no-op.
@@ -1051,14 +1056,14 @@
           break;
         case 'validation-failed':
           // Preserve localStorage; show the error
-          alert((data.error || 'Validation failed.') + '\n\nYour decisions are still saved. Adjust and try again.');
+          alert((data.error || Craft.t('craft-delta', 'Validation failed.')) + '\n\n' + Craft.t('craft-delta', 'Your decisions are still saved. Adjust and try again.'));
           break;
         case 'no-changes':
           // Shouldn't happen — apply button is disabled when 0 accepted
-          alert(data.error || 'No changes to apply.');
+          alert(data.error || Craft.t('craft-delta', 'No changes to apply.'));
           break;
         default:
-          alert((data.error || 'Apply failed.') + '\n\nYour decisions are still saved.');
+          alert((data.error || Craft.t('craft-delta', 'Apply failed.')) + '\n\n' + Craft.t('craft-delta', 'Your decisions are still saved.'));
       }
     },
   };

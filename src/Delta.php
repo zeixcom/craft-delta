@@ -162,6 +162,20 @@ class Delta extends Plugin
                     'Loading revisions…',
                     'Open full page',
                     'Revisions',
+                    // Review-mode dynamic strings
+                    'Resume previous review ({decided} of {total} decided)?',
+                    'Resume',
+                    'Start fresh',
+                    'The entry has changed since your last review; starting fresh.',
+                    'The entry has changed since you started reviewing. Please reload the diff and restart your review.',
+                    'Discard {decided} decisions?',
+                    'Publish {count} accepted changes to this entry? This creates a new revision. Rejected changes will not affect the entry.',
+                    'Changes published. Open the entry?',
+                    'Validation failed.',
+                    'Apply failed.',
+                    'No changes to apply.',
+                    'Your decisions are still saved. Adjust and try again.',
+                    'Your decisions are still saved.',
                 ]);
 
                 /** @var Settings $settings */
