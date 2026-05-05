@@ -1047,46 +1047,66 @@ button.delta-field-header {
 
 .delta-atom-actions[hidden] { display: none !important; }
 
-.delta-atom-accept,
-.delta-atom-reject {
+/* Bumped specificity (.btn.delta-atom-accept) to override Craft's stock .btn styles. */
+button.delta-atom-accept,
+button.delta-atom-reject,
+.btn.delta-atom-accept,
+.btn.delta-atom-reject {
     padding: 3px 10px;
     font-size: 12px;
     line-height: 1.4;
-    background: var(--delta-header-bg);
-    border: 1px solid var(--delta-border);
     border-radius: 4px;
-    color: var(--text-color);
     cursor: pointer;
     transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+    font-weight: 500;
 }
 
-.delta-atom-accept:hover {
+/* Default state — already tinted with semantic colors so the buttons read as
+   "accept" / "reject" before any interaction. Matches the visual vocabulary
+   of added/removed Matrix blocks elsewhere in the slideout. */
+button.delta-atom-accept,
+.btn.delta-atom-accept {
     background: var(--delta-add-bg);
-    border-color: var(--delta-add-border);
+    border: 1px solid var(--delta-add-border);
     color: var(--delta-add-text);
 }
 
-.delta-atom-reject:hover {
+button.delta-atom-reject,
+.btn.delta-atom-reject {
     background: var(--delta-del-bg);
-    border-color: var(--delta-del-border);
+    border: 1px solid var(--delta-del-border);
     color: var(--delta-del-text);
 }
 
-/* Active button state — chosen decision is filled-in, unmistakable */
-.delta-atom-accept.is-active {
+button.delta-atom-accept:hover,
+.btn.delta-atom-accept:hover {
+    background: var(--delta-add-bg-word);
+    color: var(--delta-add-text);
+}
+
+button.delta-atom-reject:hover,
+.btn.delta-atom-reject:hover {
+    background: var(--delta-del-bg-word);
+    color: var(--delta-del-text);
+}
+
+/* Active state — chosen decision is filled solid, unmistakable. */
+button.delta-atom-accept.is-active,
+.btn.delta-atom-accept.is-active {
     background: var(--delta-add-border);
     border-color: var(--delta-add-border);
     color: #fff;
-    font-weight: 600;
-    box-shadow: 0 1px 2px rgba(40, 167, 69, 0.3);
+    font-weight: 700;
+    box-shadow: 0 1px 3px rgba(40, 167, 69, 0.4);
 }
 
-.delta-atom-reject.is-active {
+button.delta-atom-reject.is-active,
+.btn.delta-atom-reject.is-active {
     background: var(--delta-del-border);
     border-color: var(--delta-del-border);
     color: #fff;
-    font-weight: 600;
-    box-shadow: 0 1px 2px rgba(215, 58, 73, 0.3);
+    font-weight: 700;
+    box-shadow: 0 1px 3px rgba(215, 58, 73, 0.4);
 }
 
 /* Atom decision states (applied by JS to data-atom-id wrappers) */
