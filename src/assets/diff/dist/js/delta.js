@@ -855,6 +855,17 @@
       } else {
         wrapper.classList.add('delta-atom-state-pending');
       }
+
+      // Reflect decision on the wrapper's own buttons (filter to skip nested
+      // atom buttons inside Matrix sub-fields).
+      wrapper.querySelectorAll('.delta-atom-accept, .delta-atom-reject').forEach(function (btn) {
+        if (btn.closest('[data-atom-id]') !== wrapper) return;
+        if (btn.classList.contains('delta-atom-accept')) {
+          btn.classList.toggle('is-active', decision === 'accepted');
+        } else {
+          btn.classList.toggle('is-active', decision === 'rejected');
+        }
+      });
     },
 
     clearAtomStateClasses: function () {
@@ -865,6 +876,9 @@
           'delta-atom-state-pending',
           'delta-atom-stepper-focus'
         );
+      });
+      document.querySelectorAll('.delta-atom-accept.is-active, .delta-atom-reject.is-active').forEach(function (btn) {
+        btn.classList.remove('is-active');
       });
     },
 

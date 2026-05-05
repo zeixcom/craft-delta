@@ -1049,35 +1049,70 @@ button.delta-field-header {
 
 .delta-atom-accept,
 .delta-atom-reject {
-    padding: 2px 8px;
+    padding: 3px 10px;
     font-size: 12px;
     line-height: 1.4;
+    background: var(--delta-header-bg);
+    border: 1px solid var(--delta-border);
+    border-radius: 4px;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.delta-atom-accept:hover {
+    background: var(--delta-add-bg);
+    border-color: var(--delta-add-border);
+    color: var(--delta-add-text);
+}
+
+.delta-atom-reject:hover {
+    background: var(--delta-del-bg);
+    border-color: var(--delta-del-border);
+    color: var(--delta-del-text);
+}
+
+/* Active button state — chosen decision is filled-in, unmistakable */
+.delta-atom-accept.is-active {
+    background: var(--delta-add-border);
+    border-color: var(--delta-add-border);
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(40, 167, 69, 0.3);
+}
+
+.delta-atom-reject.is-active {
+    background: var(--delta-del-border);
+    border-color: var(--delta-del-border);
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(215, 58, 73, 0.3);
 }
 
 /* Atom decision states (applied by JS to data-atom-id wrappers) */
 [data-atom-id].delta-atom-state-accepted {
-    border-left: 3px solid #2ec273;
-    background: rgba(46, 194, 115, 0.06);
+    border-left: 3px solid var(--delta-add-border);
+    background: var(--delta-add-bg);
 }
 
 [data-atom-id].delta-atom-state-rejected {
-    border-left: 3px solid #d84a4a;
-    background: rgba(216, 74, 74, 0.06);
+    border-left: 3px solid var(--delta-del-border);
+    background: var(--delta-del-bg);
 }
 
 [data-atom-id].delta-atom-state-rejected .delta-field-body,
 [data-atom-id].delta-atom-state-rejected .delta-block-subfields {
     text-decoration: line-through;
-    opacity: 0.7;
+    opacity: 0.6;
 }
 
 /* Stepper focus ring */
 [data-atom-id].delta-atom-stepper-focus {
-    outline: 2px solid #1a8eff;
+    outline: 2px solid var(--link-color, #1a8eff);
     outline-offset: 2px;
 }
 
 /* Pending state: subtle dotted border */
 [data-atom-id].delta-atom-state-pending {
-    border-left: 3px dotted #aaa;
+    border-left: 3px dotted var(--delta-border);
 }
