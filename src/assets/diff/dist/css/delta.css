@@ -980,3 +980,104 @@ button.delta-field-header {
     font-style: italic;
     font-size: 12px;
 }
+
+/* Review-mode toolbar */
+.delta-review-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--hairline-color, #ddd);
+    background: var(--gray-050, #f9f9f9);
+}
+
+/* Stepper bar (sticky top) */
+.delta-review-stepper {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 16px;
+    background: var(--gray-050, #f9f9f9);
+    border-bottom: 1px solid var(--hairline-color, #ddd);
+}
+
+.delta-review-stepper[hidden] {
+    display: none !important;
+}
+
+.delta-review-progress {
+    margin-right: auto;
+    font-size: 13px;
+    color: var(--medium-text-color, #5d6f7d);
+}
+
+/* Resume / stale banner */
+.delta-review-banner {
+    padding: 12px 16px;
+    background: #fff8d6;
+    border-bottom: 1px solid #e5d59a;
+    font-size: 13px;
+}
+
+.delta-review-banner[hidden] { display: none !important; }
+
+.delta-review-banner button {
+    margin-left: 8px;
+}
+
+/* Field-header bar (now hosts header button + atom actions side by side) */
+.delta-field-headerbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-right: 8px;
+}
+
+.delta-field-headerbar > .delta-field-header {
+    flex: 1 1 auto;
+}
+
+/* Per-atom actions */
+.delta-atom-actions {
+    display: inline-flex;
+    gap: 4px;
+}
+
+.delta-atom-actions[hidden] { display: none !important; }
+
+.delta-atom-accept,
+.delta-atom-reject {
+    padding: 2px 8px;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+/* Atom decision states (applied by JS to data-atom-id wrappers) */
+[data-atom-id].delta-atom-state-accepted {
+    border-left: 3px solid #2ec273;
+    background: rgba(46, 194, 115, 0.06);
+}
+
+[data-atom-id].delta-atom-state-rejected {
+    border-left: 3px solid #d84a4a;
+    background: rgba(216, 74, 74, 0.06);
+}
+
+[data-atom-id].delta-atom-state-rejected .delta-field-body,
+[data-atom-id].delta-atom-state-rejected .delta-block-subfields {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+/* Stepper focus ring */
+[data-atom-id].delta-atom-stepper-focus {
+    outline: 2px solid #1a8eff;
+    outline-offset: 2px;
+}
+
+/* Pending state: subtle dotted border */
+[data-atom-id].delta-atom-state-pending {
+    border-left: 3px dotted #aaa;
+}
