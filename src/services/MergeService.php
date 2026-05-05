@@ -251,6 +251,34 @@ class MergeService extends Component
     }
 
     /**
+     * Apply field-kind atoms onto a draft by copying values from source.
+     * Handles native attributes (title, slug) separately from field handles.
+     *
+     * @param string[] $fieldAtoms List of "field:<handle>" atom keys
+     */
+    private function applyFieldAtoms(Entry $draft, Entry $source, array $fieldAtoms): void
+    {
+        foreach ($fieldAtoms as $atom) {
+            $parsed = self::parseAtomKey($atom);
+            $handle = $parsed['handle'];
+
+            // Native attributes (matches DiffService::compareAttributes)
+            if ($handle === 'title') {
+                $draft->title = $source->title;
+                continue;
+            }
+            if ($handle === 'slug') {
+                $draft->slug = $source->slug;
+                continue;
+            }
+
+            // Custom field — let Craft handle serialization across all field types
+            // (CKEditor, Asset, Money, etc. travel cleanly via getFieldValue/setFieldValue).
+            $draft->setFieldValue($handle, $source->getFieldValue($handle));
+        }
+    }
+
+    /**
      * Apply the user's accepted atoms onto a new draft of the canonical entry.
      *
      * @param string[] $acceptedAtoms List of stable atom keys (see spec §5.1)
