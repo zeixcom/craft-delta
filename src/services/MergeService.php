@@ -296,39 +296,69 @@ class MergeService extends Component
         $survivors = self::buildMatrixBlockList($current, $sourceBlocks, $blockAtoms);
         $ordered = self::orderMatrixBlocks($survivors, $current, $sourceBlocks, $acceptedReorder);
 
-        // Convert back into Craft's Matrix value format. Each block is keyed by
-        // its UID with the block's payload (type, fields). We rebuild the field's
-        // serialized value and let setFieldValue do the rest.
-        $serialized = [];
-        foreach ($ordered as $block) {
-            $serialized[$block['uid']] = $block['payload'];
+        // Build a lookup so we can map each surviving block back to whether it
+        // already exists on $draft (a clone of canonical) or whether it's new
+        // (came from source via an `added` atom).
+        $currentByCanonicalUid = [];
+        foreach ($current as $b) {
+            $currentByCanonicalUid[$b['uid']] = $b;
         }
 
-        $draft->setFieldValue($fieldHandle, $serialized);
+        // Craft 5 Matrix expects either flat [entryId => {…}] OR the modern
+        // delta shape ['entries' => [<key> => {…}], 'sortOrder' => […]].
+        // For existing draft clones we key by `uid:<draftEntryUid>` so Craft
+        // patches that exact entry. For brand-new blocks we use new1/new2…
+        // and Craft assigns fresh element ids + canonical UIDs.
+        $entries = [];
+        $sortOrder = [];
+        $newCount = 0;
+
+        foreach ($ordered as $block) {
+            $existing = $currentByCanonicalUid[$block['uid']] ?? null;
+            if ($existing !== null) {
+                $key = 'uid:' . $existing['draftEntryUid'];
+                $sortOrderToken = $existing['draftEntryUid'];
+            } else {
+                $newCount++;
+                $key = 'new' . $newCount;
+                $sortOrderToken = $key;
+            }
+            $entries[$key] = $block['payload'];
+            $sortOrder[] = $sortOrderToken;
+        }
+
+        $draft->setFieldValue($fieldHandle, [
+            'entries' => $entries,
+            'sortOrder' => $sortOrder,
+        ]);
     }
 
     /**
-     * Serialize a Craft Matrix field value into [{uid, payload}, ...] form
-     * keyed by current order. The payload is whatever Craft expects on
-     * setFieldValue — for v1 that's the array shape from getSerializedFieldValues.
-     *
-     * Uses canonicalUid so blocks line up across canonical/draft/revision sides
-     * (mirrors MatrixDiffer's canonical-ID matching).
+     * Serialize a Craft Matrix field value into [{uid, draftEntryUid, payload}, …]
+     * form. `uid` is the canonicalUid (used for matching across canonical / draft
+     * / revision via MatrixDiffer's canonical-ID convention). `draftEntryUid`
+     * is THIS specific entry's own uid — needed when emitting back into
+     * setFieldValue so Craft patches the right draft entry rather than creating
+     * a duplicate.
      *
      * @param mixed $matrixValue The result of $entry->getFieldValue($handle) for a Matrix field
-     * @return array<int, array{uid: string, payload: array<string, mixed>}>
+     * @return array<int, array{uid: string, draftEntryUid: string, payload: array<string, mixed>}>
      */
     private function serializeMatrixBlocks(mixed $matrixValue): array
     {
         $result = [];
-        // $matrixValue is typically a Craft\elements\db\EntryQuery (Matrix blocks
-        // are entries in Craft 5). Iterating gives Block entries; each has a
-        // canonicalUid and a serializeFieldValues method.
         foreach ($matrixValue as $block) {
+            // Mirror Craft's MatrixField::serializeValue() shape so block-level
+            // attributes (title, slug, enabled, collapsed) round-trip on apply.
             $result[] = [
                 'uid' => $block->canonicalUid,
+                'draftEntryUid' => $block->uid,
                 'payload' => [
                     'type' => $block->type->handle,
+                    'title' => $block->title,
+                    'slug' => $block->slug,
+                    'enabled' => $block->enabled,
+                    'collapsed' => $block->collapsed ?? false,
                     'fields' => $block->getSerializedFieldValues(),
                 ],
             ];
