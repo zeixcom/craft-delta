@@ -599,4 +599,216 @@
       updateActive();
     },
   };
+
+  /**
+   * Review mode — accept/reject decisions on diff atoms, deferred apply
+   * via POST to actionApply. State is mirrored to localStorage per
+   * (userId, entryId, siteId, sourceRef).
+   */
+  Craft.Delta.reviewMode = {
+    active: false,
+    state: Object.create(null),         // atomId → 'accepted' | 'rejected'
+    storageKey: null,                   // computed when entering review mode
+    canonicalUpdatedAt: null,
+    saveTimer: null,
+    eventsBound: false,                 // guard so bindEvents only attaches once
+
+    enter: function (toolbar) {
+      const entryId = toolbar.dataset.entryId;
+      const siteId = toolbar.dataset.siteId;
+      const sourceRef = toolbar.dataset.sourceRef;
+      const userId = (Craft.userId || '0');
+
+      this.storageKey = 'craftdelta:review:' + userId + ':' + entryId + ':' + siteId + ':' + sourceRef;
+      this.canonicalUpdatedAt = toolbar.dataset.canonicalUpdatedAt || null;
+      this.active = true;
+      this.state = Object.create(null);
+
+      this.loadFromStorage();
+      this.showStepper();
+      this.showAllAtomActions();
+      this.refreshUiFromState();
+      this.bindEvents();
+    },
+
+    exit: function () {
+      this.active = false;
+      this.state = Object.create(null);
+      this.hideStepper();
+      this.hideAllAtomActions();
+      this.clearAtomStateClasses();
+    },
+
+    recordDecision: function (atomId, decision) {
+      if (!this.active) return;
+
+      // Toggle off if same button pressed twice
+      if (this.state[atomId] === decision) {
+        delete this.state[atomId];
+      } else {
+        this.state[atomId] = decision;
+      }
+
+      this.refreshAtomUi(atomId);
+      this.refreshProgress();
+      this.scheduleSave();
+    },
+
+    showStepper: function () {
+      const stepper = document.querySelector('[data-review-stepper]');
+      if (stepper) stepper.removeAttribute('hidden');
+    },
+    hideStepper: function () {
+      const stepper = document.querySelector('[data-review-stepper]');
+      if (stepper) stepper.setAttribute('hidden', '');
+    },
+    showAllAtomActions: function () {
+      document.querySelectorAll('[data-atom-actions]').forEach(function (el) {
+        el.removeAttribute('hidden');
+      });
+    },
+    hideAllAtomActions: function () {
+      document.querySelectorAll('[data-atom-actions]').forEach(function (el) {
+        el.setAttribute('hidden', '');
+      });
+    },
+
+    refreshAtomUi: function (atomId) {
+      const wrapper = document.querySelector('[data-atom-id="' + cssEscape(atomId) + '"]');
+      if (!wrapper) return;
+      wrapper.classList.remove('delta-atom-state-accepted', 'delta-atom-state-rejected', 'delta-atom-state-pending');
+      const decision = this.state[atomId];
+      if (decision === 'accepted') {
+        wrapper.classList.add('delta-atom-state-accepted');
+      } else if (decision === 'rejected') {
+        wrapper.classList.add('delta-atom-state-rejected');
+      } else {
+        wrapper.classList.add('delta-atom-state-pending');
+      }
+    },
+
+    clearAtomStateClasses: function () {
+      document.querySelectorAll('[data-atom-id]').forEach(function (el) {
+        el.classList.remove(
+          'delta-atom-state-accepted',
+          'delta-atom-state-rejected',
+          'delta-atom-state-pending',
+          'delta-atom-stepper-focus'
+        );
+      });
+    },
+
+    refreshUiFromState: function () {
+      const self = this;
+      document.querySelectorAll('[data-atom-id]').forEach(function (el) {
+        self.refreshAtomUi(el.dataset.atomId);
+      });
+      this.refreshProgress();
+    },
+
+    refreshProgress: function () {
+      const total = document.querySelectorAll('[data-atom-id]').length;
+      const decided = Object.keys(this.state).length;
+      const accepted = Object.values(this.state).filter(function (v) { return v === 'accepted'; }).length;
+
+      const progressEl = document.querySelector('[data-review-progress]');
+      if (progressEl) {
+        progressEl.textContent = decided + ' of ' + total + ' decided';
+      }
+
+      const applyBtn = document.querySelector('[data-action="apply"]');
+      if (applyBtn) {
+        applyBtn.textContent = 'Apply ' + accepted + ' accepted';
+        applyBtn.disabled = accepted === 0;
+      }
+    },
+
+    bindEvents: function () {
+      // Guard: only bind once per page load. enter()/exit()/enter() must not
+      // stack listeners on the same root.
+      if (this.eventsBound) return;
+      this.eventsBound = true;
+
+      const self = this;
+      const root = document.querySelector('.delta-slideout, .delta-modal-content, .delta-fullpage-root') || document.body;
+
+      // One delegated click handler covers all per-atom buttons + stepper actions
+      root.addEventListener('click', function (e) {
+        if (!self.active) return;
+
+        const actionEl = e.target.closest('[data-action]');
+        if (!actionEl) return;
+
+        const action = actionEl.dataset.action;
+
+        if (action === 'accept' || action === 'reject') {
+          const wrapper = actionEl.closest('[data-atom-id]');
+          if (!wrapper) return;
+          self.recordDecision(wrapper.dataset.atomId, action === 'accept' ? 'accepted' : 'rejected');
+          return;
+        }
+
+        if (action === 'cancel-review') {
+          self.cancel();
+          return;
+        }
+
+        // 'apply', 'next-change', 'prev-change' handled in Tasks 15-16
+      });
+    },
+
+    scheduleSave: function () {
+      const self = this;
+      if (this.saveTimer) clearTimeout(this.saveTimer);
+      this.saveTimer = setTimeout(function () { self.saveToStorage(); }, 150);
+    },
+
+    saveToStorage: function () {
+      if (!this.storageKey) return;
+      try {
+        localStorage.setItem(this.storageKey, JSON.stringify({
+          version: 1,
+          canonicalUpdatedAt: this.canonicalUpdatedAt,
+          decisions: this.state,
+        }));
+      } catch (e) { /* quota exceeded etc — silent */ }
+    },
+
+    loadFromStorage: function () {
+      if (!this.storageKey) return;
+      try {
+        const raw = localStorage.getItem(this.storageKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.decisions && typeof parsed.decisions === 'object') {
+          this.state = Object.assign(Object.create(null), parsed.decisions);
+        }
+      } catch (e) { this.state = Object.create(null); }
+    },
+
+    cancel: function () {
+      const decided = Object.keys(this.state).length;
+      if (decided > 0) {
+        if (!confirm('Discard ' + decided + ' decisions?')) return;
+      }
+      try { localStorage.removeItem(this.storageKey); } catch (e) {}
+      this.exit();
+    },
+  };
+
+  // Helper for querySelector — atom IDs contain colons which are invalid in
+  // CSS selectors unless escaped. CSS.escape may not be available in older browsers.
+  function cssEscape(s) {
+    return (window.CSS && window.CSS.escape) ? window.CSS.escape(s) : s.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+  }
+
+  // Top-level delegated listener for the Start Review button. Module-level
+  // is consistent with the rest of init wiring in this file.
+  document.addEventListener('click', function (e) {
+    const startBtn = e.target.closest('[data-action="start-review"]');
+    if (!startBtn) return;
+    const toolbar = startBtn.closest('[data-review-toolbar]');
+    if (!toolbar) return;
+    Craft.Delta.reviewMode.enter(toolbar);
+  });
 })();
