@@ -496,10 +496,36 @@
       wrapper.style.setProperty('--delta-toolbar-height', height + 'px');
     },
 
+    // Returns { el, eventTarget, isWindow } for the active mode's scroll
+    // container, or null if the wrapper isn't available yet. In fullpage
+    // mode the page (window) is what scrolls; in slideout/modal it's the
+    // .delta-slideout wrapper.
+    _resolveScroller: function () {
+      if (this.mode === 'fullpage') {
+        return {
+          el: document.scrollingElement || document.documentElement,
+          eventTarget: window,
+          isWindow: true,
+        };
+      }
+      if (!this.$wrapper || !this.$wrapper.length) {
+        return null;
+      }
+      var el = this.$wrapper[0];
+      return { el: el, eventTarget: el, isWindow: false };
+    },
+
     bindTabNav: function (container) {
       var self = this;
       var nav = container.querySelector('.delta-tabnav');
       if (!nav) { return; }
+
+      var scroller = self._resolveScroller();
+      if (!scroller) { return; }
+
+      var toolbar = self.$wrapper && self.$wrapper.length
+        ? self.$wrapper[0].querySelector('.delta-toolbar')
+        : null;
 
       var links = nav.querySelectorAll('.delta-tabnav-item');
       var linksByTarget = {};
@@ -510,29 +536,23 @@
           e.preventDefault();
           var targetId = link.getAttribute('data-tab-target');
           var target = container.querySelector('#' + targetId);
-          if (!target || !self.$wrapper || !self.$wrapper.length) { return; }
+          if (!target) { return; }
 
-          var scrollEl = self.$wrapper[0];
-          var toolbar = scrollEl.querySelector('.delta-toolbar');
           var toolbarHeight = toolbar ? toolbar.getBoundingClientRect().height : 0;
+          var targetRect = target.getBoundingClientRect();
+          var currentScroll = scroller.isWindow ? window.scrollY : scroller.el.scrollTop;
+          var viewportTop = scroller.isWindow ? 0 : scroller.el.getBoundingClientRect().top;
+          var offsetTop = targetRect.top - viewportTop + currentScroll;
 
-          // Walk offsetParents so we get the real distance to scrollEl,
-          // not the local offset within the (positioned) tab group.
-          var top = 0, node = target;
-          while (node && node !== scrollEl) {
-            top += node.offsetTop;
-            node = node.offsetParent;
-          }
-
-          scrollEl.scrollTo({
-            top: Math.max(0, top - toolbarHeight - 8),
+          // Land the tab at toolbarHeight + 4 so it crosses the spy threshold
+          // (toolbar.bottom + 4) and the active highlight moves to it.
+          scroller.el.scrollTo({
+            top: Math.max(0, offsetTop - toolbarHeight - 4),
             behavior: 'smooth',
           });
         });
       });
 
-      if (!self.$wrapper || !self.$wrapper.length) { return; }
-      var scrollEl = self.$wrapper[0];
       var tabGroups = Array.prototype.slice.call(container.querySelectorAll('.delta-tab-group'));
       if (tabGroups.length === 0) { return; }
 
@@ -543,7 +563,6 @@
       };
 
       var updateActive = function () {
-        var toolbar = scrollEl.querySelector('.delta-toolbar');
         var threshold = (toolbar ? toolbar.getBoundingClientRect().bottom : 0) + 4;
         var current = null;
         for (var i = 0; i < tabGroups.length; i++) {
@@ -570,11 +589,12 @@
         });
       };
 
-      if (self._tabSpyHandler) {
-        scrollEl.removeEventListener('scroll', self._tabSpyHandler);
+      if (self._tabSpyHandler && self._tabSpyEventTarget) {
+        self._tabSpyEventTarget.removeEventListener('scroll', self._tabSpyHandler);
       }
       self._tabSpyHandler = onScroll;
-      scrollEl.addEventListener('scroll', onScroll, { passive: true });
+      self._tabSpyEventTarget = scroller.eventTarget;
+      scroller.eventTarget.addEventListener('scroll', onScroll, { passive: true });
 
       updateActive();
     },

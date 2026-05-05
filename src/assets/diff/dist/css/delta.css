@@ -373,26 +373,14 @@
     background: var(--gray-700);
 }
 
-.delta-tabnav-item-changed {
-    color: var(--text-color);
-}
-
 .delta-tabnav-item-active {
-    color: #fff;
-    background: var(--delta-add-border);
-    border-color: var(--delta-add-border);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    color: var(--text-color);
+    background: var(--gray-100);
+    border-color: var(--medium-text-color);
 }
 
-.delta-tabnav-item-active:hover {
-    color: #fff;
-    background: var(--delta-add-border);
-    border-color: var(--delta-add-border);
-}
-
-.delta-tabnav-item-active .delta-tabnav-count {
-    background: rgba(255, 255, 255, 0.25);
-    color: #fff;
+.dark .delta-tabnav-item-active {
+    background: var(--gray-700);
 }
 
 .delta-tabnav-count {
@@ -404,8 +392,9 @@
     padding: 0 4px;
     font-size: 10px;
     font-weight: 700;
-    color: #fff;
-    background: var(--delta-add-border);
+    color: var(--medium-text-color);
+    background: var(--delta-panel-bg);
+    border: 1px solid var(--delta-border);
     border-radius: 8px;
 }
 
