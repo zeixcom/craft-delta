@@ -1,6 +1,8 @@
 {# Individual field diff section #}
 
-<div class="delta-field{{ not diff.hasChanges ? ' delta-field-unchanged' : '' }}" data-field-handle="{{ diff.fieldHandle }}">
+<div class="delta-field{{ not diff.hasChanges ? ' delta-field-unchanged' : '' }}"
+     data-field-handle="{{ diff.fieldHandle }}"
+     {% if diff.hasChanges and not (diff.fieldType ends with '\\Matrix') %}data-atom-id="field:{{ diff.fieldHandle }}"{% endif %}>
     <button class="delta-field-header"
             type="button"
             aria-expanded="true"
@@ -22,7 +24,8 @@
         {% else %}
             {% include 'craft-delta/_diff-content' with {
                 diffHtml: diff.diffHtml,
-                fieldType: diff.fieldType
+                fieldType: diff.fieldType,
+                fieldHandle: diff.fieldHandle
             } only %}
         {% endif %}
     </div>

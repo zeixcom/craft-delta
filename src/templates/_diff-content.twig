@@ -13,7 +13,8 @@
             {% if change.type in ['added', 'removed', 'modified'] %}
                 {% set blockClass = {added: 'delta-block-added', removed: 'delta-block-removed', modified: 'delta-block-modified'} %}
                 {% set blockIcon = {added: '+', removed: '-', modified: '&bull;'} %}
-                <div class="delta-block {{ blockClass[change.type] }}">
+                <div class="delta-block {{ blockClass[change.type] }}"
+                     data-atom-id="matrix-block:{{ fieldHandle }}:{{ change.blockUid }}:{{ change.type }}">
                     {% if change.fieldChanges is defined and change.fieldChanges is iterable %}
                         <button type="button" class="delta-block-toggle" aria-expanded="true">
                             <svg class="delta-block-chevron" viewBox="0 0 16 16" fill="currentColor">
@@ -30,7 +31,8 @@
                                     {% if fc.diffHtml is defined and fc.diffHtml is not null %}
                                         {% include 'craft-delta/_diff-content' with {
                                             diffHtml: fc.diffHtml,
-                                            fieldType: fc.fieldType ?? ''
+                                            fieldType: fc.fieldType ?? '',
+                                            fieldHandle: fieldHandle
                                         } only %}
                                     {% endif %}
                                 </div>
@@ -43,7 +45,7 @@
                     {% endif %}
                 </div>
             {% elseif change.type == 'reordered' %}
-                <div class="delta-block delta-block-reordered">
+                <div class="delta-block delta-block-reordered" data-atom-id="matrix-reorder:{{ fieldHandle }}">
                     <span class="delta-block-icon">&harr;</span>
                     <span>{{ 'Blocks were reordered'|t('craft-delta') }}</span>
                 </div>
