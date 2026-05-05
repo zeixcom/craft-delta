@@ -18,6 +18,7 @@ use zeixcom\craftdelta\models\Settings;
 use zeixcom\craftdelta\services\DiffService;
 use zeixcom\craftdelta\services\FieldDiffService;
 use zeixcom\craftdelta\services\RevisionService;
+use zeixcom\craftdelta\services\MergeService;
 
 /**
  * Craft Delta — inline revision diffing for Craft CMS.
@@ -25,6 +26,7 @@ use zeixcom\craftdelta\services\RevisionService;
  * @property-read DiffService $diff
  * @property-read FieldDiffService $fieldDiff
  * @property-read RevisionService $revision
+ * @property-read MergeService $merge
  */
 class Delta extends Plugin
 {
@@ -38,6 +40,7 @@ class Delta extends Plugin
                 'diff' => DiffService::class,
                 'fieldDiff' => FieldDiffService::class,
                 'revision' => RevisionService::class,
+                'merge' => MergeService::class,
             ],
         ];
     }
