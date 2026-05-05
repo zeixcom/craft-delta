@@ -18,6 +18,38 @@
     {% endif %}
 </div>
 
+{% if reviewMode is defined and reviewMode %}
+    <div class="delta-review-toolbar"
+         data-review-toolbar
+         data-entry-id="{{ entryId }}"
+         data-site-id="{{ siteId }}"
+         data-source-ref="{{ sourceRef }}">
+        <button type="button" class="btn delta-review-start" data-action="start-review">
+            {{ 'Start Review'|t('craft-delta') }}
+        </button>
+    </div>
+
+    <div class="delta-review-stepper" data-review-stepper hidden>
+        <span class="delta-review-progress" data-review-progress>
+            {{ '{decided} of {total} decided'|t('craft-delta', { decided: 0, total: 0 }) }}
+        </span>
+        <button type="button" class="btn" data-action="prev-change">
+            ← {{ 'Prev'|t('craft-delta') }}
+        </button>
+        <button type="button" class="btn" data-action="next-change">
+            {{ 'Next'|t('craft-delta') }} →
+        </button>
+        <button type="button" class="btn submit" data-action="apply" disabled>
+            {{ 'Apply {count} accepted'|t('craft-delta', { count: 0 }) }}
+        </button>
+        <button type="button" class="btn delta-review-cancel" data-action="cancel-review">
+            {{ 'Cancel review'|t('craft-delta') }}
+        </button>
+    </div>
+
+    <div class="delta-review-banner" data-review-banner hidden></div>
+{% endif %}
+
 {% if result.hasChanges() %}
     {% set grouped = result.fieldDiffs|group('tabName') %}
 
@@ -45,7 +77,7 @@
 
     {% if grouped[''] is defined %}
         {% for diff in grouped[''] %}
-            {% include 'craft-delta/_field-diff' with { diff: diff } %}
+            {% include 'craft-delta/_field-diff' with { diff: diff, reviewMode: reviewMode ?? false } %}
         {% endfor %}
     {% endif %}
 
@@ -56,7 +88,7 @@
                 {{ tab.name }}
             </div>
             {% for diff in tab.diffs %}
-                {% include 'craft-delta/_field-diff' with { diff: diff } %}
+                {% include 'craft-delta/_field-diff' with { diff: diff, reviewMode: reviewMode ?? false } %}
             {% endfor %}
         </div>
     {% endfor %}

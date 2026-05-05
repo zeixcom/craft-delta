@@ -77,9 +77,21 @@ class DiffController extends Controller
         try {
             $result = $plugin->diff->compare($older, $newer);
 
+            // Review mode is available when one side is canonical AND the setting is on.
+            $settings = $plugin->getSettings();
+            $reviewMode = $settings->enableReviewMode
+                && ($older->id === $canonical->id || $newer->id === $canonical->id);
+
             $html = Craft::$app->getView()->renderTemplate(
                 'craft-delta/_diff-slideout',
-                ['result' => $result],
+                [
+                    'result' => $result,
+                    'reviewMode' => $reviewMode,
+                    'canonicalSide' => $newer->id === $canonical->id ? 'newer' : 'older',
+                    'sourceRef' => $newer->id === $canonical->id ? $olderRef : $newerRef,
+                    'entryId' => $entryId,
+                    'siteId' => $siteId ?? $canonical->siteId,
+                ],
             );
 
             return $this->asJson([

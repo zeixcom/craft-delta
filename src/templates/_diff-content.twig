@@ -32,7 +32,8 @@
                                         {% include 'craft-delta/_diff-content' with {
                                             diffHtml: fc.diffHtml,
                                             fieldType: fc.fieldType ?? '',
-                                            fieldHandle: fieldHandle
+                                            fieldHandle: fieldHandle,
+                                            reviewMode: reviewMode ?? false
                                         } only %}
                                     {% endif %}
                                 </div>
@@ -43,11 +44,23 @@
                         <span class="delta-block-type">{{ change.blockType ?? 'Block' }}</span>
                         <span class="delta-block-summary">{{ change.summary ?? '' }}</span>
                     {% endif %}
+                    {% if reviewMode is defined and reviewMode %}
+                        <span class="delta-atom-actions" hidden data-atom-actions>
+                            <button type="button" class="btn small delta-atom-accept" data-action="accept">✓</button>
+                            <button type="button" class="btn small delta-atom-reject" data-action="reject">✗</button>
+                        </span>
+                    {% endif %}
                 </div>
             {% elseif change.type == 'reordered' %}
                 <div class="delta-block delta-block-reordered" data-atom-id="matrix-reorder:{{ fieldHandle }}">
                     <span class="delta-block-icon">&harr;</span>
                     <span>{{ 'Blocks were reordered'|t('craft-delta') }}</span>
+                    {% if reviewMode is defined and reviewMode %}
+                        <span class="delta-atom-actions" hidden data-atom-actions>
+                            <button type="button" class="btn small delta-atom-accept" data-action="accept">✓</button>
+                            <button type="button" class="btn small delta-atom-reject" data-action="reject">✗</button>
+                        </span>
+                    {% endif %}
                 </div>
             {% endif %}
         {% endfor %}
