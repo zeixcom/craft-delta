@@ -468,12 +468,17 @@ class MergeService extends Component
 
     private function humanRefForSource(Entry $source): string
     {
-        if ($source->revisionNum !== null) {
-            return 'Rev ' . $source->revisionNum;
+        // revisionNum lives on RevisionBehavior; access via getBehavior to avoid
+        // "Unknown property" when source is canonical or a draft.
+        /** @var \craft\behaviors\RevisionBehavior|null $revisionBehavior */
+        $revisionBehavior = $source->getBehavior('revision');
+        if ($revisionBehavior !== null && $revisionBehavior->revisionNum !== null) {
+            return 'Rev ' . $revisionBehavior->revisionNum;
         }
-        $behavior = $source->getBehavior('draft');
-        if ($behavior !== null) {
-            return $behavior->draftName ?? 'Draft';
+        /** @var \craft\behaviors\DraftBehavior|null $draftBehavior */
+        $draftBehavior = $source->getBehavior('draft');
+        if ($draftBehavior !== null) {
+            return $draftBehavior->draftName ?? 'Draft';
         }
         return 'Source';
     }
