@@ -157,4 +157,49 @@ class MergeServiceTest extends TestCase
 
         $this->assertSame('old', $result[0]['content']);
     }
+
+    public function testOrderNoReorderPreservesCurrentOrder(): void
+    {
+        $survivors = [
+            ['uid' => 'A'],
+            ['uid' => 'B'],
+            ['uid' => 'C'],
+        ];
+        $current = [['uid' => 'A'], ['uid' => 'B'], ['uid' => 'C']];
+        $source = [['uid' => 'C'], ['uid' => 'B'], ['uid' => 'A']]; // reversed
+
+        $result = MergeService::orderMatrixBlocks($survivors, $current, $source, false);
+
+        $this->assertSame(['A', 'B', 'C'], array_column($result, 'uid'));
+    }
+
+    public function testOrderNoReorderAppendsSourceOnlyAddedAtEnd(): void
+    {
+        $survivors = [
+            ['uid' => 'A'],
+            ['uid' => 'B'],
+            ['uid' => 'X'],
+        ];
+        $current = [['uid' => 'A'], ['uid' => 'B']];
+        $source = [['uid' => 'X'], ['uid' => 'A'], ['uid' => 'B']];
+
+        $result = MergeService::orderMatrixBlocks($survivors, $current, $source, false);
+
+        $this->assertSame(['A', 'B', 'X'], array_column($result, 'uid'));
+    }
+
+    public function testOrderNoReorderKeepsCurrentOnlyBlocksInPlace(): void
+    {
+        $survivors = [
+            ['uid' => 'A'],
+            ['uid' => 'B'],
+            ['uid' => 'C'],
+        ];
+        $current = [['uid' => 'A'], ['uid' => 'B'], ['uid' => 'C']];
+        $source = [['uid' => 'A'], ['uid' => 'C']];
+
+        $result = MergeService::orderMatrixBlocks($survivors, $current, $source, false);
+
+        $this->assertSame(['A', 'B', 'C'], array_column($result, 'uid'));
+    }
 }

@@ -132,6 +132,72 @@ class MergeService extends Component
     }
 
     /**
+     * Step B of the Matrix merge: order the surviving blocks per spec §6.2.
+     *
+     * @param array<int, array<string, mixed>> $survivors         Output from buildMatrixBlockList
+     * @param array<int, array<string, mixed>> $current           Original current blocks (for spine)
+     * @param array<int, array<string, mixed>> $source            Original source blocks (for spine)
+     * @param bool $acceptedReorder                               Whether the matrix-reorder atom was accepted
+     * @return array<int, array<string, mixed>>
+     */
+    public static function orderMatrixBlocks(array $survivors, array $current, array $source, bool $acceptedReorder): array
+    {
+        $survivorsByUid = [];
+        foreach ($survivors as $block) {
+            $survivorsByUid[$block['uid']] = $block;
+        }
+
+        if (!$acceptedReorder) {
+            return self::orderByCurrentSpine($survivorsByUid, $current, $source);
+        }
+
+        // Reorder branch implemented in Task 7
+        return self::orderBySourceSpine($survivorsByUid, $current, $source);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $survivorsByUid
+     * @param array<int, array<string, mixed>> $current
+     * @param array<int, array<string, mixed>> $source
+     * @return array<int, array<string, mixed>>
+     */
+    private static function orderByCurrentSpine(array $survivorsByUid, array $current, array $source): array
+    {
+        $result = [];
+
+        foreach ($current as $block) {
+            $uid = $block['uid'];
+            if (isset($survivorsByUid[$uid])) {
+                $result[] = $survivorsByUid[$uid];
+                unset($survivorsByUid[$uid]);
+            }
+        }
+
+        foreach ($source as $block) {
+            $uid = $block['uid'];
+            if (isset($survivorsByUid[$uid])) {
+                $result[] = $survivorsByUid[$uid];
+                unset($survivorsByUid[$uid]);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Implemented in Task 7.
+     *
+     * @param array<string, array<string, mixed>> $survivorsByUid
+     * @param array<int, array<string, mixed>> $current
+     * @param array<int, array<string, mixed>> $source
+     * @return array<int, array<string, mixed>>
+     */
+    private static function orderBySourceSpine(array $survivorsByUid, array $current, array $source): array
+    {
+        throw new \LogicException('orderBySourceSpine implemented in Task 7');
+    }
+
+    /**
      * Apply the user's accepted atoms onto a new draft of the canonical entry.
      *
      * @param string[] $acceptedAtoms List of stable atom keys (see spec §5.1)
