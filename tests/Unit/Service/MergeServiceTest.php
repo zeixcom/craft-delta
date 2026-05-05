@@ -52,4 +52,38 @@ class MergeServiceTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         MergeService::parseAtomKey('');
     }
+
+    public function testValidateAtomsAcceptsKnownAtoms(): void
+    {
+        // Set of stable keys representing the fresh diff's available atoms
+        $availableAtoms = [
+            'field:title',
+            'matrix-block:blocks:8a3f:added',
+            'matrix-reorder:blocks',
+        ];
+
+        $accepted = ['field:title', 'matrix-reorder:blocks'];
+
+        // No exception means valid
+        MergeService::validateAtoms($availableAtoms, $accepted);
+        $this->addToAssertionCount(1);
+    }
+
+    public function testValidateAtomsRejectsUnknownAtom(): void
+    {
+        $availableAtoms = ['field:title'];
+        $accepted = ['field:body'];
+
+        $this->expectException(\zeixcom\craftdelta\services\StaleAtomException::class);
+        MergeService::validateAtoms($availableAtoms, $accepted);
+    }
+
+    public function testValidateAtomsRejectsMalformedAtom(): void
+    {
+        $availableAtoms = ['field:title'];
+        $accepted = ['malformed-key'];
+
+        $this->expectException(\InvalidArgumentException::class);
+        MergeService::validateAtoms($availableAtoms, $accepted);
+    }
 }

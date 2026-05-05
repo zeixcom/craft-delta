@@ -65,6 +65,29 @@ class MergeService extends Component
     }
 
     /**
+     * Validate that every accepted atom corresponds to a real atom in the
+     * fresh diff. Malformed atoms throw InvalidArgumentException; unknown
+     * atoms throw StaleAtomException.
+     *
+     * @param string[] $availableAtoms All atom keys present in the fresh diff
+     * @param string[] $acceptedAtoms  The user's accepted atoms
+     * @throws \InvalidArgumentException
+     * @throws StaleAtomException
+     */
+    public static function validateAtoms(array $availableAtoms, array $acceptedAtoms): void
+    {
+        $available = array_flip($availableAtoms);
+
+        foreach ($acceptedAtoms as $atom) {
+            self::parseAtomKey($atom); // throws on malformed
+
+            if (!isset($available[$atom])) {
+                throw new StaleAtomException("Atom '$atom' is not present in the fresh diff");
+            }
+        }
+    }
+
+    /**
      * Apply the user's accepted atoms onto a new draft of the canonical entry.
      *
      * @param string[] $acceptedAtoms List of stable atom keys (see spec §5.1)
