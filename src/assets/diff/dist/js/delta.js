@@ -612,6 +612,100 @@
     canonicalUpdatedAt: null,
     saveTimer: null,
     eventsBound: false,                 // guard so bindEvents only attaches once
+    focusedAtomId: null,
+    intersectionObserver: null,
+
+    next: function () {
+      this.moveFocus(1);
+    },
+    prev: function () {
+      this.moveFocus(-1);
+    },
+
+    moveFocus: function (delta) {
+      const ids = this.atomIdsInDocumentOrder();
+      if (ids.length === 0) return;
+
+      let idx = this.focusedAtomId ? ids.indexOf(this.focusedAtomId) : -1;
+      idx = (idx + delta + ids.length) % ids.length;
+      if (idx < 0) idx = ids.length - 1;
+
+      this.setFocus(ids[idx], true);
+    },
+
+    setFocus: function (atomId, scroll) {
+      const self = this;
+      // Clear previous focus
+      document.querySelectorAll('.delta-atom-stepper-focus').forEach(function (el) {
+        el.classList.remove('delta-atom-stepper-focus');
+      });
+      const wrapper = document.querySelector('[data-atom-id="' + cssEscape(atomId) + '"]');
+      if (!wrapper) return;
+      wrapper.classList.add('delta-atom-stepper-focus');
+      this.focusedAtomId = atomId;
+      if (scroll) {
+        wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    },
+
+    atomIdsInDocumentOrder: function () {
+      return Array.from(document.querySelectorAll('[data-atom-id]')).map(function (el) {
+        return el.dataset.atomId;
+      });
+    },
+
+    bindKeyboardShortcuts: function () {
+      const self = this;
+      this.keyHandler = function (e) {
+        if (!self.active) return;
+        // Skip when typing in an input
+        if (e.target.matches('input, textarea, [contenteditable]')) return;
+        switch (e.key.toLowerCase()) {
+          case 'j': self.next(); e.preventDefault(); break;
+          case 'k': self.prev(); e.preventDefault(); break;
+          case 'a':
+            if (self.focusedAtomId) self.recordDecision(self.focusedAtomId, 'accepted');
+            e.preventDefault();
+            break;
+          case 'r':
+            if (self.focusedAtomId) self.recordDecision(self.focusedAtomId, 'rejected');
+            e.preventDefault();
+            break;
+        }
+      };
+      document.addEventListener('keydown', this.keyHandler);
+    },
+
+    unbindKeyboardShortcuts: function () {
+      if (this.keyHandler) {
+        document.removeEventListener('keydown', this.keyHandler);
+        this.keyHandler = null;
+      }
+    },
+
+    bindScrollFocus: function () {
+      const self = this;
+      this.intersectionObserver = new IntersectionObserver(function (entries) {
+        // Pick the topmost intersecting atom as the focused one
+        const visible = entries.filter(function (e) { return e.isIntersecting; });
+        if (visible.length === 0) return;
+        visible.sort(function (a, b) {
+          return a.target.getBoundingClientRect().top - b.target.getBoundingClientRect().top;
+        });
+        self.setFocus(visible[0].target.dataset.atomId, false);
+      }, { threshold: 0.5 });
+
+      document.querySelectorAll('[data-atom-id]').forEach(function (el) {
+        self.intersectionObserver.observe(el);
+      });
+    },
+
+    unbindScrollFocus: function () {
+      if (this.intersectionObserver) {
+        this.intersectionObserver.disconnect();
+        this.intersectionObserver = null;
+      }
+    },
 
     enter: function (toolbar) {
       const entryId = toolbar.dataset.entryId;
@@ -629,6 +723,11 @@
       this.showAllAtomActions();
       this.refreshUiFromState();
       this.bindEvents();
+      this.bindKeyboardShortcuts();
+      this.bindScrollFocus();
+      // Auto-focus the first atom
+      const ids = this.atomIdsInDocumentOrder();
+      if (ids.length > 0) this.setFocus(ids[0], false);
     },
 
     exit: function () {
@@ -636,6 +735,9 @@
       this.state = Object.create(null);
       this.hideStepper();
       this.hideAllAtomActions();
+      this.unbindKeyboardShortcuts();
+      this.unbindScrollFocus();
+      this.focusedAtomId = null;
       this.clearAtomStateClasses();
     },
 
@@ -753,7 +855,10 @@
           return;
         }
 
-        // 'apply', 'next-change', 'prev-change' handled in Tasks 15-16
+        if (action === 'next-change') { self.next(); return; }
+        if (action === 'prev-change') { self.prev(); return; }
+
+        // 'apply' handled in Task 16
       });
     },
 
