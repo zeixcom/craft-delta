@@ -400,13 +400,21 @@ class MergeService extends Component
             $this->applyMatrixAtoms($draft, $source, $handle, $blockAtoms, $acceptedReorder);
         }
 
-        // 7. ONE save — never per field.
+        // 7. ONE save on the draft — never per field.
         if (!\Craft::$app->getElements()->saveElement($draft)) {
             $errors = $draft->getErrors();
             throw new \RuntimeException('Draft validation failed: ' . json_encode($errors));
         }
 
-        return $draft;
+        // 8. Publish the draft to canonical via Craft's normal lifecycle. The
+        //    transient draft is discarded; canonical receives a new revision.
+        $published = \Craft::$app->getDrafts()->applyDraft($draft);
+        if (!$published instanceof Entry) {
+            $errors = $draft->getErrors();
+            throw new \RuntimeException('Failed to publish: ' . json_encode($errors));
+        }
+
+        return $published;
     }
 
     /**

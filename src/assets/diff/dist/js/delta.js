@@ -991,7 +991,7 @@
       if (accepted.length === 0) return;
 
       const confirmed = confirm(
-        'Create a new draft with ' + accepted.length + ' accepted changes? Rejected changes will not affect the entry.'
+        'Publish ' + accepted.length + ' accepted changes to this entry? This creates a new revision. Rejected changes will not affect the entry.'
       );
       if (!confirmed) return;
 
@@ -1023,9 +1023,9 @@
     handleApplySuccess: function (data) {
       try { localStorage.removeItem(this.storageKey); } catch (e) {}
       this.exit();
-      const goNow = confirm('Draft created. Open it now?');
-      if (goNow && data.draftEditUrl) {
-        window.location.href = data.draftEditUrl;
+      const goNow = confirm('Changes published. Open the entry?');
+      if (goNow && data.entryEditUrl) {
+        window.location.href = data.entryEditUrl;
       }
     },
 

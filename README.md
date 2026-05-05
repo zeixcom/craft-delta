@@ -40,9 +40,11 @@ Use the two dropdowns to select which versions to compare — Current, any draft
 
 ### Review Mode
 
-When comparing a draft or revision against the **current** entry, click **Start Review** in the slideout toolbar. Each changed field gains an **✓ Accept** / **✗ Reject** button pair; Matrix blocks get the same buttons per block. Use **J / K** to step between changes, **A / R** to decide. Click **Apply N accepted** to create a new draft of the canonical entry containing your accepted changes — rejected changes are dropped.
+When comparing a draft or revision against the **current** entry, click **Start Review** in the slideout toolbar. Each changed field gains an **✓ Accept** / **✗ Reject** button pair; Matrix blocks get the same buttons per block. Use **J / K** to step between changes, **A / R** to decide. Click **Apply N accepted** to publish your accepted changes directly to the entry as a new revision — rejected changes are dropped.
 
 Decisions persist in browser localStorage until you Apply or Cancel. If the canonical entry is edited mid-review, you'll be prompted to start over.
+
+Apply requires the `saveEntries` permission for the entry's section.
 
 ## Settings
 

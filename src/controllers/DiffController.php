@@ -319,11 +319,11 @@ class DiffController extends Controller
 
         $this->requireEntryAccess($canonical);
 
-        // Permission: user must be able to create drafts on this section.
+        // Permission: user must be able to publish entries in this section.
         $user = Craft::$app->getUser()->getIdentity();
         $section = $canonical->getSection();
-        if (!$user || !$section || !$user->can("createEntryDrafts:{$section->uid}")) {
-            throw new ForbiddenHttpException('Insufficient permissions to create a draft on this section.');
+        if (!$user || !$section || !$user->can("saveEntries:{$section->uid}")) {
+            throw new ForbiddenHttpException('Insufficient permissions to publish entries in this section.');
         }
 
         $source = $this->resolveVersion($sourceRef, $canonical, $siteId);
@@ -336,12 +336,12 @@ class DiffController extends Controller
         }
 
         try {
-            $draft = $plugin->merge->merge($canonical, $source, $acceptedAtoms);
+            $published = $plugin->merge->merge($canonical, $source, $acceptedAtoms);
 
             return $this->asJson([
                 'success' => true,
-                'draftId' => $draft->draftId,
-                'draftEditUrl' => $draft->getCpEditUrl(),
+                'entryId' => $published->id,
+                'entryEditUrl' => $published->getCpEditUrl(),
             ]);
         } catch (\zeixcom\craftdelta\services\StaleAtomException $e) {
             return $this->asJson([

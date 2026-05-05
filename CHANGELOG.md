@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Review Mode** — accept or reject individual changes from inside the diff slideout, then publish all accepted changes to the canonical entry as a new revision. Per-field and per-Matrix-block granularity (with reorder as its own atom). Stepper navigation with J/K/A/R keyboard shortcuts. Decisions persist via browser localStorage (`craftdelta:review:<userId>:<entryId>:<siteId>:<sourceRef>` key) and are resumable across browser restarts. Stale-state detection against the canonical entry's `dateUpdated` guards against mid-review edits.
+- New `MergeService` owns all write logic — atom validation against a fresh diff, field/Matrix apply, single `saveElement` followed by `applyDraft` for atomic publication.
+- New `actionApply` endpoint on `DiffController` with structured error codes (`stale-atoms`, `source-not-found`, `validation-failed`, `no-changes`).
+- New plugin setting `Enable Review Mode` (default: on) acting as a kill switch.
+- 23 PHPUnit unit tests covering atom parsing, validation, and the Matrix merge algorithm including the spec's worked anchor-rule example.
+- Translations for review-mode strings across all 8 supported locales.
+- `MatrixDiffer` now emits `blockUid` (the canonical block UID) on each change entry — required for atom keys to round-trip across canonical/draft/revision.
+
+### Changed
+- Apply requires the `saveEntries:<sectionUid>` permission (not `createEntryDrafts`) since accepted changes publish directly to the canonical entry rather than to a separate draft.
+
 ## 1.1.0 - 2026-04-15
 
 ### Added
