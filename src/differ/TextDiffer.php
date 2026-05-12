@@ -54,5 +54,4 @@ class TextDiffer implements DifferInterface
             'deletions' => max(0, $old - $new),
         ];
     }
-
 }

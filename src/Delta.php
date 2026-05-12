@@ -19,8 +19,8 @@ use zeixcom\craftdelta\assets\diff\DiffAsset;
 use zeixcom\craftdelta\models\Settings;
 use zeixcom\craftdelta\services\DiffService;
 use zeixcom\craftdelta\services\FieldDiffService;
-use zeixcom\craftdelta\services\RevisionService;
 use zeixcom\craftdelta\services\MergeService;
+use zeixcom\craftdelta\services\RevisionService;
 
 /**
  * Craft Delta — inline revision diffing for Craft CMS.
@@ -32,7 +32,7 @@ use zeixcom\craftdelta\services\MergeService;
  */
 class Delta extends Plugin
 {
-    public string $schemaVersion = '1.0.0';
+    public string $schemaVersion = '2.0.0';
     public bool $hasCpSettings = true;
 
     public static function config(): array
