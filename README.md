@@ -27,6 +27,7 @@ php craft plugin/install craft-delta
 - **"Changed only" filter** — toggle unchanged fields on/off
 - **Diff summary stats** — fields changed, additions/deletions
 - **Translations** — English, German, French, Spanish, Italian, Dutch, Portuguese, Polish
+- **Review Mode** — accept or reject individual changes from inside the diff slideout, then apply all accepted changes as a new draft on the canonical entry. Per-field and per-Matrix-block granularity. Resumable across browser restarts.
 
 ## Usage
 
@@ -37,6 +38,22 @@ Use the two dropdowns to select which versions to compare — Current, any draft
 - Click the **swap** button to reverse the comparison direction
 - Toggle **"Changed only"** to hide unchanged fields
 
+### Review Mode
+
+When comparing a draft or revision against the **current** entry, click **Start Review** in the slideout toolbar. Each changed field gains an **✓ Accept** / **✗ Reject** button pair; Matrix blocks get the same buttons per block. Use **J / K** to step between changes, **A / R** to decide. Click **Apply N accepted** to publish your accepted changes directly to the entry as a new revision — rejected changes are dropped.
+
+When the comparison source is a draft, an **"Also delete source draft"** checkbox appears next to Apply. Tick it before clicking Apply to remove the source draft after publication. Leave it unchecked (default) to keep the source draft around — it then doubles as a queue of rejected changes you can revisit later (re-opening the diff will show only the changes you didn't accept, since the canonical now matches the source for everything that was accepted).
+
+Decisions persist in browser localStorage until you Apply or Cancel. If the canonical entry is edited mid-review, you'll be prompted to start over.
+
+### Permissions
+
+Apply requires a per-section permission registered by Craft Delta:
+
+- **Apply review-mode changes for "{section}"** — grant under **Settings → Users → User Groups → Permissions**, in the **Craft Delta** group.
+
+Without this permission, users can still see the diff and use review mode to mark changes — but the **Apply** button returns a 403. Admins automatically have it.
+
 ## Settings
 
 Configure under **Settings > Plugins > Craft Delta**:
@@ -46,6 +63,7 @@ Configure under **Settings > Plugins > Craft Delta**:
 | Diff Context Lines | 3 | Unchanged lines shown around changes |
 | Max Field Length | 50,000 | Characters before showing a simplified diff |
 | Show Unchanged Fields | Off | Show unchanged fields by default |
+| Enable Review Mode | On | Show the "Start Review" button. When off, the plugin behaves as a pure read-only diff tool. |
 
 ## Extending
 

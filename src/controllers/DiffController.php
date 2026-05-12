@@ -71,15 +71,34 @@ class DiffController extends Controller
             return $this->asFailure('Version not found.');
         }
 
+        // Capture which side carried the canonical entity BEFORE the chronological
+        // sort can swap them. "Source" is whichever side is NOT the canonical.
+        $olderIsCanonical = $older->id === $canonical->id;
+        $newerIsCanonical = $newer->id === $canonical->id;
+        $sourceRef = $olderIsCanonical ? $newerRef : $olderRef;
+
         // Force chronological order so diff colors stay stable across swaps.
         [$older, $newer] = $this->sortChronologically($older, $newer);
 
         try {
             $result = $plugin->diff->compare($older, $newer);
 
+            // Review mode is available when one side is canonical AND the setting is on.
+            $settings = $plugin->getSettings();
+            $reviewMode = $settings->enableReviewMode
+                && ($olderIsCanonical || $newerIsCanonical);
+
             $html = Craft::$app->getView()->renderTemplate(
                 'craft-delta/_diff-slideout',
-                ['result' => $result],
+                [
+                    'result' => $result,
+                    'reviewMode' => $reviewMode,
+                    'canonicalSide' => $newer->id === $canonical->id ? 'newer' : 'older',
+                    'sourceRef' => $sourceRef,
+                    'entryId' => $entryId,
+                    'siteId' => $siteId ?? $canonical->siteId,
+                    'canonicalUpdatedAt' => $canonical->dateUpdated?->format(\DateTimeInterface::ATOM),
+                ],
             );
 
             return $this->asJson([
@@ -268,5 +287,90 @@ class DiffController extends Controller
         }
 
         return $revision;
+    }
+
+    /**
+     * Apply accepted review-mode atoms to a new draft of the canonical entry.
+     */
+    public function actionApply(): Response
+    {
+        $this->requireAcceptsJson();
+        $this->requireCpRequest();
+        $this->requirePostRequest();
+
+        $request = Craft::$app->getRequest();
+        $entryId = (int)$request->getRequiredBodyParam('entryId');
+        $sourceRef = (string)$request->getRequiredBodyParam('sourceRef');
+        $siteId = $request->getBodyParam('siteId') ? (int)$request->getBodyParam('siteId') : null;
+        $acceptedAtoms = $request->getBodyParam('acceptedAtoms');
+        $deleteSourceDraft = (bool)$request->getBodyParam('deleteSourceDraft', false);
+
+        if (!is_array($acceptedAtoms) || count($acceptedAtoms) === 0) {
+            return $this->asJson([
+                'success' => false,
+                'errorCode' => 'no-changes',
+                'error' => Craft::t('craft-delta', 'No changes to apply.'),
+            ])->setStatusCode(422);
+        }
+
+        $plugin = Delta::getInstance();
+
+        $canonical = $plugin->revision->getCanonical($entryId, $siteId);
+        if (!$canonical instanceof Entry) {
+            return $this->asJson([
+                'success' => false,
+                'errorCode' => 'source-not-found',
+                'error' => Craft::t('craft-delta', 'Entry not found.'),
+            ])->setStatusCode(422);
+        }
+
+        $this->requireEntryAccess($canonical);
+
+        // Permission: user must hold the dedicated review-mode apply permission
+        // for this section. Granted via Settings → Users → User group permissions.
+        $user = Craft::$app->getUser()->getIdentity();
+        $section = $canonical->getSection();
+        if (!$user || !$section || !$user->can("craftdelta-applyReview:{$section->uid}")) {
+            throw new ForbiddenHttpException('You do not have permission to apply review-mode changes for this section.');
+        }
+
+        $source = $this->resolveVersion($sourceRef, $canonical, $siteId);
+        if (!$source instanceof Entry) {
+            return $this->asJson([
+                'success' => false,
+                'errorCode' => 'source-not-found',
+                'error' => Craft::t('craft-delta', 'Source version not found.'),
+            ])->setStatusCode(422);
+        }
+
+        try {
+            $published = $plugin->merge->merge($canonical, $source, $acceptedAtoms, $deleteSourceDraft);
+
+            return $this->asJson([
+                'success' => true,
+                'entryId' => $published->id,
+                'entryEditUrl' => $published->getCpEditUrl(),
+            ]);
+        } catch (\zeixcom\craftdelta\services\StaleAtomException $e) {
+            return $this->asJson([
+                'success' => false,
+                'errorCode' => 'stale-atoms',
+                'error' => Craft::t('craft-delta', 'The entry has changed since you started reviewing. Please reload the diff and restart your review.'),
+            ])->setStatusCode(422);
+        } catch (\InvalidArgumentException $e) {
+            Craft::warning("Apply rejected malformed atom: {$e->getMessage()}", __METHOD__);
+            return $this->asJson([
+                'success' => false,
+                'errorCode' => 'stale-atoms',
+                'error' => Craft::t('craft-delta', 'The entry has changed since you started reviewing. Please reload the diff and restart your review.'),
+            ])->setStatusCode(422);
+        } catch (\Throwable $e) {
+            Craft::error("Apply failed: {$e->getMessage()}", __METHOD__);
+            return $this->asJson([
+                'success' => false,
+                'errorCode' => 'validation-failed',
+                'error' => $e->getMessage(),
+            ])->setStatusCode(422);
+        }
     }
 }

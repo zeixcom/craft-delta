@@ -1,0 +1,50 @@
+<?php
+
+declare(strict_types=1);
+
+namespace zeixcom\craftdelta\console\controllers;
+
+use craft\console\Controller;
+use yii\console\ExitCode;
+
+/**
+ * Smoke-test runner for craft-delta. Not part of the user-facing plugin —
+ * a developer convenience for running end-to-end checks against a real
+ * Craft install when PHPUnit kernel boot isn't wired up.
+ *
+ * Invoke via: `ddev craft craft-delta/smoke/matrix-apply`
+ */
+class SmokeController extends Controller
+{
+    /**
+     * Runs the Matrix `added` end-to-end smoke test.
+     */
+    public function actionMatrixApply(): int
+    {
+        return $this->runScript('matrix-apply-smoke.php');
+    }
+
+    /**
+     * Runs the Matrix `added` + `removed` end-to-end smoke test. Seeds
+     * canonical with 3 known blocks, then drafts a state where one is
+     * removed and one new one is added, and verifies the apply.
+     */
+    public function actionMatrixAddRemove(): int
+    {
+        return $this->runScript('matrix-add-remove-smoke.php');
+    }
+
+    private function runScript(string $name): int
+    {
+        $script = dirname(__DIR__, 3) . '/tests/smoke/' . $name;
+        if (!is_file($script)) {
+            $this->stderr("Script not found: $script\n");
+            return ExitCode::IOERR;
+        }
+
+        require $script;
+
+        // Smoke scripts call exit() on failure; if we get here it passed.
+        return ExitCode::OK;
+    }
+}

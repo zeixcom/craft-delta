@@ -27,6 +27,12 @@ class Settings extends Model
     public bool $defaultShowUnchanged = false;
 
     /**
+     * Enable review mode UI (Start Review button, accept/reject, apply).
+     * When false, the plugin behaves as a pure read-only diff tool.
+     */
+    public bool $enableReviewMode = true;
+
+    /**
      * Enable the submit-for-review workflow (v2.0+). When false, the plugin
      * behaves exactly like v1.1: no Submit button, no workflow toolbar.
      * The Apply Review permission still gates the legacy granular review.

@@ -20,6 +20,7 @@ use zeixcom\craftdelta\models\Settings;
 use zeixcom\craftdelta\services\DiffService;
 use zeixcom\craftdelta\services\FieldDiffService;
 use zeixcom\craftdelta\services\RevisionService;
+use zeixcom\craftdelta\services\MergeService;
 
 /**
  * Craft Delta — inline revision diffing for Craft CMS.
@@ -27,6 +28,7 @@ use zeixcom\craftdelta\services\RevisionService;
  * @property-read DiffService $diff
  * @property-read FieldDiffService $fieldDiff
  * @property-read RevisionService $revision
+ * @property-read MergeService $merge
  */
 class Delta extends Plugin
 {
@@ -40,6 +42,7 @@ class Delta extends Plugin
                 'diff' => DiffService::class,
                 'fieldDiff' => FieldDiffService::class,
                 'revision' => RevisionService::class,
+                'merge' => MergeService::class,
             ],
         ];
     }
@@ -82,7 +85,8 @@ class Delta extends Plugin
     }
 
     /**
-     * Register per-section permissions for the submit/review workflow.
+     * Register per-section permissions for the submit/review workflow and
+     * the existing apply-review-mode permission.
      */
     private function registerPermissions(): void
     {
@@ -148,6 +152,41 @@ class Delta extends Plugin
 
                 $view = Craft::$app->getView();
                 $view->registerAssetBundle(DiffAsset::class);
+
+                // Register every source string the JS layer passes to Craft.t().
+                // Without this, Craft.t() falls back to the source string and
+                // non-English users see English UI for the dynamic JS bits.
+                $view->registerTranslations('craft-delta', [
+                    'Apply {count} accepted',
+                    '{decided} of {total} decided',
+                    'At least two revisions are needed to compare.',
+                    'Changed only',
+                    'Compare Revisions',
+                    'Comparing…',
+                    'Current Draft',
+                    'Current',
+                    'Drafts',
+                    'Expand',
+                    'Failed to load diff.',
+                    'Failed to load revisions.',
+                    'Loading revisions…',
+                    'Open full page',
+                    'Revisions',
+                    // Review-mode dynamic strings
+                    'Resume previous review ({decided} of {total} decided)?',
+                    'Resume',
+                    'Start fresh',
+                    'The entry has changed since your last review; starting fresh.',
+                    'The entry has changed since you started reviewing. Please reload the diff and restart your review.',
+                    'Discard {decided} decisions?',
+                    'Publish {count} accepted changes to this entry? This creates a new revision. Rejected changes will not affect the entry.',
+                    'Changes published. Open the entry?',
+                    'Validation failed.',
+                    'Apply failed.',
+                    'No changes to apply.',
+                    'Your decisions are still saved. Adjust and try again.',
+                    'Your decisions are still saved.',
+                ]);
 
                 /** @var Settings $settings */
                 $settings = $this->getSettings();

@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Review Mode** — accept or reject individual changes from inside the diff slideout, then publish all accepted changes to the canonical entry as a new revision. Per-field and per-Matrix-block granularity (with reorder as its own atom). Stepper navigation with J/K/A/R keyboard shortcuts. Decisions persist via browser localStorage (`craftdelta:review:<userId>:<entryId>:<siteId>:<sourceRef>` key) and are resumable across browser restarts. Stale-state detection against the canonical entry's `dateUpdated` guards against mid-review edits.
+- New `MergeService` owns all write logic — atom validation against a fresh diff, field/Matrix apply, single `saveElement` followed by `applyDraft` for atomic publication.
+- New `actionApply` endpoint on `DiffController` with structured error codes (`stale-atoms`, `source-not-found`, `validation-failed`, `no-changes`).
+- New plugin setting `Enable Review Mode` (default: on) acting as a kill switch.
+- 23 PHPUnit unit tests covering atom parsing, validation, and the Matrix merge algorithm including the spec's worked anchor-rule example.
+- Translations for review-mode strings across all 8 supported locales.
+- `MatrixDiffer` now emits `blockUid` (the canonical block UID) on each change entry — required for atom keys to round-trip across canonical/draft/revision.
+
+### Changed
+- Apply requires a new per-section permission `craftdelta-applyReview:<sectionUid>` — registered by Craft Delta and visible under Settings → Users → User Groups → Permissions → Craft Delta. Granting just edit/save permissions is no longer enough; admins must explicitly grant this to enable the Apply button for non-admin users. Admins have it automatically.
+- An "Also delete source draft" checkbox appears next to the Apply button when the comparison source is a draft. Off by default. When checked, the source draft is deleted after a successful publish — useful when the draft was a one-shot suggestion. Left unchecked, the draft persists and naturally becomes a queue of rejected changes (re-opening the diff afterward shows only what wasn't accepted).
+
 ## 1.1.0 - 2026-04-15
 
 ### Added

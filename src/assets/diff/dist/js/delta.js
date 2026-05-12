@@ -420,6 +420,11 @@
           self.bindFieldToggles($result[0]);
           self.bindTabNav($result[0]);
           self.updateToolbarOffset();
+
+          const toolbar = document.querySelector('[data-review-toolbar]');
+          if (toolbar) {
+            Craft.Delta.reviewMode.checkForPriorState(toolbar);
+          }
         })
         .catch(function () {
           if (requestId !== self._loadId) { return; }
@@ -496,10 +501,36 @@
       wrapper.style.setProperty('--delta-toolbar-height', height + 'px');
     },
 
+    // Returns { el, eventTarget, isWindow } for the active mode's scroll
+    // container, or null if the wrapper isn't available yet. In fullpage
+    // mode the page (window) is what scrolls; in slideout/modal it's the
+    // .delta-slideout wrapper.
+    _resolveScroller: function () {
+      if (this.mode === 'fullpage') {
+        return {
+          el: document.scrollingElement || document.documentElement,
+          eventTarget: window,
+          isWindow: true,
+        };
+      }
+      if (!this.$wrapper || !this.$wrapper.length) {
+        return null;
+      }
+      var el = this.$wrapper[0];
+      return { el: el, eventTarget: el, isWindow: false };
+    },
+
     bindTabNav: function (container) {
       var self = this;
       var nav = container.querySelector('.delta-tabnav');
       if (!nav) { return; }
+
+      var scroller = self._resolveScroller();
+      if (!scroller) { return; }
+
+      var toolbar = self.$wrapper && self.$wrapper.length
+        ? self.$wrapper[0].querySelector('.delta-toolbar')
+        : null;
 
       var links = nav.querySelectorAll('.delta-tabnav-item');
       var linksByTarget = {};
@@ -510,29 +541,23 @@
           e.preventDefault();
           var targetId = link.getAttribute('data-tab-target');
           var target = container.querySelector('#' + targetId);
-          if (!target || !self.$wrapper || !self.$wrapper.length) { return; }
+          if (!target) { return; }
 
-          var scrollEl = self.$wrapper[0];
-          var toolbar = scrollEl.querySelector('.delta-toolbar');
           var toolbarHeight = toolbar ? toolbar.getBoundingClientRect().height : 0;
+          var targetRect = target.getBoundingClientRect();
+          var currentScroll = scroller.isWindow ? window.scrollY : scroller.el.scrollTop;
+          var viewportTop = scroller.isWindow ? 0 : scroller.el.getBoundingClientRect().top;
+          var offsetTop = targetRect.top - viewportTop + currentScroll;
 
-          // Walk offsetParents so we get the real distance to scrollEl,
-          // not the local offset within the (positioned) tab group.
-          var top = 0, node = target;
-          while (node && node !== scrollEl) {
-            top += node.offsetTop;
-            node = node.offsetParent;
-          }
-
-          scrollEl.scrollTo({
-            top: Math.max(0, top - toolbarHeight - 8),
+          // Land the tab at toolbarHeight + 4 so it crosses the spy threshold
+          // (toolbar.bottom + 4) and the active highlight moves to it.
+          scroller.el.scrollTo({
+            top: Math.max(0, offsetTop - toolbarHeight - 4),
             behavior: 'smooth',
           });
         });
       });
 
-      if (!self.$wrapper || !self.$wrapper.length) { return; }
-      var scrollEl = self.$wrapper[0];
       var tabGroups = Array.prototype.slice.call(container.querySelectorAll('.delta-tab-group'));
       if (tabGroups.length === 0) { return; }
 
@@ -543,7 +568,6 @@
       };
 
       var updateActive = function () {
-        var toolbar = scrollEl.querySelector('.delta-toolbar');
         var threshold = (toolbar ? toolbar.getBoundingClientRect().bottom : 0) + 4;
         var current = null;
         for (var i = 0; i < tabGroups.length; i++) {
@@ -570,13 +594,493 @@
         });
       };
 
-      if (self._tabSpyHandler) {
-        scrollEl.removeEventListener('scroll', self._tabSpyHandler);
+      if (self._tabSpyHandler && self._tabSpyEventTarget) {
+        self._tabSpyEventTarget.removeEventListener('scroll', self._tabSpyHandler);
       }
       self._tabSpyHandler = onScroll;
-      scrollEl.addEventListener('scroll', onScroll, { passive: true });
+      self._tabSpyEventTarget = scroller.eventTarget;
+      scroller.eventTarget.addEventListener('scroll', onScroll, { passive: true });
 
       updateActive();
     },
   };
+
+  /**
+   * Review mode — accept/reject decisions on diff atoms, deferred apply
+   * via POST to actionApply. State is mirrored to localStorage per
+   * (userId, entryId, siteId, sourceRef).
+   */
+  Craft.Delta.reviewMode = {
+    active: false,
+    state: Object.create(null),         // atomId → 'accepted' | 'rejected'
+    storageKey: null,                   // computed when entering review mode
+    canonicalUpdatedAt: null,
+    saveTimer: null,
+    eventsBound: false,                 // guard so bindEvents only attaches once
+    focusedAtomId: null,
+    intersectionObserver: null,
+
+    next: function () {
+      this.moveFocus(1);
+    },
+    prev: function () {
+      this.moveFocus(-1);
+    },
+
+    moveFocus: function (delta) {
+      const ids = this.atomIdsInDocumentOrder();
+      if (ids.length === 0) return;
+
+      let idx = this.focusedAtomId ? ids.indexOf(this.focusedAtomId) : -1;
+      idx = (idx + delta + ids.length) % ids.length;
+      if (idx < 0) idx = ids.length - 1;
+
+      this.setFocus(ids[idx], true);
+    },
+
+    setFocus: function (atomId, scroll) {
+      const self = this;
+      // Clear previous focus
+      document.querySelectorAll('.delta-atom-stepper-focus').forEach(function (el) {
+        el.classList.remove('delta-atom-stepper-focus');
+      });
+      const wrapper = document.querySelector('[data-atom-id="' + cssEscape(atomId) + '"]');
+      if (!wrapper) return;
+      wrapper.classList.add('delta-atom-stepper-focus');
+      this.focusedAtomId = atomId;
+      if (scroll) {
+        wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    },
+
+    atomIdsInDocumentOrder: function () {
+      return Array.from(document.querySelectorAll('[data-atom-id]')).map(function (el) {
+        return el.dataset.atomId;
+      });
+    },
+
+    bindKeyboardShortcuts: function () {
+      const self = this;
+      this.keyHandler = function (e) {
+        if (!self.active) return;
+        // Skip when typing in an input
+        if (e.target.matches('input, textarea, [contenteditable]')) return;
+        switch (e.key.toLowerCase()) {
+          case 'j': self.next(); e.preventDefault(); break;
+          case 'k': self.prev(); e.preventDefault(); break;
+          case 'a':
+            if (self.focusedAtomId) self.recordDecision(self.focusedAtomId, 'accepted');
+            e.preventDefault();
+            break;
+          case 'r':
+            if (self.focusedAtomId) self.recordDecision(self.focusedAtomId, 'rejected');
+            e.preventDefault();
+            break;
+        }
+      };
+      document.addEventListener('keydown', this.keyHandler);
+    },
+
+    unbindKeyboardShortcuts: function () {
+      if (this.keyHandler) {
+        document.removeEventListener('keydown', this.keyHandler);
+        this.keyHandler = null;
+      }
+    },
+
+    bindScrollFocus: function () {
+      const self = this;
+      this.intersectionObserver = new IntersectionObserver(function (entries) {
+        // Pick the topmost intersecting atom as the focused one
+        const visible = entries.filter(function (e) { return e.isIntersecting; });
+        if (visible.length === 0) return;
+        visible.sort(function (a, b) {
+          return a.target.getBoundingClientRect().top - b.target.getBoundingClientRect().top;
+        });
+        self.setFocus(visible[0].target.dataset.atomId, false);
+      }, { threshold: 0.5 });
+
+      document.querySelectorAll('[data-atom-id]').forEach(function (el) {
+        self.intersectionObserver.observe(el);
+      });
+    },
+
+    unbindScrollFocus: function () {
+      if (this.intersectionObserver) {
+        this.intersectionObserver.disconnect();
+        this.intersectionObserver = null;
+      }
+    },
+
+    /**
+     * Look up prior state for this comparison; if found, surface a banner
+     * with "Resume" / "Start fresh" options. Called when the slideout's
+     * diff content has just been rendered — NOT when entering review mode.
+     */
+    checkForPriorState: function (toolbar) {
+      const entryId = toolbar.dataset.entryId;
+      const siteId = toolbar.dataset.siteId;
+      const sourceRef = toolbar.dataset.sourceRef;
+      const userId = (Craft.userId || '0');
+      const liveUpdatedAt = toolbar.dataset.canonicalUpdatedAt;
+
+      const key = 'craftdelta:review:' + userId + ':' + entryId + ':' + siteId + ':' + sourceRef;
+      let raw;
+      try { raw = localStorage.getItem(key); } catch (e) { return; }
+      if (!raw) return;
+
+      let parsed;
+      try { parsed = JSON.parse(raw); } catch (e) { return; }
+      if (!parsed || !parsed.decisions) return;
+
+      const banner = document.querySelector('[data-review-banner]');
+      if (!banner) return;
+
+      // Stale check
+      if (parsed.canonicalUpdatedAt && parsed.canonicalUpdatedAt !== liveUpdatedAt) {
+        try { localStorage.removeItem(key); } catch (e) {}
+        banner.textContent = Craft.t('craft-delta', 'The entry has changed since your last review; starting fresh.');
+        banner.removeAttribute('hidden');
+        return;
+      }
+
+      const total = document.querySelectorAll('[data-atom-id]').length;
+      const decided = Object.keys(parsed.decisions).length;
+
+      banner.innerHTML = '';
+      const text = document.createElement('span');
+      text.textContent = Craft.t('craft-delta', 'Resume previous review ({decided} of {total} decided)?', {
+        decided: decided,
+        total: total,
+      }) + ' ';
+      banner.appendChild(text);
+
+      const resume = document.createElement('button');
+      resume.type = 'button';
+      resume.className = 'btn submit';
+      resume.textContent = Craft.t('craft-delta', 'Resume');
+      resume.addEventListener('click', function () {
+        Craft.Delta.reviewMode.enter(toolbar);
+        banner.setAttribute('hidden', '');
+      });
+      banner.appendChild(resume);
+
+      const fresh = document.createElement('button');
+      fresh.type = 'button';
+      fresh.className = 'btn';
+      fresh.textContent = Craft.t('craft-delta', 'Start fresh');
+      fresh.addEventListener('click', function () {
+        try { localStorage.removeItem(key); } catch (e) {}
+        banner.setAttribute('hidden', '');
+      });
+      banner.appendChild(fresh);
+
+      banner.removeAttribute('hidden');
+    },
+
+    enter: function (toolbar) {
+      const entryId = toolbar.dataset.entryId;
+      const siteId = toolbar.dataset.siteId;
+      const sourceRef = toolbar.dataset.sourceRef;
+      const userId = (Craft.userId || '0');
+
+      this.storageKey = 'craftdelta:review:' + userId + ':' + entryId + ':' + siteId + ':' + sourceRef;
+      this.canonicalUpdatedAt = toolbar.dataset.canonicalUpdatedAt || null;
+      this.active = true;
+      this.state = Object.create(null);
+
+      this.loadFromStorage();
+      this.showStepper();
+      this.showAllAtomActions();
+      this.refreshUiFromState();
+      this.bindEvents();
+      this.bindKeyboardShortcuts();
+      this.bindScrollFocus();
+      // Auto-focus the first atom
+      const ids = this.atomIdsInDocumentOrder();
+      if (ids.length > 0) this.setFocus(ids[0], false);
+    },
+
+    exit: function () {
+      this.active = false;
+      this.state = Object.create(null);
+      this.hideStepper();
+      this.hideAllAtomActions();
+      this.unbindKeyboardShortcuts();
+      this.unbindScrollFocus();
+      this.focusedAtomId = null;
+      this.clearAtomStateClasses();
+    },
+
+    recordDecision: function (atomId, decision) {
+      if (!this.active) return;
+
+      // Toggle off if same button pressed twice
+      if (this.state[atomId] === decision) {
+        delete this.state[atomId];
+      } else {
+        this.state[atomId] = decision;
+      }
+
+      this.refreshAtomUi(atomId);
+      this.refreshProgress();
+      this.scheduleSave();
+    },
+
+    showStepper: function () {
+      const stepper = document.querySelector('[data-review-stepper]');
+      if (stepper) stepper.removeAttribute('hidden');
+    },
+    hideStepper: function () {
+      const stepper = document.querySelector('[data-review-stepper]');
+      if (stepper) stepper.setAttribute('hidden', '');
+    },
+    showAllAtomActions: function () {
+      document.querySelectorAll('[data-atom-actions]').forEach(function (el) {
+        el.removeAttribute('hidden');
+      });
+    },
+    hideAllAtomActions: function () {
+      document.querySelectorAll('[data-atom-actions]').forEach(function (el) {
+        el.setAttribute('hidden', '');
+      });
+    },
+
+    refreshAtomUi: function (atomId) {
+      const wrapper = document.querySelector('[data-atom-id="' + cssEscape(atomId) + '"]');
+      if (!wrapper) return;
+      wrapper.classList.remove('delta-atom-state-accepted', 'delta-atom-state-rejected', 'delta-atom-state-pending');
+      const decision = this.state[atomId];
+      if (decision === 'accepted') {
+        wrapper.classList.add('delta-atom-state-accepted');
+      } else if (decision === 'rejected') {
+        wrapper.classList.add('delta-atom-state-rejected');
+      } else {
+        wrapper.classList.add('delta-atom-state-pending');
+      }
+
+      // Reflect decision on the wrapper's own buttons (filter to skip nested
+      // atom buttons inside Matrix sub-fields).
+      wrapper.querySelectorAll('.delta-atom-accept, .delta-atom-reject').forEach(function (btn) {
+        if (btn.closest('[data-atom-id]') !== wrapper) return;
+        if (btn.classList.contains('delta-atom-accept')) {
+          btn.classList.toggle('is-active', decision === 'accepted');
+        } else {
+          btn.classList.toggle('is-active', decision === 'rejected');
+        }
+      });
+    },
+
+    clearAtomStateClasses: function () {
+      document.querySelectorAll('[data-atom-id]').forEach(function (el) {
+        el.classList.remove(
+          'delta-atom-state-accepted',
+          'delta-atom-state-rejected',
+          'delta-atom-state-pending',
+          'delta-atom-stepper-focus'
+        );
+      });
+      document.querySelectorAll('.delta-atom-accept.is-active, .delta-atom-reject.is-active').forEach(function (btn) {
+        btn.classList.remove('is-active');
+      });
+    },
+
+    refreshUiFromState: function () {
+      const self = this;
+      document.querySelectorAll('[data-atom-id]').forEach(function (el) {
+        self.refreshAtomUi(el.dataset.atomId);
+      });
+      this.refreshProgress();
+    },
+
+    refreshProgress: function () {
+      const total = document.querySelectorAll('[data-atom-id]').length;
+      const decided = Object.keys(this.state).length;
+      const accepted = Object.values(this.state).filter(function (v) { return v === 'accepted'; }).length;
+
+      const progressEl = document.querySelector('[data-review-progress]');
+      if (progressEl) {
+        progressEl.textContent = Craft.t('craft-delta', '{decided} of {total} decided', {
+          decided: decided,
+          total: total,
+        });
+      }
+
+      const applyBtn = document.querySelector('[data-action="apply"]');
+      if (applyBtn) {
+        applyBtn.textContent = Craft.t('craft-delta', 'Apply {count} accepted', { count: accepted });
+        applyBtn.disabled = accepted === 0;
+      }
+    },
+
+    bindEvents: function () {
+      // Guard: only bind once per page load. enter()/exit()/enter() must not
+      // stack listeners on the same root.
+      if (this.eventsBound) return;
+      this.eventsBound = true;
+
+      const self = this;
+      const root = document.querySelector('.delta-slideout, .delta-modal-content, .delta-fullpage-root') || document.body;
+
+      // One delegated click handler covers all per-atom buttons + stepper actions
+      root.addEventListener('click', function (e) {
+        if (!self.active) return;
+
+        const actionEl = e.target.closest('[data-action]');
+        if (!actionEl) return;
+
+        const action = actionEl.dataset.action;
+
+        if (action === 'accept' || action === 'reject') {
+          const wrapper = actionEl.closest('[data-atom-id]');
+          if (!wrapper) return;
+          self.recordDecision(wrapper.dataset.atomId, action === 'accept' ? 'accepted' : 'rejected');
+          return;
+        }
+
+        if (action === 'cancel-review') {
+          self.cancel();
+          return;
+        }
+
+        if (action === 'next-change') { self.next(); return; }
+        if (action === 'prev-change') { self.prev(); return; }
+
+        if (action === 'apply') { self.apply(); return; }
+      });
+    },
+
+    scheduleSave: function () {
+      const self = this;
+      if (this.saveTimer) clearTimeout(this.saveTimer);
+      this.saveTimer = setTimeout(function () { self.saveToStorage(); }, 150);
+    },
+
+    saveToStorage: function () {
+      if (!this.storageKey) return;
+      try {
+        localStorage.setItem(this.storageKey, JSON.stringify({
+          version: 1,
+          canonicalUpdatedAt: this.canonicalUpdatedAt,
+          decisions: this.state,
+        }));
+      } catch (e) { /* quota exceeded etc — silent */ }
+    },
+
+    loadFromStorage: function () {
+      if (!this.storageKey) return;
+      try {
+        const raw = localStorage.getItem(this.storageKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.decisions && typeof parsed.decisions === 'object') {
+          this.state = Object.assign(Object.create(null), parsed.decisions);
+        }
+      } catch (e) { this.state = Object.create(null); }
+    },
+
+    cancel: function () {
+      const decided = Object.keys(this.state).length;
+      if (decided > 0) {
+        if (!confirm(Craft.t('craft-delta', 'Discard {decided} decisions?', { decided: decided }))) return;
+      }
+      try { localStorage.removeItem(this.storageKey); } catch (e) {}
+      this.exit();
+    },
+
+    apply: function () {
+      const self = this;
+      const accepted = Object.entries(this.state)
+        .filter(function (kv) { return kv[1] === 'accepted'; })
+        .map(function (kv) { return kv[0]; });
+
+      if (accepted.length === 0) return;
+
+      const confirmed = confirm(Craft.t(
+        'craft-delta',
+        'Publish {count} accepted changes to this entry? This creates a new revision. Rejected changes will not affect the entry.',
+        { count: accepted.length }
+      ));
+      if (!confirmed) return;
+
+      const toolbar = document.querySelector('[data-review-toolbar]');
+      const entryId = toolbar.dataset.entryId;
+      const siteId = toolbar.dataset.siteId;
+      const sourceRef = toolbar.dataset.sourceRef;
+      const deleteSourceCheckbox = document.querySelector('[data-delete-source-draft]');
+      const deleteSourceDraft = !!(deleteSourceCheckbox && deleteSourceCheckbox.checked);
+
+      Craft.sendActionRequest('POST', 'craft-delta/diff/apply', {
+        data: {
+          entryId: parseInt(entryId, 10),
+          siteId: parseInt(siteId, 10),
+          sourceRef: sourceRef,
+          acceptedAtoms: accepted,
+          deleteSourceDraft: deleteSourceDraft ? 1 : 0,
+        },
+      }).then(function (response) {
+        const data = response.data || {};
+        if (data.success) {
+          self.handleApplySuccess(data);
+        } else {
+          self.handleApplyError(data);
+        }
+      }).catch(function (err) {
+        const data = (err && err.response && err.response.data) || {};
+        self.handleApplyError(data);
+      });
+    },
+
+    handleApplySuccess: function (data) {
+      try { localStorage.removeItem(this.storageKey); } catch (e) {}
+      this.exit();
+      const goNow = confirm(Craft.t('craft-delta', 'Changes published. Open the entry?'));
+      if (goNow && data.entryEditUrl) {
+        window.location.href = data.entryEditUrl;
+      }
+    },
+
+    handleApplyError: function (data) {
+      const banner = document.querySelector('[data-review-banner]');
+      switch (data.errorCode) {
+        case 'stale-atoms':
+          try { localStorage.removeItem(this.storageKey); } catch (e) {}
+          if (banner) {
+            banner.textContent = data.error || Craft.t('craft-delta', 'The entry has changed since you started reviewing. Please reload the diff and restart your review.');
+            banner.removeAttribute('hidden');
+          }
+          // Trigger a fresh diff reload if a helper exists; otherwise no-op.
+          if (typeof Craft.Delta.reload === 'function') {
+            Craft.Delta.reload();
+          }
+          break;
+        case 'validation-failed':
+          // Preserve localStorage; show the error
+          alert((data.error || Craft.t('craft-delta', 'Validation failed.')) + '\n\n' + Craft.t('craft-delta', 'Your decisions are still saved. Adjust and try again.'));
+          break;
+        case 'no-changes':
+          // Shouldn't happen — apply button is disabled when 0 accepted
+          alert(data.error || Craft.t('craft-delta', 'No changes to apply.'));
+          break;
+        default:
+          alert((data.error || Craft.t('craft-delta', 'Apply failed.')) + '\n\n' + Craft.t('craft-delta', 'Your decisions are still saved.'));
+      }
+    },
+  };
+
+  // Helper for querySelector — atom IDs contain colons which are invalid in
+  // CSS selectors unless escaped. CSS.escape may not be available in older browsers.
+  function cssEscape(s) {
+    return (window.CSS && window.CSS.escape) ? window.CSS.escape(s) : s.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+  }
+
+  // Top-level delegated listener for the Start Review button. Module-level
+  // is consistent with the rest of init wiring in this file.
+  document.addEventListener('click', function (e) {
+    const startBtn = e.target.closest('[data-action="start-review"]');
+    if (!startBtn) return;
+    const toolbar = startBtn.closest('[data-review-toolbar]');
+    if (!toolbar) return;
+    Craft.Delta.reviewMode.enter(toolbar);
+  });
 })();
