@@ -11,6 +11,8 @@ use craft\base\Plugin;
 use craft\elements\Entry;
 use craft\events\DefineHtmlEvent;
 use craft\events\RegisterUrlRulesEvent;
+use craft\events\RegisterUserPermissionsEvent;
+use craft\services\UserPermissions;
 use craft\web\UrlManager;
 use yii\base\Event;
 use zeixcom\craftdelta\assets\diff\DiffAsset;
@@ -50,6 +52,7 @@ class Delta extends Plugin
 
         $this->registerCpRoutes();
         $this->registerEditorAssets();
+        $this->registerPermissions();
     }
 
     protected function createSettingsModel(): ?Model
@@ -72,8 +75,49 @@ class Delta extends Plugin
         Event::on(
             UrlManager::class,
             UrlManager::EVENT_REGISTER_CP_URL_RULES,
-            function (RegisterUrlRulesEvent $event) {
+            function(RegisterUrlRulesEvent $event) {
                 $event->rules['craft-delta/compare'] = 'craft-delta/diff/compare-full-page';
+            }
+        );
+    }
+
+    /**
+     * Register per-section permissions for the submit/review workflow.
+     */
+    private function registerPermissions(): void
+    {
+        Event::on(
+            UserPermissions::class,
+            UserPermissions::EVENT_REGISTER_PERMISSIONS,
+            function(RegisterUserPermissionsEvent $event) {
+                $sections = Craft::$app->getEntries()->getAllSections();
+                if (count($sections) === 0) {
+                    return;
+                }
+
+                $sectionPermissions = [];
+                foreach ($sections as $section) {
+                    $sectionPermissions["craftdelta-submitDraft:{$section->uid}"] = [
+                        'label' => Craft::t('craft-delta', 'Submit drafts for review in "{section}"', [
+                            'section' => $section->name,
+                        ]),
+                    ];
+                    $sectionPermissions["craftdelta-reviewDraft:{$section->uid}"] = [
+                        'label' => Craft::t('craft-delta', 'Review submitted drafts in "{section}"', [
+                            'section' => $section->name,
+                        ]),
+                    ];
+                    $sectionPermissions["craftdelta-applyReview:{$section->uid}"] = [
+                        'label' => Craft::t('craft-delta', 'Apply review-mode changes for "{section}"', [
+                            'section' => $section->name,
+                        ]),
+                    ];
+                }
+
+                $event->permissions[] = [
+                    'heading' => Craft::t('craft-delta', 'Craft Delta'),
+                    'permissions' => $sectionPermissions,
+                ];
             }
         );
     }
@@ -86,7 +130,7 @@ class Delta extends Plugin
         Event::on(
             Entry::class,
             Element::EVENT_DEFINE_SIDEBAR_HTML,
-            function (DefineHtmlEvent $event) {
+            function(DefineHtmlEvent $event) {
                 $entry = $event->sender;
 
                 if ($entry->getSection() === null) {
