@@ -18,9 +18,11 @@ use yii\base\Event;
 use zeixcom\craftdelta\assets\diff\DiffAsset;
 use zeixcom\craftdelta\models\Settings;
 use zeixcom\craftdelta\services\DiffService;
+use zeixcom\craftdelta\services\EmailService;
 use zeixcom\craftdelta\services\FieldDiffService;
 use zeixcom\craftdelta\services\MergeService;
 use zeixcom\craftdelta\services\RevisionService;
+use zeixcom\craftdelta\services\WorkflowService;
 
 /**
  * Craft Delta — inline revision diffing for Craft CMS.
@@ -29,6 +31,8 @@ use zeixcom\craftdelta\services\RevisionService;
  * @property-read FieldDiffService $fieldDiff
  * @property-read RevisionService $revision
  * @property-read MergeService $merge
+ * @property-read WorkflowService $workflow
+ * @property-read EmailService $email
  */
 class Delta extends Plugin
 {
@@ -43,6 +47,8 @@ class Delta extends Plugin
                 'fieldDiff' => FieldDiffService::class,
                 'revision' => RevisionService::class,
                 'merge' => MergeService::class,
+                'workflow' => WorkflowService::class,
+                'email' => EmailService::class,
             ],
         ];
     }
