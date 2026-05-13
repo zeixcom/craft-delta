@@ -86,6 +86,10 @@ class Delta extends Plugin
             UrlManager::EVENT_REGISTER_CP_URL_RULES,
             function(RegisterUrlRulesEvent $event) {
                 $event->rules['craft-delta/compare'] = 'craft-delta/diff/compare-full-page';
+                $event->rules['POST craft-delta/workflow/submit'] = 'craft-delta/workflow/submit';
+                $event->rules['POST craft-delta/workflow/approve'] = 'craft-delta/workflow/approve';
+                $event->rules['POST craft-delta/workflow/reject'] = 'craft-delta/workflow/reject';
+                $event->rules['craft-delta/workflow/assignees'] = 'craft-delta/workflow/assignees';
             }
         );
     }
