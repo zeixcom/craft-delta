@@ -16,6 +16,7 @@ use craft\services\UserPermissions;
 use craft\web\UrlManager;
 use yii\base\Event;
 use zeixcom\craftdelta\assets\diff\DiffAsset;
+use zeixcom\craftdelta\models\DraftWorkflow;
 use zeixcom\craftdelta\models\Settings;
 use zeixcom\craftdelta\services\DiffService;
 use zeixcom\craftdelta\services\EmailService;
@@ -196,6 +197,19 @@ class Delta extends Plugin
                     'No changes to apply.',
                     'Your decisions are still saved. Adjust and try again.',
                     'Your decisions are still saved.',
+                    // Workflow submit-for-review strings
+                    'Submit for review',
+                    'Reviewer',
+                    'Submit',
+                    'Cancel',
+                    'Loading…',
+                    'No eligible reviewers',
+                    'Failed to load reviewers.',
+                    'Failed to submit for review.',
+                    'Pending review',
+                    'Approved',
+                    'Approved — scheduled',
+                    'Rejected',
                 ]);
 
                 /** @var Settings $settings */
@@ -206,13 +220,47 @@ class Delta extends Plugin
 
                 $siteId = $entry->siteId;
                 $view->registerJs(
-                    "Craft.Delta.init({$canonicalId}, {showUnchanged: {$showUnchanged}, isDraft: {$isDraftJs}, draftId: {$draftId}, siteId: {$siteId}});"
+                    "Craft.Delta.init({$canonicalId}, {showUnchanged: {$showUnchanged}, isDraft: {$isDraftJs}, draftId: {$draftId}, siteId: {$siteId}});" .
+                    "(function(){var \$btn=$('#delta-submit-btn');if(\$btn.length){\$btn.on('click',function(){Craft.Delta.openSubmitModal(\$btn.data('draft-id'),\$btn.data('section-uid'),function(){location.reload();});});}})();"
                 );
 
                 $label = htmlspecialchars(Craft::t('craft-delta', 'Compare Revisions'));
                 $hint = htmlspecialchars(Craft::t('craft-delta', 'View a side-by-side diff of changes between revisions.'));
+
+                // Build optional workflow HTML (Submit button or status pill).
+                $workflowHtml = '';
+                if ($settings->enableWorkflow && $isPublishedDraft) {
+                    $user = Craft::$app->getUser()->getIdentity();
+                    $section = $entry->getSection();
+                    if ($user !== null && $section !== null && $user->can("craftdelta-submitDraft:{$section->uid}")) {
+                        $wf = $this->workflow->getByDraftId((int)$entry->draftId);
+                        if ($wf === null) {
+                            $submitLabel = htmlspecialchars(Craft::t('craft-delta', 'Submit for review'));
+                            $workflowHtml = '<button id="delta-submit-btn" type="button"'
+                                . ' data-draft-id="' . (int)$entry->draftId . '"'
+                                . ' data-section-uid="' . htmlspecialchars($section->uid) . '">'
+                                . $submitLabel
+                                . '</button>';
+                        } else {
+                            if ($wf->state === DraftWorkflow::STATE_APPROVED) {
+                                $pillLabel = $wf->isScheduled()
+                                    ? htmlspecialchars(Craft::t('craft-delta', 'Approved — scheduled'))
+                                    : htmlspecialchars(Craft::t('craft-delta', 'Approved'));
+                            } elseif ($wf->state === DraftWorkflow::STATE_REJECTED) {
+                                $pillLabel = htmlspecialchars(Craft::t('craft-delta', 'Rejected'));
+                            } else {
+                                $pillLabel = htmlspecialchars(Craft::t('craft-delta', 'Pending review'));
+                            }
+                            $workflowHtml = '<p class="delta-workflow-status delta-workflow-status--' . htmlspecialchars($wf->state) . '">'
+                                . $pillLabel
+                                . '</p>';
+                        }
+                    }
+                }
+
                 $event->html .= '<div class="meta" id="delta-meta">'
                     . '<button id="delta-compare-btn" type="button">' . $label . '</button>'
+                    . $workflowHtml
                     . '<p class="delta-meta-hint">' . $hint . '</p>'
                     . '</div>';
             }

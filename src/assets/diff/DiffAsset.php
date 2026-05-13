@@ -21,6 +21,7 @@ class DiffAsset extends AssetBundle
 
         $this->js = [
             'js/delta.js',
+            'js/workflow.js',
         ];
 
         parent::init();
