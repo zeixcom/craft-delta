@@ -1,0 +1,16 @@
+Hi {{ author.friendlyName }},
+
+{{ reviewer.friendlyName }} has rejected your draft:
+
+  {{ entry.title }}
+  {{ url }}
+
+{% if note %}
+Reviewer's note:
+
+{{ note }}
+{% endif %}
+
+The draft is preserved. If you want to revise and resubmit, duplicate the draft and submit the copy.
+
+— Craft Delta

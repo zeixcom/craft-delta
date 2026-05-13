@@ -1,0 +1,14 @@
+Hi {{ author.friendlyName }},
+
+{{ reviewer.friendlyName }} has approved your draft:
+
+  {{ entry.title }}
+  {{ url }}
+
+{% if scheduledFor %}
+Scheduled to publish at: {{ scheduledFor|datetime('full') }}
+{% else %}
+The changes have been applied to the entry.
+{% endif %}
+
+— Craft Delta
