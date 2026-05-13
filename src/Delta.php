@@ -210,6 +210,21 @@ class Delta extends Plugin
                     'Approved',
                     'Approved — scheduled',
                     'Rejected',
+                    // Workflow reviewer toolbar strings (v2.0)
+                    'Approve all',
+                    'Schedule for…',
+                    'Granular review',
+                    'Reject',
+                    'Approve and publish this draft now?',
+                    'Publish at (YYYY-MM-DD HH:MM):',
+                    'Optional note for the author:',
+                    'Reject this draft? Rejection is final.',
+                    'Draft approved.',
+                    'Draft scheduled.',
+                    'Draft rejected.',
+                    'Approve failed.',
+                    'Schedule failed.',
+                    'Reject failed.',
                 ]);
 
                 /** @var Settings $settings */

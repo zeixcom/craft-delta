@@ -18,6 +18,17 @@
     {% endif %}
 </div>
 
+{% if workflow is defined and workflow and isReviewer is defined and isReviewer and workflow.isPending() %}
+    <div class="delta-workflow-toolbar" data-workflow-id="{{ workflow.id }}" data-section-uid="{{ workflow.sectionUid }}">
+        <button type="button" class="btn submit delta-approve-now">{{ 'Approve all'|t('craft-delta') }}</button>
+        <button type="button" class="btn delta-approve-schedule">{{ 'Schedule for…'|t('craft-delta') }}</button>
+        {% if currentUser.can("craftdelta-applyReview:#{workflow.sectionUid}") %}
+            <button type="button" class="btn delta-granular-review">{{ 'Granular review'|t('craft-delta') }}</button>
+        {% endif %}
+        <button type="button" class="btn delta-reject">{{ 'Reject'|t('craft-delta') }}</button>
+    </div>
+{% endif %}
+
 {% if reviewMode is defined and reviewMode %}
     <div class="delta-review-toolbar"
          data-review-toolbar

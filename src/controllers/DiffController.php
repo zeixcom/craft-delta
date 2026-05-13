@@ -88,6 +88,19 @@ class DiffController extends Controller
             $reviewMode = $settings->enableReviewMode
                 && ($olderIsCanonical || $newerIsCanonical);
 
+            $user = Craft::$app->getUser()->getIdentity();
+            $workflow = null;
+            $isReviewer = false;
+            // The "source" entry is whichever side isn't canonical. Workflow
+            // attaches to drafts, so only check if the source is a draft.
+            $sourceEntry = $olderIsCanonical ? $newer : $older;
+            if ($sourceEntry->getIsDraft() && $user) {
+                $workflow = $plugin->workflow->getByDraftId((int)$sourceEntry->draftId);
+                if ($workflow !== null) {
+                    $isReviewer = $plugin->workflow->canReview($user, $workflow);
+                }
+            }
+
             $html = Craft::$app->getView()->renderTemplate(
                 'craft-delta/_diff-slideout',
                 [
@@ -98,6 +111,8 @@ class DiffController extends Controller
                     'entryId' => $entryId,
                     'siteId' => $siteId ?? $canonical->siteId,
                     'canonicalUpdatedAt' => $canonical->dateUpdated?->format(\DateTimeInterface::ATOM),
+                    'workflow' => $workflow,
+                    'isReviewer' => $isReviewer,
                 ],
             );
 

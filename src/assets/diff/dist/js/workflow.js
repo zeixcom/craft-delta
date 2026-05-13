@@ -66,4 +66,74 @@
             );
         });
     };
+
+    /**
+     * Mount click handlers on a workflow toolbar inside the diff slideout.
+     * Called by delta.js after slideout HTML loads.
+     */
+    Craft.Delta.mountWorkflowToolbar = function($toolbar) {
+        var workflowId = $toolbar.data('workflow-id');
+
+        $toolbar.find('.delta-approve-now').on('click', function() {
+            if (!confirm(Craft.t('craft-delta', 'Approve and publish this draft now?'))) return;
+            Craft.postActionRequest(
+                'craft-delta/workflow/approve',
+                { workflowId: workflowId, mode: 'wholesale' },
+                function(resp, status) {
+                    if (status === 'success' && resp.success) {
+                        Craft.cp.displayNotice(Craft.t('craft-delta', 'Draft approved.'));
+                        location.reload();
+                    } else {
+                        Craft.cp.displayError(Craft.t('craft-delta', 'Approve failed.'));
+                    }
+                }
+            );
+        });
+
+        $toolbar.find('.delta-approve-schedule').on('click', function() {
+            var when = prompt(Craft.t('craft-delta', 'Publish at (YYYY-MM-DD HH:MM):'));
+            if (!when) return;
+            Craft.postActionRequest(
+                'craft-delta/workflow/approve',
+                { workflowId: workflowId, mode: 'wholesale', scheduledFor: when },
+                function(resp, status) {
+                    if (status === 'success' && resp.success) {
+                        Craft.cp.displayNotice(Craft.t('craft-delta', 'Draft scheduled.'));
+                        location.reload();
+                    } else {
+                        Craft.cp.displayError(Craft.t('craft-delta', 'Schedule failed.'));
+                    }
+                }
+            );
+        });
+
+        $toolbar.find('.delta-reject').on('click', function() {
+            var note = prompt(Craft.t('craft-delta', 'Optional note for the author:')) || '';
+            if (!confirm(Craft.t('craft-delta', 'Reject this draft? Rejection is final.'))) return;
+            Craft.postActionRequest(
+                'craft-delta/workflow/reject',
+                { workflowId: workflowId, note: note },
+                function(resp, status) {
+                    if (status === 'success' && resp.success) {
+                        Craft.cp.displayNotice(Craft.t('craft-delta', 'Draft rejected.'));
+                        location.reload();
+                    } else {
+                        Craft.cp.displayError(Craft.t('craft-delta', 'Reject failed.'));
+                    }
+                }
+            );
+        });
+
+        $toolbar.find('.delta-granular-review').on('click', function() {
+            if (window.Craft.Delta.startGranularReview) {
+                Craft.Delta.startGranularReview({ workflowId: workflowId });
+            } else {
+                // Fall back to the legacy v1.1 "Start Review" button if present.
+                var $legacy = $('#delta-start-review, .delta-start-review-btn').first();
+                if ($legacy.length) {
+                    $legacy.click();
+                }
+            }
+        });
+    };
 })();

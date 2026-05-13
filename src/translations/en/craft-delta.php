@@ -80,4 +80,18 @@ return [
     'Approved' => 'Approved',
     'Approved — scheduled' => 'Approved — scheduled',
     'Rejected' => 'Rejected',
+    // Workflow reviewer toolbar strings (v2.0)
+    'Approve all' => 'Approve all',
+    'Schedule for…' => 'Schedule for…',
+    'Granular review' => 'Granular review',
+    'Approve and publish this draft now?' => 'Approve and publish this draft now?',
+    'Publish at (YYYY-MM-DD HH:MM):' => 'Publish at (YYYY-MM-DD HH:MM):',
+    'Optional note for the author:' => 'Optional note for the author:',
+    'Reject this draft? Rejection is final.' => 'Reject this draft? Rejection is final.',
+    'Draft approved.' => 'Draft approved.',
+    'Draft scheduled.' => 'Draft scheduled.',
+    'Draft rejected.' => 'Draft rejected.',
+    'Approve failed.' => 'Approve failed.',
+    'Schedule failed.' => 'Schedule failed.',
+    'Reject failed.' => 'Reject failed.',
 ];

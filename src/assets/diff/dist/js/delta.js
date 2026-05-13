@@ -425,6 +425,12 @@
           if (toolbar) {
             Craft.Delta.reviewMode.checkForPriorState(toolbar);
           }
+
+          // Hook for the workflow toolbar (Craft Delta v2.0).
+          var $wfToolbar = $result.find('.delta-workflow-toolbar');
+          if ($wfToolbar.length && Craft.Delta.mountWorkflowToolbar) {
+            Craft.Delta.mountWorkflowToolbar($wfToolbar);
+          }
         })
         .catch(function () {
           if (requestId !== self._loadId) { return; }
