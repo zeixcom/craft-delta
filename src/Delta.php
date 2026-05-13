@@ -9,7 +9,9 @@ use craft\base\Element;
 use craft\base\Model;
 use craft\base\Plugin;
 use craft\elements\Entry;
+use craft\events\DefineAttributeHtmlEvent;
 use craft\events\DefineHtmlEvent;
+use craft\events\RegisterElementTableAttributesEvent;
 use craft\events\RegisterUrlRulesEvent;
 use craft\events\RegisterUserPermissionsEvent;
 use craft\services\UserPermissions;
@@ -63,6 +65,7 @@ class Delta extends Plugin
         $this->registerCpRoutes();
         $this->registerEditorAssets();
         $this->registerPermissions();
+        $this->registerWorkflowColumn();
     }
 
     protected function createSettingsModel(): ?Model
@@ -133,6 +136,51 @@ class Delta extends Plugin
                     'heading' => Craft::t('craft-delta', 'Craft Delta'),
                     'permissions' => $sectionPermissions,
                 ];
+            }
+        );
+    }
+
+    /**
+     * Register a "Workflow" column on entry index pages showing a status pill
+     * for entries that have an active workflow row.
+     */
+    private function registerWorkflowColumn(): void
+    {
+        Event::on(
+            Entry::class,
+            Element::EVENT_REGISTER_TABLE_ATTRIBUTES,
+            function(RegisterElementTableAttributesEvent $event) {
+                $event->tableAttributes['craftDeltaWorkflow'] = [
+                    'label' => Craft::t('craft-delta', 'Workflow'),
+                ];
+            }
+        );
+
+        Event::on(
+            Entry::class,
+            Element::EVENT_DEFINE_ATTRIBUTE_HTML,
+            function(DefineAttributeHtmlEvent $event) {
+                if ($event->attribute !== 'craftDeltaWorkflow') {
+                    return;
+                }
+                /** @var Entry $entry */
+                $entry = $event->sender;
+                $wf = null;
+                $draftId = $entry->draftId;
+                if ($draftId) {
+                    $wf = $this->workflow->getByDraftId((int)$draftId);
+                }
+                if ($wf === null) {
+                    $event->html = '';
+                    return;
+                }
+                $label = match ($wf->state) {
+                    'pending' => Craft::t('craft-delta', 'Pending review'),
+                    'approved' => $wf->isScheduled() ? Craft::t('craft-delta', 'Approved — scheduled') : Craft::t('craft-delta', 'Approved'),
+                    'rejected' => Craft::t('craft-delta', 'Rejected'),
+                    default => $wf->state,
+                };
+                $event->html = '<span class="status ' . htmlspecialchars($wf->state) . '"></span>' . htmlspecialchars($label);
             }
         );
     }
