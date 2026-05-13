@@ -48,11 +48,29 @@ Decisions persist in browser localStorage until you Apply or Cancel. If the cano
 
 ### Permissions
 
-Apply requires a per-section permission registered by Craft Delta:
+Three per-section permissions registered under **Settings → Users → User Groups → Permissions** in the **Craft Delta** group:
 
-- **Apply review-mode changes for "{section}"** — grant under **Settings → Users → User Groups → Permissions**, in the **Craft Delta** group.
+- **Submit drafts for review** — authors holding this permission see a "Submit for review" button on their drafts.
+- **Review submitted drafts** — reviewers holding this permission can be picked as an assignee and can Approve (wholesale, with optional scheduling) or Reject.
+- **Apply review-mode changes** *(unchanged from v1.x)* — required additionally for the "Granular review" path inside the workflow, and for the legacy ad-hoc review mode.
 
-Without this permission, users can still see the diff and use review mode to mark changes — but the **Apply** button returns a 403. Admins automatically have it.
+Users with none of these still see the read-only diff. Admins have everything implicitly.
+
+> **Note on draft locking:** submitted drafts are **not** locked. If the author keeps editing while a scheduled apply is pending, the queue job will publish whatever the draft contains at apply time.
+
+### Workflow (v2.0+)
+
+Authors with the **Submit drafts for review** permission see a **Submit for review** button on their drafts. Clicking it asks them to pick a reviewer.
+
+The chosen reviewer receives an email with a link to the entry. From the diff slideout, the reviewer sees three buttons:
+
+- **Approve all** — applies the draft to canonical. Has a dropdown for "Apply now" or "Schedule for…" (queues a job).
+- **Granular review** — opens the v1.1 per-field accept/decline flow (requires the **Apply review-mode changes** permission additionally).
+- **Reject** — terminal. Author keeps the draft and receives the reviewer's note by email.
+
+Rejected drafts cannot be re-submitted. To revise, duplicate the draft and submit the copy.
+
+Disable the entire workflow path via **Settings → Plugins → Craft Delta → Enable Workflow** (defaults to On).
 
 ## Settings
 
@@ -64,6 +82,7 @@ Configure under **Settings > Plugins > Craft Delta**:
 | Max Field Length | 50,000 | Characters before showing a simplified diff |
 | Show Unchanged Fields | Off | Show unchanged fields by default |
 | Enable Review Mode | On | Show the "Start Review" button. When off, the plugin behaves as a pure read-only diff tool. |
+| Enable Workflow | On | Show the workflow Submit/Approve/Reject UI. When off, v1.1 behavior. |
 
 ## Extending
 

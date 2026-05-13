@@ -1,5 +1,27 @@
 # Changelog
 
+# 2.0.0 — 2026-05-13
+
+## Added
+
+- **Submit-for-review workflow** (`submitDraft`, `reviewDraft` per-section permissions).
+- Reviewer can Approve (wholesale, with optional scheduled apply via queue job) or Reject (terminal, with optional note).
+- Email notifications on submit/approve/reject.
+- Workflow column on the entry index.
+- `WorkflowService` with public API and `EVENT_AFTER_SUBMIT` / `EVENT_AFTER_APPROVE` / `EVENT_AFTER_REJECT` events for third-party integration.
+- `enableWorkflow` setting (default `true`).
+
+## Changed
+
+- Plugin schema version bumped to `2.0.0`. Existing v1.x installs run an upgrade migration to add the `craftdelta_draft_workflows` table.
+
+## Compatibility
+
+- No breaking changes for users without workflow permissions — the v1.1 read-only diff slideout and "Compare Revisions" button behave identically.
+- Existing `applyReview` permission is unchanged in name and behavior.
+
+---
+
 ## Unreleased
 
 ### Added
