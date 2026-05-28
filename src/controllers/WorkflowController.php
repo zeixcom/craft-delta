@@ -6,6 +6,7 @@ namespace zeixcom\craftdelta\controllers;
 
 use Craft;
 use craft\elements\Entry;
+use craft\helpers\UrlHelper;
 use craft\web\Controller;
 use DateTime;
 use yii\web\BadRequestHttpException;
@@ -14,10 +15,6 @@ use yii\web\NotFoundHttpException;
 use yii\web\Response;
 use zeixcom\craftdelta\Delta;
 
-/**
- * HTTP endpoints for the submit-for-review workflow. Each action does
- * permission check + delegates to WorkflowService.
- */
 class WorkflowController extends Controller
 {
     public function actionSubmit(): Response
@@ -86,11 +83,28 @@ class WorkflowController extends Controller
             }
             $plugin->workflow->approveGranular($wf, $accepted, $user);
         } else {
-            $scheduledFor = $scheduledForRaw ? new DateTime($scheduledForRaw) : null;
+            if ($scheduledForRaw !== null && $scheduledForRaw !== '') {
+                try {
+                    $scheduledFor = new DateTime((string)$scheduledForRaw);
+                } catch (\Throwable) {
+                    return $this->asJson([
+                        'success' => false,
+                        'error' => Craft::t('craft-delta', 'Schedule failed.'),
+                    ])->setStatusCode(422);
+                }
+            } else {
+                $scheduledFor = null;
+            }
             $plugin->workflow->approveWholesale($wf, $scheduledFor, $user);
         }
 
-        return $this->asJson(['success' => true]);
+        $canonical = Craft::$app->getEntries()->getEntryById($wf->canonicalEntryId);
+        $redirectUrl = $canonical?->getCpEditUrl() ?? UrlHelper::cpUrl("entries/{$wf->canonicalEntryId}");
+
+        return $this->asJson([
+            'success' => true,
+            'redirectUrl' => $redirectUrl,
+        ]);
     }
 
     public function actionReject(): Response

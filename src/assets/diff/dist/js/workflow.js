@@ -82,7 +82,11 @@
                 function(resp, status) {
                     if (status === 'success' && resp.success) {
                         Craft.cp.displayNotice(Craft.t('craft-delta', 'Draft approved.'));
-                        location.reload();
+                        if (resp.redirectUrl) {
+                            window.location.href = resp.redirectUrl;
+                        } else {
+                            location.reload();
+                        }
                     } else {
                         Craft.cp.displayError(Craft.t('craft-delta', 'Approve failed.'));
                     }

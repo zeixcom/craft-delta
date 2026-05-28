@@ -104,6 +104,8 @@ class WorkflowService extends Component
 
     public function submit(Entry $draft, int $assigneeId, User $submittedBy): DraftWorkflow
     {
+        $this->assertCanSubmit($submittedBy, $draft);
+
         if (!$draft->getIsDraft()) {
             throw new InvalidArgumentException('Submit requires a draft entry.');
         }
@@ -124,7 +126,9 @@ class WorkflowService extends Component
         $record->state = DraftWorkflow::STATE_PENDING;
         $record->submittedBy = $submittedBy->id;
         $record->assigneeId = $assigneeId;
-        $record->save(false);
+        if (!$record->save(false)) {
+            throw new InvalidArgumentException('Failed to persist workflow submit state.');
+        }
 
         $wf = $this->modelFromRecord($record);
 
@@ -137,6 +141,7 @@ class WorkflowService extends Component
 
     public function approveWholesale(DraftWorkflow $wf, ?DateTime $scheduledFor, User $reviewer): void
     {
+        $this->assertCanReview($reviewer, $wf);
         $this->assertTransition($wf->state, DraftWorkflow::STATE_APPROVED);
 
         $record = DraftWorkflowRecord::findOne(['id' => $wf->id]);
@@ -147,7 +152,9 @@ class WorkflowService extends Component
         $record->state = DraftWorkflow::STATE_APPROVED;
         $record->decidedBy = $reviewer->id;
         $record->scheduledFor = $scheduledFor ? Db::prepareDateForDb($scheduledFor) : null;
-        $record->save(false);
+        if (!$record->save(false)) {
+            throw new InvalidArgumentException('Failed to persist workflow approval state.');
+        }
 
         $wf = $this->modelFromRecord($record);
 
@@ -158,7 +165,7 @@ class WorkflowService extends Component
                 ->push(new ApplyScheduledDraft(['workflowId' => $wf->id]));
         }
 
-        $draft = Craft::$app->getEntries()->getEntryById($wf->draftId, '*', ['drafts' => true]);
+        $draft = $this->getDraftEntry($wf->draftId);
         if ($draft) {
             Delta::getInstance()->email->sendApproved($wf, $draft);
         }
@@ -168,6 +175,7 @@ class WorkflowService extends Component
 
     public function approveGranular(DraftWorkflow $wf, array $acceptedFieldHandles, User $reviewer): void
     {
+        $this->assertCanReview($reviewer, $wf);
         $this->assertTransition($wf->state, DraftWorkflow::STATE_APPROVED);
 
         $record = DraftWorkflowRecord::findOne(['id' => $wf->id]);
@@ -178,11 +186,13 @@ class WorkflowService extends Component
         $record->state = DraftWorkflow::STATE_APPROVED;
         $record->decidedBy = $reviewer->id;
         $record->appliedAt = Db::prepareDateForDb(new DateTime());
-        $record->save(false);
+        if (!$record->save(false)) {
+            throw new InvalidArgumentException('Failed to persist granular approval state.');
+        }
 
         $wf = $this->modelFromRecord($record);
 
-        $draft = Craft::$app->getEntries()->getEntryById($wf->draftId, '*', ['drafts' => true]);
+        $draft = $this->getDraftEntry($wf->draftId);
         if ($draft) {
             Delta::getInstance()->email->sendApproved($wf, $draft);
         }
@@ -192,6 +202,7 @@ class WorkflowService extends Component
 
     public function reject(DraftWorkflow $wf, ?string $note, User $reviewer): void
     {
+        $this->assertCanReview($reviewer, $wf);
         $this->assertTransition($wf->state, DraftWorkflow::STATE_REJECTED);
 
         $record = DraftWorkflowRecord::findOne(['id' => $wf->id]);
@@ -202,11 +213,13 @@ class WorkflowService extends Component
         $record->state = DraftWorkflow::STATE_REJECTED;
         $record->decidedBy = $reviewer->id;
         $record->rejectNote = $note;
-        $record->save(false);
+        if (!$record->save(false)) {
+            throw new InvalidArgumentException('Failed to persist workflow rejection state.');
+        }
 
         $wf = $this->modelFromRecord($record);
 
-        $draft = Craft::$app->getEntries()->getEntryById($wf->draftId, '*', ['drafts' => true]);
+        $draft = $this->getDraftEntry($wf->draftId);
         if ($draft) {
             Delta::getInstance()->email->sendRejected($wf, $draft);
         }
@@ -216,7 +229,7 @@ class WorkflowService extends Component
 
     public function applyDraftNow(DraftWorkflow $wf): void
     {
-        $draft = Craft::$app->getEntries()->getEntryById($wf->draftId, '*', ['drafts' => true]);
+        $draft = $this->getDraftEntry($wf->draftId);
         if ($draft === null) {
             throw new InvalidArgumentException('Draft no longer exists.');
         }
@@ -227,7 +240,31 @@ class WorkflowService extends Component
         if ($record !== null) {
             $record->appliedAt = Db::prepareDateForDb(new DateTime());
             $record->scheduledFor = null;
-            $record->save(false);
+            if (!$record->save(false)) {
+                throw new InvalidArgumentException('Failed to persist workflow applied state.');
+            }
+        }
+    }
+
+    private function getDraftEntry(int $draftId): ?Entry
+    {
+        return Entry::find()
+            ->draftId($draftId)
+            ->status(null)
+            ->one();
+    }
+
+    private function assertCanSubmit(User $user, Entry $draft): void
+    {
+        if (!$this->canSubmit($user, $draft)) {
+            throw new ForbiddenHttpException('You do not have permission to submit drafts for this section.');
+        }
+    }
+
+    private function assertCanReview(User $reviewer, DraftWorkflow $wf): void
+    {
+        if (!$this->canReview($reviewer, $wf)) {
+            throw new ForbiddenHttpException('You are not the assigned reviewer for this draft.');
         }
     }
 

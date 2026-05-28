@@ -212,9 +212,6 @@ class Delta extends Plugin
                 $view = Craft::$app->getView();
                 $view->registerAssetBundle(DiffAsset::class);
 
-                // Register every source string the JS layer passes to Craft.t().
-                // Without this, Craft.t() falls back to the source string and
-                // non-English users see English UI for the dynamic JS bits.
                 $view->registerTranslations('craft-delta', [
                     'Apply {count} accepted',
                     '{decided} of {total} decided',
@@ -290,7 +287,6 @@ class Delta extends Plugin
                 $label = htmlspecialchars(Craft::t('craft-delta', 'Compare Revisions'));
                 $hint = htmlspecialchars(Craft::t('craft-delta', 'View a side-by-side diff of changes between revisions.'));
 
-                // Build optional workflow HTML (Submit button or status pill).
                 $workflowHtml = '';
                 if ($settings->enableWorkflow && $isPublishedDraft) {
                     $user = Craft::$app->getUser()->getIdentity();
