@@ -73,7 +73,7 @@ class WorkflowService extends Component
         if ($creatorId !== null && $creatorId !== $user->id && !$user->admin) {
             return false;
         }
-        return $user->can("craftdelta-submitDraft:{$section->uid}");
+        return $user->can('craftdelta-submitDraft');
     }
 
     public function canReview(User $user, DraftWorkflow $wf): bool
@@ -84,16 +84,26 @@ class WorkflowService extends Component
         if ($wf->assigneeId !== $user->id) {
             return false;
         }
-        return $user->can("craftdelta-reviewDraft:{$wf->sectionUid}");
+        return $user->can('craftdelta-reviewDraft');
     }
 
     public function getEligibleAssignees(string $sectionUid, ?int $excludeUserId = null): array
     {
+        // Holders of the general review permission. Section visibility is no
+        // longer encoded in the permission itself, so we additionally keep only
+        // reviewers who can actually reach this section's drafts — otherwise an
+        // assignee could be picked but hit a 403 when opening the draft.
+        // ->can() already returns true for admins, so they are never filtered out.
         $users = User::find()
             ->status(User::STATUS_ACTIVE)
-            ->can("craftdelta-reviewDraft:{$sectionUid}")
+            ->can('craftdelta-reviewDraft')
             ->orderBy(['fullName' => SORT_ASC])
             ->all();
+
+        $users = array_values(array_filter(
+            $users,
+            fn($u) => $u->can("viewPeerEntryDrafts:{$sectionUid}")
+        ));
 
         if ($excludeUserId !== null) {
             $users = array_values(array_filter($users, fn($u) => $u->id !== $excludeUserId));
@@ -173,7 +183,20 @@ class WorkflowService extends Component
         $this->trigger(self::EVENT_AFTER_APPROVE, new WorkflowEvent(['workflow' => $wf]));
     }
 
-    public function approveGranular(DraftWorkflow $wf, array $acceptedFieldHandles, User $reviewer): void
+    /**
+     * Close a pending workflow because the reviewer resolved it through Review
+     * Mode's granular apply. By the time this runs, MergeService has ALREADY
+     * published the accepted atoms to canonical — so, unlike approveWholesale(),
+     * this performs NO publish of its own. It records the decision, stamps
+     * appliedAt, and fires the approve event so notifications and third-party
+     * integrations still run.
+     *
+     * The source draft is left as the caller's "delete source draft" option
+     * dictated: kept (the rejected changes remain in it as a record of what was
+     * declined) or already deleted (which cascade-removes this row, in which
+     * case the caller never reaches this method).
+     */
+    public function resolveByReview(DraftWorkflow $wf, User $reviewer): void
     {
         $this->assertCanReview($reviewer, $wf);
         $this->assertTransition($wf->state, DraftWorkflow::STATE_APPROVED);
@@ -187,7 +210,7 @@ class WorkflowService extends Component
         $record->decidedBy = $reviewer->id;
         $record->appliedAt = Db::prepareDateForDb(new DateTime());
         if (!$record->save(false)) {
-            throw new InvalidArgumentException('Failed to persist granular approval state.');
+            throw new InvalidArgumentException('Failed to persist review-apply state.');
         }
 
         $wf = $this->modelFromRecord($record);

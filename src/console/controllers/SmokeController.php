@@ -34,6 +34,17 @@ class SmokeController extends Controller
         return $this->runScript('matrix-add-remove-smoke.php');
     }
 
+    /**
+     * Creates/reconfigures the two workflow fixture users (delta.author as
+     * submitter, delta.reviewer as reviewer) with identical section access and
+     * the general workflow permissions, ready for a manual submit/review/apply
+     * walkthrough in the control panel.
+     */
+    public function actionSetupWorkflowUsers(): int
+    {
+        return $this->runScript('setup-workflow-users.php');
+    }
+
     private function runScript(string $name): int
     {
         $script = dirname(__DIR__, 3) . '/tests/smoke/' . $name;

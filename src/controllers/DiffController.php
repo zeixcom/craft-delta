@@ -91,9 +91,13 @@ class DiffController extends Controller
             $user = Craft::$app->getUser()->getIdentity();
             $workflow = null;
             $isReviewer = false;
-            // The "source" entry is whichever side isn't canonical. Workflow
-            // attaches to drafts, so only check if the source is a draft.
-            $sourceEntry = $olderIsCanonical ? $newer : $older;
+            // The "source" entry is whichever side isn't canonical. Determine it
+            // POST-sort (mirroring $canonicalSide below) — using the pre-sort
+            // $olderIsCanonical flag here would mis-select canonical itself
+            // whenever the sort swapped the sides (e.g. canonical is newer than
+            // the draft after an earlier partial apply). Workflow attaches to
+            // drafts, so only check if the source is a draft.
+            $sourceEntry = $newer->id === $canonical->id ? $older : $newer;
             if ($sourceEntry->getIsDraft() && $user) {
                 $workflow = $plugin->workflow->getByDraftId((int)$sourceEntry->draftId);
                 if ($workflow !== null) {
@@ -341,12 +345,13 @@ class DiffController extends Controller
 
         $this->requireEntryAccess($canonical);
 
-        // Permission: user must hold the dedicated review-mode apply permission
-        // for this section. Granted via Settings → Users → User group permissions.
+        // Permission: user must hold the dedicated review-mode apply permission.
+        // Granted via Settings → Users → User group permissions. Which sections
+        // they may reach is governed by Craft's native section permissions
+        // (already enforced by requireEntryAccess() above).
         $user = Craft::$app->getUser()->getIdentity();
-        $section = $canonical->getSection();
-        if (!$user || !$section || !$user->can("craftdelta-applyReview:{$section->uid}")) {
-            throw new ForbiddenHttpException('You do not have permission to apply review-mode changes for this section.');
+        if (!$user || !$user->can('craftdelta-applyReview')) {
+            throw new ForbiddenHttpException('You do not have permission to apply review-mode changes.');
         }
 
         $source = $this->resolveVersion($sourceRef, $canonical, $siteId);
@@ -359,7 +364,27 @@ class DiffController extends Controller
         }
 
         try {
+            // Capture the source draft id BEFORE the merge: a "delete source
+            // draft" cascade-removes the workflow row (FK ON DELETE CASCADE), so
+            // there'd be nothing left to close afterward.
+            $sourceDraftId = $source->getIsDraft() ? (int)$source->draftId : null;
+
             $published = $plugin->merge->merge($canonical, $source, $acceptedAtoms, $deleteSourceDraft);
+
+            // A granular apply through Review Mode IS the review decision: if this
+            // draft was submitted for review and the current user can review it,
+            // close the owning workflow as approved. (If the source draft was
+            // deleted above, its row is already cascade-gone and the lookup
+            // returns null — same end state as a wholesale approve.)
+            if ($sourceDraftId !== null) {
+                $workflow = $plugin->workflow->getByDraftId($sourceDraftId);
+                if ($workflow !== null
+                    && $workflow->isPending()
+                    && $plugin->workflow->canReview($user, $workflow)
+                ) {
+                    $plugin->workflow->resolveByReview($workflow, $user);
+                }
+            }
 
             return $this->asJson([
                 'success' => true,

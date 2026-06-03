@@ -9,7 +9,6 @@ use craft\elements\Entry;
 use craft\helpers\UrlHelper;
 use craft\web\Controller;
 use DateTime;
-use yii\web\BadRequestHttpException;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
@@ -27,7 +26,10 @@ class WorkflowController extends Controller
         $draftId = (int)$request->getRequiredBodyParam('draftId');
         $assigneeId = (int)$request->getRequiredBodyParam('assigneeId');
 
-        $draft = Craft::$app->getEntries()->getEntryById($draftId, '*', ['drafts' => true]);
+        // `draftId` is the drafts-table id (matching $entry->draftId everywhere
+        // else in this plugin), not an element id — resolve it the same way the
+        // service does, not via getEntryById() which expects an element id.
+        $draft = Entry::find()->draftId($draftId)->status(null)->one();
         if (!$draft instanceof Entry || !$draft->getIsDraft()) {
             throw new NotFoundHttpException('Draft not found.');
         }
@@ -60,7 +62,6 @@ class WorkflowController extends Controller
         $request = Craft::$app->getRequest();
         $workflowId = (int)$request->getRequiredBodyParam('workflowId');
         $scheduledForRaw = $request->getBodyParam('scheduledFor');
-        $mode = $request->getBodyParam('mode', 'wholesale');
 
         $plugin = Delta::getInstance();
         $wf = $plugin->workflow->getByDraftIdOrId($workflowId);
@@ -73,30 +74,23 @@ class WorkflowController extends Controller
             throw new ForbiddenHttpException('You are not the assigned reviewer for this draft.');
         }
 
-        if ($mode === 'granular') {
-            $accepted = $request->getBodyParam('acceptedFieldHandles', []);
-            if (!is_array($accepted)) {
-                throw new BadRequestHttpException('acceptedFieldHandles must be an array.');
+        // Approve publishes the draft wholesale (optionally scheduled). Granular
+        // (partial) approval is handled entirely by Review Mode — see
+        // DiffController::actionApply, which publishes the accepted atoms and
+        // then closes this workflow via WorkflowService::resolveByReview().
+        if ($scheduledForRaw !== null && $scheduledForRaw !== '') {
+            try {
+                $scheduledFor = new DateTime((string)$scheduledForRaw);
+            } catch (\Throwable) {
+                return $this->asJson([
+                    'success' => false,
+                    'error' => Craft::t('craft-delta', 'Schedule failed.'),
+                ])->setStatusCode(422);
             }
-            if (!$user->can("craftdelta-applyReview:{$wf->sectionUid}")) {
-                throw new ForbiddenHttpException('Granular review requires the Apply permission.');
-            }
-            $plugin->workflow->approveGranular($wf, $accepted, $user);
         } else {
-            if ($scheduledForRaw !== null && $scheduledForRaw !== '') {
-                try {
-                    $scheduledFor = new DateTime((string)$scheduledForRaw);
-                } catch (\Throwable) {
-                    return $this->asJson([
-                        'success' => false,
-                        'error' => Craft::t('craft-delta', 'Schedule failed.'),
-                    ])->setStatusCode(422);
-                }
-            } else {
-                $scheduledFor = null;
-            }
-            $plugin->workflow->approveWholesale($wf, $scheduledFor, $user);
+            $scheduledFor = null;
         }
+        $plugin->workflow->approveWholesale($wf, $scheduledFor, $user);
 
         $canonical = Craft::$app->getEntries()->getEntryById($wf->canonicalEntryId);
         $redirectUrl = $canonical?->getCpEditUrl() ?? UrlHelper::cpUrl("entries/{$wf->canonicalEntryId}");
@@ -142,7 +136,7 @@ class WorkflowController extends Controller
         $sectionUid = $request->getRequiredParam('sectionUid');
 
         $user = Craft::$app->getUser()->getIdentity();
-        if (!$user || !$user->can("craftdelta-submitDraft:{$sectionUid}")) {
+        if (!$user || !$user->can('craftdelta-submitDraft')) {
             throw new ForbiddenHttpException('Not authorized.');
         }
 

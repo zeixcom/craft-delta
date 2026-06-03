@@ -54,7 +54,7 @@ return [
     'Enable Review Mode' => 'Beoordelingsmodus inschakelen',
     'Show the "Start Review" button on the diff slideout and allow accepting/rejecting changes into a new draft.' => 'Toon de knop „Beoordeling starten" in het vergelijkingspaneel en sta toe wijzigingen in een nieuw concept te accepteren/afwijzen.',
     'Also delete source draft' => 'Verwijder ook het bronconcept',
-    'Apply review-mode changes for "{section}"' => 'Beoordelingswijzigingen toepassen voor „{section}"',
+    'Apply review-mode changes' => 'Beoordelingswijzigingen toepassen',
     'Craft Delta' => 'Craft Delta',
     'You do not have permission to apply review-mode changes for this section.' => 'U heeft geen rechten om beoordelingswijzigingen toe te passen voor deze sectie.',
     'Resume previous review ({decided} of {total} decided)?' => 'Vorige beoordeling hervatten ({decided} van {total} besloten)?',

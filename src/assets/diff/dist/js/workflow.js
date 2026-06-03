@@ -31,7 +31,9 @@
 
         var modal = new Garnish.Modal($modal, { autoShow: true });
 
-        $.get(Craft.getActionUrl('craft-delta/workflow/assignees'), { sectionUid: sectionUid })
+        // $.getJSON (not $.get) so the request sends `Accept: application/json`;
+        // the assignees action calls requireAcceptsJson() and 400s otherwise.
+        $.getJSON(Craft.getActionUrl('craft-delta/workflow/assignees'), { sectionUid: sectionUid })
             .done(function(resp) {
                 var $select = $modal.find('.delta-assignee').empty();
                 if (!resp.assignees.length) {
@@ -129,14 +131,16 @@
         });
 
         $toolbar.find('.delta-granular-review').on('click', function() {
-            if (window.Craft.Delta.startGranularReview) {
-                Craft.Delta.startGranularReview({ workflowId: workflowId });
+            // "Granular review" simply enters Review Mode on the diff already
+            // rendered in this slideout. Applying the accepted atoms publishes
+            // them and closes THIS workflow server-side (DiffController::actionApply
+            // → WorkflowService::resolveByReview), so no workflow-specific POST
+            // is needed here.
+            var reviewToolbar = document.querySelector('[data-review-toolbar]');
+            if (reviewToolbar && Craft.Delta.reviewMode) {
+                Craft.Delta.reviewMode.enter(reviewToolbar);
             } else {
-                // Fall back to the legacy v1.1 "Start Review" button if present.
-                var $legacy = $('#delta-start-review, .delta-start-review-btn').first();
-                if ($legacy.length) {
-                    $legacy.click();
-                }
+                Craft.cp.displayError(Craft.t('craft-delta', 'Review mode is not available for this comparison.'));
             }
         });
     };

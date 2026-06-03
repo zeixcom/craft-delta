@@ -99,8 +99,10 @@ class Delta extends Plugin
     }
 
     /**
-     * Register per-section permissions for the submit/review workflow and
-     * the existing apply-review-mode permission.
+     * Register the three general workflow permissions. These are no longer
+     * scoped per section: which sections a user may see and edit is governed by
+     * Craft's native section permissions (viewEntries, viewPeerEntryDrafts, …),
+     * managed via the user's other groups.
      */
     private function registerPermissions(): void
     {
@@ -108,33 +110,19 @@ class Delta extends Plugin
             UserPermissions::class,
             UserPermissions::EVENT_REGISTER_PERMISSIONS,
             function(RegisterUserPermissionsEvent $event) {
-                $sections = Craft::$app->getEntries()->getAllSections();
-                if (count($sections) === 0) {
-                    return;
-                }
-
-                $sectionPermissions = [];
-                foreach ($sections as $section) {
-                    $sectionPermissions["craftdelta-submitDraft:{$section->uid}"] = [
-                        'label' => Craft::t('craft-delta', 'Submit drafts for review in "{section}"', [
-                            'section' => $section->name,
-                        ]),
-                    ];
-                    $sectionPermissions["craftdelta-reviewDraft:{$section->uid}"] = [
-                        'label' => Craft::t('craft-delta', 'Review submitted drafts in "{section}"', [
-                            'section' => $section->name,
-                        ]),
-                    ];
-                    $sectionPermissions["craftdelta-applyReview:{$section->uid}"] = [
-                        'label' => Craft::t('craft-delta', 'Apply review-mode changes for "{section}"', [
-                            'section' => $section->name,
-                        ]),
-                    ];
-                }
-
                 $event->permissions[] = [
                     'heading' => Craft::t('craft-delta', 'Craft Delta'),
-                    'permissions' => $sectionPermissions,
+                    'permissions' => [
+                        'craftdelta-submitDraft' => [
+                            'label' => Craft::t('craft-delta', 'Submit drafts for review'),
+                        ],
+                        'craftdelta-reviewDraft' => [
+                            'label' => Craft::t('craft-delta', 'Review submitted drafts'),
+                        ],
+                        'craftdelta-applyReview' => [
+                            'label' => Craft::t('craft-delta', 'Apply review-mode changes'),
+                        ],
+                    ],
                 ];
             }
         );
@@ -291,7 +279,7 @@ class Delta extends Plugin
                 if ($settings->enableWorkflow && $isPublishedDraft) {
                     $user = Craft::$app->getUser()->getIdentity();
                     $section = $entry->getSection();
-                    if ($user !== null && $section !== null && $user->can("craftdelta-submitDraft:{$section->uid}")) {
+                    if ($user !== null && $section !== null && $user->can('craftdelta-submitDraft')) {
                         $wf = $this->workflow->getByDraftId((int)$entry->draftId);
                         if ($wf === null) {
                             $submitLabel = htmlspecialchars(Craft::t('craft-delta', 'Submit for review'));

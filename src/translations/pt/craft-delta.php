@@ -54,7 +54,7 @@ return [
     'Enable Review Mode' => 'Ativar modo de revisão',
     'Show the "Start Review" button on the diff slideout and allow accepting/rejecting changes into a new draft.' => 'Mostrar o botão «Iniciar revisão» no painel de comparação e permitir aceitar/rejeitar alterações num novo rascunho.',
     'Also delete source draft' => 'Eliminar também o rascunho de origem',
-    'Apply review-mode changes for "{section}"' => 'Aplicar alterações do modo de revisão para «{section}»',
+    'Apply review-mode changes' => 'Aplicar alterações do modo de revisão',
     'Craft Delta' => 'Craft Delta',
     'You do not have permission to apply review-mode changes for this section.' => 'Não tem permissão para aplicar alterações do modo de revisão nesta secção.',
     'Resume previous review ({decided} of {total} decided)?' => 'Retomar a revisão anterior ({decided} de {total} decididas)?',

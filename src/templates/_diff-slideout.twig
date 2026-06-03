@@ -18,11 +18,17 @@
     {% endif %}
 </div>
 
-{% if workflow is defined and workflow and isReviewer is defined and isReviewer and workflow.isPending() %}
+{% set hasWorkflowActions = workflow is defined and workflow and isReviewer is defined and isReviewer and workflow.isPending() %}
+{# When the reviewer can apply, the workflow toolbar's "Granular review" button
+   is the entry point into Review Mode, so the standalone "Start Review" button
+   below is suppressed to avoid two identical controls. #}
+{% set showGranularReview = hasWorkflowActions and currentUser.can('craftdelta-applyReview') %}
+
+{% if hasWorkflowActions %}
     <div class="delta-workflow-toolbar" data-workflow-id="{{ workflow.id }}" data-section-uid="{{ workflow.sectionUid }}">
         <button type="button" class="btn submit delta-approve-now">{{ 'Approve all'|t('craft-delta') }}</button>
         <button type="button" class="btn delta-approve-schedule">{{ 'Schedule for…'|t('craft-delta') }}</button>
-        {% if currentUser.can("craftdelta-applyReview:#{workflow.sectionUid}") %}
+        {% if showGranularReview %}
             <button type="button" class="btn delta-granular-review">{{ 'Granular review'|t('craft-delta') }}</button>
         {% endif %}
         <button type="button" class="btn delta-reject">{{ 'Reject'|t('craft-delta') }}</button>
@@ -36,9 +42,11 @@
          data-site-id="{{ siteId }}"
          data-source-ref="{{ sourceRef }}"
          data-canonical-updated-at="{{ canonicalUpdatedAt }}">
-        <button type="button" class="btn delta-review-start" data-action="start-review">
-            {{ 'Start Review'|t('craft-delta') }}
-        </button>
+        {% if not showGranularReview %}
+            <button type="button" class="btn delta-review-start" data-action="start-review">
+                {{ 'Start Review'|t('craft-delta') }}
+            </button>
+        {% endif %}
     </div>
 
     <div class="delta-review-stepper" data-review-stepper hidden>
