@@ -459,7 +459,12 @@
       var self = this;
       var headers = container.querySelectorAll('.delta-field-header');
       headers.forEach(function (header) {
-        var field = header.parentElement;
+        // The header button sits inside `.delta-field-headerbar` (alongside the
+        // review accept/reject actions), so its parentElement is that wrapper —
+        // walk up to the actual `.delta-field` that the collapse CSS targets and
+        // that carries `data-field-handle`.
+        var field = header.closest('.delta-field');
+        if (!field) { return; }
         var handle = field.getAttribute('data-field-handle');
 
         // Restore collapsed state from previous diff load
@@ -623,6 +628,7 @@
     canonicalUpdatedAt: null,
     saveTimer: null,
     eventsBound: false,                 // guard so bindEvents only attaches once
+    toolbarEl: null,                    // the "Start Review" bar, hidden while active
     focusedAtomId: null,
     intersectionObserver: null,
 
@@ -797,6 +803,10 @@
 
       this.loadFromStorage();
       this.showStepper();
+      // The standalone "Start Review" bar is redundant once review mode is
+      // active — hide it so only the stepper shows.
+      this.toolbarEl = toolbar;
+      if (toolbar) { toolbar.style.display = 'none'; }
       this.showAllAtomActions();
       this.refreshUiFromState();
       this.bindEvents();
@@ -811,6 +821,7 @@
       this.active = false;
       this.state = Object.create(null);
       this.hideStepper();
+      if (this.toolbarEl) { this.toolbarEl.style.display = ''; this.toolbarEl = null; }
       this.hideAllAtomActions();
       this.unbindKeyboardShortcuts();
       this.unbindScrollFocus();

@@ -60,12 +60,14 @@
                 {{ 'Also delete source draft'|t('craft-delta') }}
             </label>
         {% endif %}
-        <button type="button" class="btn submit" data-action="apply" disabled>
-            {{ 'Apply {count} accepted'|t('craft-delta', { count: 0 }) }}
-        </button>
-        <button type="button" class="btn delta-review-cancel" data-action="cancel-review">
-            {{ 'Cancel review'|t('craft-delta') }}
-        </button>
+        <div class="delta-review-actions">
+            <button type="button" class="btn submit" data-action="apply" disabled>
+                {{ 'Apply {count} accepted'|t('craft-delta', { count: 0 }) }}
+            </button>
+            <button type="button" class="btn delta-review-cancel" data-action="cancel-review">
+                {{ 'Cancel review'|t('craft-delta') }}
+            </button>
+        </div>
     </div>
 
     <div class="delta-review-banner" data-review-banner hidden></div>
