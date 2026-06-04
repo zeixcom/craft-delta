@@ -6,6 +6,7 @@ namespace zeixcom\craftdelta\services;
 
 use craft\base\Component;
 use craft\elements\Entry;
+use zeixcom\craftdelta\models\DiffResult;
 
 /**
  * Owns the write side of review mode: validates accepted atoms against a
@@ -251,6 +252,65 @@ class MergeService extends Component
     }
 
     /**
+     * Build the Craft 5 Matrix setFieldValue payload
+     * (['entries' => [<key> => {…}], 'sortOrder' => […]]) from an ordered list
+     * of surviving blocks.
+     *
+     * Existing draft clones are keyed `uid:<draftEntryUid>` so Craft patches
+     * that exact entry; brand-new blocks (from accepted `added` atoms) use
+     * new1/new2… so Craft assigns fresh element ids + canonical UIDs.
+     *
+     * IMPORTANT: Craft chooses UID-mode vs ID-mode by inspecting ONLY the FIRST
+     * element of `entries`/`sortOrder` (Matrix::normalizeValue → array_key_first()
+     * / reset()). If a brand-new block ("newN") is emitted first, detection falls
+     * back to ID-mode, the "uid:" prefixes are never stripped, and every existing
+     * block is silently DROPPED. So we insert existing ("uid:…") entries into the
+     * map BEFORE the new ones — keeping the first key UID-shaped whenever any
+     * existing block survives. Display order is unaffected: Craft reads it from
+     * `sortOrder`, which we keep in the true ordered sequence.
+     *
+     * @param array<int, array{uid: string, draftEntryUid?: string, payload: array<string, mixed>}> $ordered
+     * @param array<string, array{draftEntryUid: string}> $currentByCanonicalUid
+     * @return array{entries: array<string, mixed>, sortOrder: array<int, string>}
+     */
+    public static function buildMatrixSetValue(array $ordered, array $currentByCanonicalUid): array
+    {
+        $plan = [];
+        $sortOrder = [];
+        $newCount = 0;
+
+        foreach ($ordered as $block) {
+            $existing = $currentByCanonicalUid[$block['uid']] ?? null;
+            if ($existing !== null) {
+                $key = 'uid:' . $existing['draftEntryUid'];
+                $sortOrderToken = $existing['draftEntryUid'];
+                $isExisting = true;
+            } else {
+                $newCount++;
+                $key = 'new' . $newCount;
+                $sortOrderToken = $key;
+                $isExisting = false;
+            }
+            $plan[] = ['key' => $key, 'payload' => $block['payload'], 'isExisting' => $isExisting];
+            $sortOrder[] = $sortOrderToken;
+        }
+
+        $entries = [];
+        foreach ($plan as $p) {
+            if ($p['isExisting']) {
+                $entries[$p['key']] = $p['payload'];
+            }
+        }
+        foreach ($plan as $p) {
+            if (!$p['isExisting']) {
+                $entries[$p['key']] = $p['payload'];
+            }
+        }
+
+        return ['entries' => $entries, 'sortOrder' => $sortOrder];
+    }
+
+    /**
      * Apply field-kind atoms onto a draft by copying values from source.
      * Handles native attributes (title, slug) separately from field handles.
      *
@@ -304,33 +364,7 @@ class MergeService extends Component
             $currentByCanonicalUid[$b['uid']] = $b;
         }
 
-        // Craft 5 Matrix expects either flat [entryId => {…}] OR the modern
-        // delta shape ['entries' => [<key> => {…}], 'sortOrder' => […]].
-        // For existing draft clones we key by `uid:<draftEntryUid>` so Craft
-        // patches that exact entry. For brand-new blocks we use new1/new2…
-        // and Craft assigns fresh element ids + canonical UIDs.
-        $entries = [];
-        $sortOrder = [];
-        $newCount = 0;
-
-        foreach ($ordered as $block) {
-            $existing = $currentByCanonicalUid[$block['uid']] ?? null;
-            if ($existing !== null) {
-                $key = 'uid:' . $existing['draftEntryUid'];
-                $sortOrderToken = $existing['draftEntryUid'];
-            } else {
-                $newCount++;
-                $key = 'new' . $newCount;
-                $sortOrderToken = $key;
-            }
-            $entries[$key] = $block['payload'];
-            $sortOrder[] = $sortOrderToken;
-        }
-
-        $draft->setFieldValue($fieldHandle, [
-            'entries' => $entries,
-            'sortOrder' => $sortOrder,
-        ]);
+        $draft->setFieldValue($fieldHandle, self::buildMatrixSetValue($ordered, $currentByCanonicalUid));
     }
 
     /**
@@ -380,7 +414,7 @@ class MergeService extends Component
         // 1. Re-run a fresh diff and build the available-atoms set.
         $plugin = \zeixcom\craftdelta\Delta::getInstance();
         $freshDiff = $plugin->diff->compare($canonical, $source);
-        $availableAtoms = $this->collectAvailableAtoms($freshDiff);
+        $availableAtoms = self::collectAvailableAtoms($freshDiff);
 
         // 2. Validate every accepted atom is still present in the fresh diff.
         self::validateAtoms($availableAtoms, $acceptedAtoms);
@@ -458,11 +492,12 @@ class MergeService extends Component
 
     /**
      * Walk the fresh DiffResult and collect the full set of atom keys it offers.
-     * Mirrors the keys the client emits in data-atom-id.
+     * Mirrors the keys the client emits in data-atom-id. Static + pure so the
+     * stale-atom contract can be unit-tested without a Craft kernel.
      *
      * @return string[]
      */
-    private function collectAvailableAtoms(\zeixcom\craftdelta\models\DiffResult $diff): array
+    public static function collectAvailableAtoms(DiffResult $diff): array
     {
         $atoms = [];
 

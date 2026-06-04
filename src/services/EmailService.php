@@ -28,63 +28,84 @@ class EmailService extends Component
             return;
         }
 
-        $body = $this->render('submitted', [
-            'assignee' => $assignee,
-            'author' => $author,
-            'entry' => $draft,
-            'url' => $this->editUrl($draft),
-        ]);
-
-        Craft::$app->getMailer()->compose()
-            ->setTo($assignee->email)
-            ->setSubject(Craft::t('craft-delta', 'Draft awaiting your review: {title}', ['title' => $draft->title]))
-            ->setTextBody($body)
-            ->send();
+        $this->dispatch(
+            $assignee->email,
+            Craft::t('craft-delta', 'Draft awaiting your review: {title}', ['title' => $draft->title]),
+            'submitted',
+            [
+                'assignee' => $assignee,
+                'author' => $author,
+                'entry' => $draft,
+                'url' => $this->editUrl($draft),
+            ],
+        );
     }
 
     public function sendApproved(DraftWorkflow $wf, Entry $draft): void
     {
-        $author = Craft::$app->getUsers()->getUserById($wf->submittedBy);
-        $reviewer = $wf->decidedBy ? Craft::$app->getUsers()->getUserById($wf->decidedBy) : null;
+        [$author, $reviewer] = $this->resolveAuthorAndReviewer($wf);
         if (!$author || !$reviewer) {
             return;
         }
 
-        $body = $this->render('approved', [
-            'author' => $author,
-            'reviewer' => $reviewer,
-            'entry' => $draft,
-            'url' => $this->editUrl($draft),
-            'scheduledFor' => $wf->scheduledFor,
-        ]);
-
-        Craft::$app->getMailer()->compose()
-            ->setTo($author->email)
-            ->setSubject(Craft::t('craft-delta', 'Your draft was approved: {title}', ['title' => $draft->title]))
-            ->setTextBody($body)
-            ->send();
+        $this->dispatch(
+            $author->email,
+            Craft::t('craft-delta', 'Your draft was approved: {title}', ['title' => $draft->title]),
+            'approved',
+            [
+                'author' => $author,
+                'reviewer' => $reviewer,
+                'entry' => $draft,
+                'url' => $this->editUrl($draft),
+                'scheduledFor' => $wf->scheduledFor,
+            ],
+        );
     }
 
     public function sendRejected(DraftWorkflow $wf, Entry $draft): void
     {
-        $author = Craft::$app->getUsers()->getUserById($wf->submittedBy);
-        $reviewer = $wf->decidedBy ? Craft::$app->getUsers()->getUserById($wf->decidedBy) : null;
+        [$author, $reviewer] = $this->resolveAuthorAndReviewer($wf);
         if (!$author || !$reviewer) {
             return;
         }
 
-        $body = $this->render('rejected', [
-            'author' => $author,
-            'reviewer' => $reviewer,
-            'entry' => $draft,
-            'url' => $this->editUrl($draft),
-            'note' => $wf->rejectNote,
-        ]);
+        $this->dispatch(
+            $author->email,
+            Craft::t('craft-delta', 'Your draft was rejected: {title}', ['title' => $draft->title]),
+            'rejected',
+            [
+                'author' => $author,
+                'reviewer' => $reviewer,
+                'entry' => $draft,
+                'url' => $this->editUrl($draft),
+                'note' => $wf->rejectNote,
+            ],
+        );
+    }
 
+    /**
+     * The submitting author and the deciding reviewer, used by the approve/reject
+     * notifications. Either may be null if the user no longer exists.
+     *
+     * @return array{0: \craft\elements\User|null, 1: \craft\elements\User|null}
+     */
+    private function resolveAuthorAndReviewer(DraftWorkflow $wf): array
+    {
+        $author = Craft::$app->getUsers()->getUserById($wf->submittedBy);
+        $reviewer = $wf->decidedBy ? Craft::$app->getUsers()->getUserById($wf->decidedBy) : null;
+        return [$author, $reviewer];
+    }
+
+    /**
+     * Render a template and send it as a plain-text email. Single point where
+     * the mailer chain lives, so recipient/subject/body handling stays uniform.
+     */
+    private function dispatch(string $to, string $subject, string $template, array $vars): void
+    {
         Craft::$app->getMailer()->compose()
-            ->setTo($author->email)
-            ->setSubject(Craft::t('craft-delta', 'Your draft was rejected: {title}', ['title' => $draft->title]))
-            ->setTextBody($body)
+            ->setTo($to)
+            ->setSubject($subject)
+            ->setTextBody($this->render($template, $vars))
             ->send();
     }
 

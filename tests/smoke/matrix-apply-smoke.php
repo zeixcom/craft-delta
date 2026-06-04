@@ -20,6 +20,8 @@ use Craft;
 use craft\elements\Entry;
 use craft\elements\User;
 
+require __DIR__ . '/_guard.php';
+
 // Find the canonical entry to test against. Picks the first non-deleted entry
 // with a Matrix field on its layout. You can override via env CRAFT_DELTA_SMOKE_ENTRY_ID.
 $entryId = (int)(getenv('CRAFT_DELTA_SMOKE_ENTRY_ID') ?: 13);

@@ -9,6 +9,7 @@ use craft\base\Component;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\helpers\Db;
+use craft\helpers\DateTimeHelper;
 use DateTime;
 use yii\base\InvalidArgumentException;
 use yii\web\ForbiddenHttpException;
@@ -52,11 +53,6 @@ class WorkflowService extends Component
     {
         $record = DraftWorkflowRecord::findOne(['id' => $id]);
         return $record ? $this->modelFromRecord($record) : null;
-    }
-
-    public function getByDraftIdOrId(int $idOrDraftId): ?DraftWorkflow
-    {
-        return $this->getById($idOrDraftId) ?? $this->getByDraftId($idOrDraftId);
     }
 
     public function canSubmit(User $user, Entry $draft): bool
@@ -129,6 +125,19 @@ class WorkflowService extends Component
             throw new InvalidArgumentException('A workflow already exists for this draft.');
         }
 
+        // Validate the assignee server-side — the dropdown is only a hint. This
+        // rejects self-assignment (the submitter is excluded) and any reviewer
+        // who can't actually review this section's drafts, preventing both a
+        // separation-of-duties bypass and workflows stranded on an ineligible
+        // assignee who can never pass canReview().
+        $eligibleIds = array_map(
+            static fn(User $u) => (int)$u->id,
+            $this->getEligibleAssignees($section->uid, $submittedBy->id),
+        );
+        if (!in_array($assigneeId, $eligibleIds, true)) {
+            throw new InvalidArgumentException('The selected reviewer is not eligible to review drafts in this section.');
+        }
+
         $record = new DraftWorkflowRecord();
         $record->draftId = $draft->draftId;
         $record->canonicalEntryId = $draft->getCanonicalId();
@@ -154,19 +163,11 @@ class WorkflowService extends Component
         $this->assertCanReview($reviewer, $wf);
         $this->assertTransition($wf->state, DraftWorkflow::STATE_APPROVED);
 
-        $record = DraftWorkflowRecord::findOne(['id' => $wf->id]);
-        if ($record === null) {
-            throw new InvalidArgumentException('Workflow not found.');
-        }
-
-        $record->state = DraftWorkflow::STATE_APPROVED;
-        $record->decidedBy = $reviewer->id;
-        $record->scheduledFor = $scheduledFor ? Db::prepareDateForDb($scheduledFor) : null;
-        if (!$record->save(false)) {
-            throw new InvalidArgumentException('Failed to persist workflow approval state.');
-        }
-
-        $wf = $this->modelFromRecord($record);
+        $wf = $this->mutateRecord($wf->id, function (DraftWorkflowRecord $record) use ($reviewer, $scheduledFor): void {
+            $record->state = DraftWorkflow::STATE_APPROVED;
+            $record->decidedBy = $reviewer->id;
+            $record->scheduledFor = $scheduledFor ? Db::prepareDateForDb($scheduledFor) : null;
+        });
 
         if ($scheduledFor === null) {
             $this->applyDraftNow($wf);
@@ -201,19 +202,11 @@ class WorkflowService extends Component
         $this->assertCanReview($reviewer, $wf);
         $this->assertTransition($wf->state, DraftWorkflow::STATE_APPROVED);
 
-        $record = DraftWorkflowRecord::findOne(['id' => $wf->id]);
-        if ($record === null) {
-            throw new InvalidArgumentException('Workflow not found.');
-        }
-
-        $record->state = DraftWorkflow::STATE_APPROVED;
-        $record->decidedBy = $reviewer->id;
-        $record->appliedAt = Db::prepareDateForDb(new DateTime());
-        if (!$record->save(false)) {
-            throw new InvalidArgumentException('Failed to persist review-apply state.');
-        }
-
-        $wf = $this->modelFromRecord($record);
+        $wf = $this->mutateRecord($wf->id, function (DraftWorkflowRecord $record) use ($reviewer): void {
+            $record->state = DraftWorkflow::STATE_APPROVED;
+            $record->decidedBy = $reviewer->id;
+            $record->appliedAt = Db::prepareDateForDb(new DateTime());
+        });
 
         $draft = $this->getDraftEntry($wf->draftId);
         if ($draft) {
@@ -228,19 +221,11 @@ class WorkflowService extends Component
         $this->assertCanReview($reviewer, $wf);
         $this->assertTransition($wf->state, DraftWorkflow::STATE_REJECTED);
 
-        $record = DraftWorkflowRecord::findOne(['id' => $wf->id]);
-        if ($record === null) {
-            throw new InvalidArgumentException('Workflow not found.');
-        }
-
-        $record->state = DraftWorkflow::STATE_REJECTED;
-        $record->decidedBy = $reviewer->id;
-        $record->rejectNote = $note;
-        if (!$record->save(false)) {
-            throw new InvalidArgumentException('Failed to persist workflow rejection state.');
-        }
-
-        $wf = $this->modelFromRecord($record);
+        $wf = $this->mutateRecord($wf->id, function (DraftWorkflowRecord $record) use ($reviewer, $note): void {
+            $record->state = DraftWorkflow::STATE_REJECTED;
+            $record->decidedBy = $reviewer->id;
+            $record->rejectNote = $note;
+        });
 
         $draft = $this->getDraftEntry($wf->draftId);
         if ($draft) {
@@ -252,20 +237,32 @@ class WorkflowService extends Component
 
     public function applyDraftNow(DraftWorkflow $wf): void
     {
-        $draft = $this->getDraftEntry($wf->draftId);
-        if ($draft === null) {
-            throw new InvalidArgumentException('Draft no longer exists.');
+        // Atomically claim the workflow before publishing: only the writer that
+        // flips appliedAt from NULL proceeds. This serialises concurrent
+        // triggers (e.g. the scheduled queue job firing while an admin also
+        // applies, or a retried queue message) so a draft can never be applied
+        // twice. The conditional UPDATE is the lock.
+        $claimed = DraftWorkflowRecord::updateAll(
+            ['appliedAt' => Db::prepareDateForDb(new DateTime()), 'scheduledFor' => null],
+            ['id' => $wf->id, 'appliedAt' => null],
+        );
+        if ($claimed === 0) {
+            return; // already applied by another process
         }
 
-        Craft::$app->getDrafts()->applyDraft($draft);
+        $draft = $this->getDraftEntry($wf->draftId);
+        if ($draft === null) {
+            // Draft is gone (published/deleted elsewhere). The claim above
+            // already marks this workflow applied, so there is nothing to do.
+            return;
+        }
 
-        $record = DraftWorkflowRecord::findOne(['id' => $wf->id]);
-        if ($record !== null) {
-            $record->appliedAt = Db::prepareDateForDb(new DateTime());
-            $record->scheduledFor = null;
-            if (!$record->save(false)) {
-                throw new InvalidArgumentException('Failed to persist workflow applied state.');
-            }
+        try {
+            Craft::$app->getDrafts()->applyDraft($draft);
+        } catch (\Throwable $e) {
+            // Release the claim so the queue can retry the apply.
+            DraftWorkflowRecord::updateAll(['appliedAt' => null], ['id' => $wf->id]);
+            throw $e;
         }
     }
 
@@ -298,6 +295,26 @@ class WorkflowService extends Component
         }
     }
 
+    /**
+     * Load a workflow record by id, apply a mutation, persist it, and return the
+     * refreshed model. Centralises the find / null-guard / save / hydrate
+     * boilerplate shared by every state transition.
+     *
+     * @param callable(DraftWorkflowRecord): void $mutator
+     */
+    private function mutateRecord(int $id, callable $mutator): DraftWorkflow
+    {
+        $record = DraftWorkflowRecord::findOne(['id' => $id]);
+        if ($record === null) {
+            throw new InvalidArgumentException('Workflow not found.');
+        }
+        $mutator($record);
+        if (!$record->save(false)) {
+            throw new InvalidArgumentException('Failed to persist workflow state.');
+        }
+        return $this->modelFromRecord($record);
+    }
+
     private function modelFromRecord(DraftWorkflowRecord $record): DraftWorkflow
     {
         return new DraftWorkflow([
@@ -310,11 +327,26 @@ class WorkflowService extends Component
             'assigneeId' => $record->assigneeId,
             'decidedBy' => $record->decidedBy,
             'rejectNote' => $record->rejectNote,
-            'scheduledFor' => $record->scheduledFor ? new DateTime($record->scheduledFor) : null,
-            'appliedAt' => $record->appliedAt ? new DateTime($record->appliedAt) : null,
-            'dateCreated' => $record->dateCreated ? new DateTime($record->dateCreated) : null,
-            'dateUpdated' => $record->dateUpdated ? new DateTime($record->dateUpdated) : null,
+            'scheduledFor' => $this->parseDbDate($record->scheduledFor),
+            'appliedAt' => $this->parseDbDate($record->appliedAt),
+            'dateCreated' => $this->parseDbDate($record->dateCreated),
+            'dateUpdated' => $this->parseDbDate($record->dateUpdated),
             'uid' => $record->uid,
         ]);
+    }
+
+    /**
+     * Parse a datetime string from the DB into a DateTime. Craft stores
+     * datetimes in UTC; a bare `new DateTime($str)` would misread them in the
+     * server/user timezone (off by the UTC offset, varying with DST), which
+     * then surfaces a wrong time in the approval email. DateTimeHelper pins UTC.
+     */
+    private function parseDbDate(?string $value): ?DateTime
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $date = DateTimeHelper::toDateTime($value);
+        return $date instanceof DateTime ? $date : null;
     }
 }

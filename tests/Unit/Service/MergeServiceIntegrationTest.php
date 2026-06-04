@@ -9,12 +9,20 @@ use PHPUnit\Framework\TestCase;
 /**
  * Integration tests for MergeService::merge end-to-end.
  *
- * These tests require Craft kernel boot, which the plugin's test setup does
- * not yet provide (matches the existing `RelationDifferTest` pattern where
- * five Asset rendering tests are also skipped pending kernel bootstrap).
+ * These exercise the parts that genuinely require a booted Craft kernel
+ * (createDraft/saveElement/applyDraft, permissions, multisite, field-type
+ * fidelity), which the plugin's plain-PHPUnit setup does not provide.
+ *
+ * The PURE contracts these scenarios depend on are now covered by real unit
+ * tests in MergeServiceTest, so they no longer rely solely on a kernel:
+ *   - atom parsing and validation
+ *   - stale-atom detection (testValidateAtomsThrowsStaleWhenAcceptedAtomNoLongerOffered)
+ *   - available-atom collection (testCollectAvailableAtoms...)
+ *   - Matrix survivor set and ordering
+ *   - Craft setFieldValue payload shape (testBuildMatrixSetValue...)
  *
  * When kernel boot is added, remove the markTestSkipped() calls and fill in
- * the test bodies. The scenarios are listed in spec §9.2.
+ * the bodies. The scenarios are listed in spec section 9.2.
  */
 class MergeServiceIntegrationTest extends TestCase
 {

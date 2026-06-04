@@ -25,6 +25,8 @@ use Craft;
 use craft\elements\Entry;
 use craft\elements\User;
 
+require __DIR__ . '/_guard.php';
+
 $entryId = (int)(getenv('CRAFT_DELTA_SMOKE_ENTRY_ID') ?: 13);
 $fieldHandle = 'migratedInhaltselemente';
 

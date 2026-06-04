@@ -378,6 +378,14 @@
       }, 300);
     },
 
+    // Re-run the current comparison. Used by review mode to recover from a
+    // stale-atoms apply failure (the diff on screen is out of date).
+    reload: function () {
+      if (this.$older && this.$older.length && this.$newer && this.$newer.length) {
+        this.loadDiff(this.$older.val(), this.$newer.val());
+      }
+    },
+
     _doLoadDiff: function (olderId, newerId) {
       var self = this;
       var $result = this.$resultContainer;
@@ -644,8 +652,9 @@
       if (ids.length === 0) return;
 
       let idx = this.focusedAtomId ? ids.indexOf(this.focusedAtomId) : -1;
+      // (idx + delta + length) % length is always in range for delta of ±1 and
+      // length >= 1, so no extra negative-index guard is needed.
       idx = (idx + delta + ids.length) % ids.length;
-      if (idx < 0) idx = ids.length - 1;
 
       this.setFocus(ids[idx], true);
     },
@@ -675,8 +684,9 @@
       const self = this;
       this.keyHandler = function (e) {
         if (!self.active) return;
+        if (!e.key) return; // synthetic / IME-composition events have no key
         // Skip when typing in an input
-        if (e.target.matches('input, textarea, [contenteditable]')) return;
+        if (e.target.matches('input, textarea, [contenteditable], [contenteditable="true"]')) return;
         switch (e.key.toLowerCase()) {
           case 'j': self.next(); e.preventDefault(); break;
           case 'k': self.prev(); e.preventDefault(); break;
@@ -791,16 +801,22 @@
     },
 
     enter: function (toolbar) {
+      // If a previous session is still active (re-enter without an explicit
+      // exit — e.g. Resume after a diff reload), tear it down first so the
+      // keyboard handler and IntersectionObserver don't stack and leak.
+      if (this.active) { this.exit(); }
+
       const entryId = toolbar.dataset.entryId;
       const siteId = toolbar.dataset.siteId;
       const sourceRef = toolbar.dataset.sourceRef;
       const userId = (Craft.userId || '0');
 
-      this.storageKey = 'craftdelta:review:' + userId + ':' + entryId + ':' + siteId + ':' + sourceRef;
+      this.storageKey = this.REVIEW_KEY_PREFIX + userId + ':' + entryId + ':' + siteId + ':' + sourceRef;
       this.canonicalUpdatedAt = toolbar.dataset.canonicalUpdatedAt || null;
       this.active = true;
       this.state = Object.create(null);
 
+      this.pruneStoredReviews();
       this.loadFromStorage();
       this.showStepper();
       // The standalone "Start Review" bar is redundant once review mode is
@@ -931,16 +947,19 @@
     },
 
     bindEvents: function () {
-      // Guard: only bind once per page load. enter()/exit()/enter() must not
-      // stack listeners on the same root.
+      // Bind the delegated click handler ONCE, to `document`. The review UI
+      // (toolbar, atom buttons, stepper) is re-rendered into a fresh container
+      // on every diff load and across slideout → modal → full-page switches, so
+      // binding to a specific container would leave later containers without a
+      // handler (and `eventsBound` would suppress re-binding). `document`
+      // always persists; the handler is inert unless review mode is active.
       if (this.eventsBound) return;
       this.eventsBound = true;
 
       const self = this;
-      const root = document.querySelector('.delta-slideout, .delta-modal-content, .delta-fullpage-root') || document.body;
 
       // One delegated click handler covers all per-atom buttons + stepper actions
-      root.addEventListener('click', function (e) {
+      document.addEventListener('click', function (e) {
         if (!self.active) return;
 
         const actionEl = e.target.closest('[data-action]');
@@ -980,8 +999,45 @@
           version: 1,
           canonicalUpdatedAt: this.canonicalUpdatedAt,
           decisions: this.state,
+          savedAt: Date.now(),
         }));
       } catch (e) { /* quota exceeded etc — silent */ }
+    },
+
+    // Review state is keyed per (user, entry, site, sourceRef) and is normally
+    // cleared on apply/cancel — but closing the slideout without cancelling
+    // orphans a key. Prune by age and cap the count so localStorage can't grow
+    // unbounded over a long editorial session. Called once per enter().
+    REVIEW_KEY_PREFIX: 'craftdelta:review:',
+    REVIEW_KEY_MAX_AGE_MS: 30 * 24 * 60 * 60 * 1000, // 30 days
+    REVIEW_KEY_MAX_COUNT: 50,
+    pruneStoredReviews: function () {
+      try {
+        const now = Date.now();
+        const entries = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (!key || key.indexOf(this.REVIEW_KEY_PREFIX) !== 0) continue;
+          let savedAt = 0;
+          try { savedAt = (JSON.parse(localStorage.getItem(key)) || {}).savedAt || 0; } catch (e) {}
+          entries.push({ key: key, savedAt: savedAt });
+        }
+        const survivors = [];
+        const self = this;
+        entries.forEach(function (e) {
+          if (e.savedAt && (now - e.savedAt) > self.REVIEW_KEY_MAX_AGE_MS) {
+            try { localStorage.removeItem(e.key); } catch (err) {}
+          } else {
+            survivors.push(e);
+          }
+        });
+        if (survivors.length > this.REVIEW_KEY_MAX_COUNT) {
+          survivors.sort(function (a, b) { return a.savedAt - b.savedAt; });
+          survivors.slice(0, survivors.length - this.REVIEW_KEY_MAX_COUNT).forEach(function (e) {
+            try { localStorage.removeItem(e.key); } catch (err) {}
+          });
+        }
+      } catch (e) { /* localStorage unavailable — nothing to prune */ }
     },
 
     loadFromStorage: function () {
@@ -1021,9 +1077,16 @@
       if (!confirmed) return;
 
       const toolbar = document.querySelector('[data-review-toolbar]');
+      if (!toolbar) {
+        // The diff (and its toolbar) was replaced out from under us; nothing
+        // safe to apply against.
+        self.handleApplyError({ errorCode: 'stale-atoms' });
+        return;
+      }
       const entryId = toolbar.dataset.entryId;
       const siteId = toolbar.dataset.siteId;
       const sourceRef = toolbar.dataset.sourceRef;
+      const sourceUpdatedAt = toolbar.dataset.sourceUpdatedAt || '';
       const deleteSourceCheckbox = document.querySelector('[data-delete-source-draft]');
       const deleteSourceDraft = !!(deleteSourceCheckbox && deleteSourceCheckbox.checked);
 
@@ -1032,6 +1095,7 @@
           entryId: parseInt(entryId, 10),
           siteId: parseInt(siteId, 10),
           sourceRef: sourceRef,
+          sourceUpdatedAt: sourceUpdatedAt,
           acceptedAtoms: accepted,
           deleteSourceDraft: deleteSourceDraft ? 1 : 0,
         },

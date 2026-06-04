@@ -71,34 +71,42 @@ class DiffController extends Controller
             return $this->asFailure('Version not found.');
         }
 
-        // Capture which side carried the canonical entity BEFORE the chronological
-        // sort can swap them. "Source" is whichever side is NOT the canonical.
+        // "Source" is whichever side is NOT the canonical entity.
         $olderIsCanonical = $older->id === $canonical->id;
         $newerIsCanonical = $newer->id === $canonical->id;
         $sourceRef = $olderIsCanonical ? $newerRef : $olderRef;
+        $sourceEntry = $olderIsCanonical ? $newer : $older;
 
-        // Force chronological order so diff colors stay stable across swaps.
-        [$older, $newer] = $this->sortChronologically($older, $newer);
+        // Review mode is available when one side is canonical AND the setting is on.
+        $settings = $plugin->getSettings();
+        $reviewMode = $settings->enableReviewMode
+            && ($olderIsCanonical || $newerIsCanonical);
 
         try {
-            $result = $plugin->diff->compare($older, $newer);
-
-            // Review mode is available when one side is canonical AND the setting is on.
-            $settings = $plugin->getSettings();
-            $reviewMode = $settings->enableReviewMode
-                && ($olderIsCanonical || $newerIsCanonical);
+            if ($reviewMode) {
+                // Review-mode atom-ids (and the added/removed colors derived
+                // from them) MUST be canonical-relative so they match the fixed
+                // compare(canonical, source) that MergeService::merge() re-runs
+                // at apply time. Diffing chronologically here would invert
+                // matrix added/removed whenever canonical is newer than the
+                // source draft (e.g. after a partial apply leaves a leftover
+                // queue), making every accepted block change fail validation as
+                // "stale". Canonical is the fixed baseline, so this orientation
+                // is also inherently stable across swapped selections.
+                $result = $plugin->diff->compare($canonical, $sourceEntry);
+            } else {
+                // Plain diffing: force chronological order so colors stay stable
+                // across swapped selections.
+                [$older, $newer] = $this->sortChronologically($older, $newer);
+                $result = $plugin->diff->compare($older, $newer);
+            }
 
             $user = Craft::$app->getUser()->getIdentity();
             $workflow = null;
             $isReviewer = false;
-            // The "source" entry is whichever side isn't canonical. Determine it
-            // POST-sort (mirroring $canonicalSide below) — using the pre-sort
-            // $olderIsCanonical flag here would mis-select canonical itself
-            // whenever the sort swapped the sides (e.g. canonical is newer than
-            // the draft after an earlier partial apply). Workflow attaches to
-            // drafts, so only check if the source is a draft.
-            $sourceEntry = $newer->id === $canonical->id ? $older : $newer;
-            if ($sourceEntry->getIsDraft() && $user) {
+            // The workflow toolbar attaches to a submitted draft. Only surface it
+            // when the workflow feature is enabled and the source is a draft.
+            if ($settings->enableWorkflow && $sourceEntry->getIsDraft() && $user) {
                 $workflow = $plugin->workflow->getByDraftId((int)$sourceEntry->draftId);
                 if ($workflow !== null) {
                     $isReviewer = $plugin->workflow->canReview($user, $workflow);
@@ -110,11 +118,11 @@ class DiffController extends Controller
                 [
                     'result' => $result,
                     'reviewMode' => $reviewMode,
-                    'canonicalSide' => $newer->id === $canonical->id ? 'newer' : 'older',
                     'sourceRef' => $sourceRef,
                     'entryId' => $entryId,
                     'siteId' => $siteId ?? $canonical->siteId,
                     'canonicalUpdatedAt' => $canonical->dateUpdated?->format(\DateTimeInterface::ATOM),
+                    'sourceUpdatedAt' => $sourceEntry->dateUpdated?->format(\DateTimeInterface::ATOM),
                     'workflow' => $workflow,
                     'isReviewer' => $isReviewer,
                 ],
@@ -363,27 +371,61 @@ class DiffController extends Controller
             ])->setStatusCode(422);
         }
 
+        // Guard against the author editing the draft between diff-load and apply.
+        // The accepted atoms describe the values the reviewer SAW, but merge()
+        // copies the source's CURRENT values — so a change since load means we
+        // would publish content nobody reviewed. Bail down the same stale path
+        // the client already handles.
+        $sourceUpdatedAt = $request->getBodyParam('sourceUpdatedAt');
+        if ($sourceUpdatedAt !== null && $sourceUpdatedAt !== '') {
+            $liveSourceUpdatedAt = $source->dateUpdated?->format(\DateTimeInterface::ATOM);
+            if ($liveSourceUpdatedAt !== null && $liveSourceUpdatedAt !== (string)$sourceUpdatedAt) {
+                return $this->asJson([
+                    'success' => false,
+                    'errorCode' => 'stale-atoms',
+                    'error' => Craft::t('craft-delta', 'The entry has changed since you started reviewing. Please reload the diff and restart your review.'),
+                ])->setStatusCode(422);
+            }
+        }
+
+        // Native Craft gating: applying publishes a new canonical revision and
+        // (optionally) hard-deletes the source draft. craftdelta-applyReview
+        // alone is not enough — require the same save/delete permissions Craft's
+        // own UI would, so a read-only user can neither publish nor destroy a
+        // peer's draft.
+        if (!$canonical->canSave($user)) {
+            throw new ForbiddenHttpException('You do not have permission to publish changes to this entry.');
+        }
+
+        $sourceDraftId = $source->getIsDraft() ? (int)$source->draftId : null;
+        $deleteSourceDraft = $deleteSourceDraft && $sourceDraftId !== null;
+        if ($deleteSourceDraft && !$source->canDelete($user)) {
+            throw new ForbiddenHttpException('You do not have permission to delete the source draft.');
+        }
+
+        // A granular apply of a SUBMITTED draft IS the review decision, so only
+        // the assigned reviewer (or an admin) may perform it. This prevents a
+        // non-reviewer publishing a curated merge while leaving the workflow
+        // "pending" for a later wholesale double-apply.
+        $workflow = $sourceDraftId !== null ? $plugin->workflow->getByDraftId($sourceDraftId) : null;
+        if ($workflow !== null && $workflow->isPending() && !$plugin->workflow->canReview($user, $workflow)) {
+            throw new ForbiddenHttpException('Only the assigned reviewer may apply this submitted draft.');
+        }
+
         try {
-            // Capture the source draft id BEFORE the merge: a "delete source
-            // draft" cascade-removes the workflow row (FK ON DELETE CASCADE), so
-            // there'd be nothing left to close afterward.
-            $sourceDraftId = $source->getIsDraft() ? (int)$source->draftId : null;
+            // merge() never deletes the source draft itself: we must resolve the
+            // workflow first (so its approval email + event fire) and only then
+            // delete, otherwise the FK ON DELETE CASCADE removes the workflow row
+            // before we can record/notify the decision.
+            $published = $plugin->merge->merge($canonical, $source, $acceptedAtoms, false);
 
-            $published = $plugin->merge->merge($canonical, $source, $acceptedAtoms, $deleteSourceDraft);
+            if ($workflow !== null && $workflow->isPending()) {
+                // Reviewer rights were asserted above.
+                $plugin->workflow->resolveByReview($workflow, $user);
+            }
 
-            // A granular apply through Review Mode IS the review decision: if this
-            // draft was submitted for review and the current user can review it,
-            // close the owning workflow as approved. (If the source draft was
-            // deleted above, its row is already cascade-gone and the lookup
-            // returns null — same end state as a wholesale approve.)
-            if ($sourceDraftId !== null) {
-                $workflow = $plugin->workflow->getByDraftId($sourceDraftId);
-                if ($workflow !== null
-                    && $workflow->isPending()
-                    && $plugin->workflow->canReview($user, $workflow)
-                ) {
-                    $plugin->workflow->resolveByReview($workflow, $user);
-                }
+            if ($deleteSourceDraft) {
+                Craft::$app->getElements()->deleteElement($source, true);
             }
 
             return $this->asJson([
@@ -405,11 +447,12 @@ class DiffController extends Controller
                 'error' => Craft::t('craft-delta', 'The entry has changed since you started reviewing. Please reload the diff and restart your review.'),
             ])->setStatusCode(422);
         } catch (\Throwable $e) {
+            // Log the detail, but never leak internal exception text to the client.
             Craft::error("Apply failed: {$e->getMessage()}", __METHOD__);
             return $this->asJson([
                 'success' => false,
                 'errorCode' => 'validation-failed',
-                'error' => $e->getMessage(),
+                'error' => Craft::t('craft-delta', 'Could not apply the changes. Please reload the diff and try again.'),
             ])->setStatusCode(422);
         }
     }

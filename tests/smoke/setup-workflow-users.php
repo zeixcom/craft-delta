@@ -21,6 +21,8 @@ declare(strict_types=1);
 use Craft;
 use craft\elements\User;
 
+require __DIR__ . '/_guard.php';
+
 function out(string $message): void
 {
     echo $message . PHP_EOL;

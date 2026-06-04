@@ -43,3 +43,11 @@
     name: 'enableReviewMode',
     on: settings.enableReviewMode,
 }) }}
+
+{{ forms.lightswitchField({
+    label: 'Enable Review Workflow'|t('craft-delta'),
+    instructions: 'Show the Submit-for-review / approve / reject workflow. When off, the plugin behaves as a read-only diff tool and the workflow endpoints are disabled.'|t('craft-delta'),
+    id: 'enableWorkflow',
+    name: 'enableWorkflow',
+    on: settings.enableWorkflow,
+}) }}

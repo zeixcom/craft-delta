@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace zeixcom\craftdelta\tests\Unit\Service;
 
 use PHPUnit\Framework\TestCase;
+use zeixcom\craftdelta\models\DiffResult;
+use zeixcom\craftdelta\models\FieldDiff;
 use zeixcom\craftdelta\services\MergeService;
+use zeixcom\craftdelta\services\StaleAtomException;
 
 class MergeServiceTest extends TestCase
 {
@@ -292,5 +295,133 @@ class MergeServiceTest extends TestCase
         $result = MergeService::orderMatrixBlocks($survivors, $current, $source, true);
 
         $this->assertSame(['B', 'A'], array_column($result, 'uid'));
+    }
+
+    // ─── buildMatrixSetValue (Craft UID-mode payload) ───
+
+    public function testBuildMatrixSetValueExistingFirstKeepsUidMode(): void
+    {
+        $ordered = [
+            ['uid' => 'CANON', 'payload' => ['type' => 'text']],
+            ['uid' => 'NEWBLK', 'payload' => ['type' => 'text']],
+        ];
+        $currentByCanonicalUid = [
+            'CANON' => ['draftEntryUid' => 'draft-uid-1'],
+        ];
+
+        $value = MergeService::buildMatrixSetValue($ordered, $currentByCanonicalUid);
+
+        // Existing block keyed uid:…, new block keyed newN; sortOrder in display order.
+        $this->assertArrayHasKey('uid:draft-uid-1', $value['entries']);
+        $this->assertArrayHasKey('new1', $value['entries']);
+        $this->assertSame(['draft-uid-1', 'new1'], $value['sortOrder']);
+        // First entries key is UID-shaped → Craft stays in UID mode.
+        $this->assertStringStartsWith('uid:', array_key_first($value['entries']));
+    }
+
+    public function testBuildMatrixSetValueNewBlockFirstStillKeepsExistingFirstInMap(): void
+    {
+        // Regression for the silent data-loss bug: a NEW block sorts FIRST.
+        // Craft only inspects the first entries key to pick UID vs ID mode, so
+        // the existing block MUST still be the first key in the entries map even
+        // though it is second in display order.
+        $ordered = [
+            ['uid' => 'NEWBLK', 'payload' => ['type' => 'text']],   // displayed first
+            ['uid' => 'CANON', 'payload' => ['type' => 'text']],    // existing, displayed second
+        ];
+        $currentByCanonicalUid = [
+            'CANON' => ['draftEntryUid' => 'draft-uid-1'],
+        ];
+
+        $value = MergeService::buildMatrixSetValue($ordered, $currentByCanonicalUid);
+
+        // Display order preserved via sortOrder: new block first.
+        $this->assertSame(['new1', 'draft-uid-1'], $value['sortOrder']);
+        // But the entries MAP leads with the UID-shaped key so Craft keeps UID
+        // mode and does not drop the existing block.
+        $this->assertStringStartsWith('uid:', array_key_first($value['entries']));
+        $this->assertSame(
+            ['uid:draft-uid-1', 'new1'],
+            array_keys($value['entries']),
+        );
+    }
+
+    public function testBuildMatrixSetValueAllNewBlocks(): void
+    {
+        $ordered = [
+            ['uid' => 'N1', 'payload' => ['type' => 'text']],
+            ['uid' => 'N2', 'payload' => ['type' => 'text']],
+        ];
+
+        $value = MergeService::buildMatrixSetValue($ordered, []);
+
+        $this->assertSame(['new1', 'new2'], array_keys($value['entries']));
+        $this->assertSame(['new1', 'new2'], $value['sortOrder']);
+    }
+
+    // ─── collectAvailableAtoms + stale-atom contract ───
+
+    private function fieldDiff(array $config): FieldDiff
+    {
+        return new FieldDiff(array_merge([
+            'fieldHandle' => 'x',
+            'fieldLabel' => 'X',
+            'fieldType' => 'craft\\fields\\PlainText',
+            'hasChanges' => true,
+            'diffHtml' => '',
+        ], $config));
+    }
+
+    public function testCollectAvailableAtomsForFieldAndMatrix(): void
+    {
+        $diff = new DiffResult(['fieldDiffs' => [
+            $this->fieldDiff(['fieldHandle' => 'title', 'fieldType' => 'attribute']),
+            $this->fieldDiff([
+                'fieldHandle' => 'blocks',
+                'fieldType' => 'craft\\fields\\Matrix',
+                'diffHtml' => json_encode([
+                    ['type' => 'added', 'blockUid' => 'A'],
+                    ['type' => 'removed', 'blockUid' => 'B'],
+                    ['type' => 'modified', 'blockUid' => 'C'],
+                    ['type' => 'reordered'],
+                ]),
+            ]),
+        ]]);
+
+        $atoms = MergeService::collectAvailableAtoms($diff);
+
+        $this->assertContains('field:title', $atoms);
+        $this->assertContains('matrix-block:blocks:A:added', $atoms);
+        $this->assertContains('matrix-block:blocks:B:removed', $atoms);
+        $this->assertContains('matrix-block:blocks:C:modified', $atoms);
+        $this->assertContains('matrix-reorder:blocks', $atoms);
+    }
+
+    public function testCollectAvailableAtomsSkipsUnchangedAndUnparseable(): void
+    {
+        $diff = new DiffResult(['fieldDiffs' => [
+            $this->fieldDiff(['fieldHandle' => 'untouched', 'hasChanges' => false]),
+            $this->fieldDiff(['fieldHandle' => 'blocks', 'fieldType' => 'craft\\fields\\Matrix', 'diffHtml' => 'not-json']),
+        ]]);
+
+        $this->assertSame([], MergeService::collectAvailableAtoms($diff));
+    }
+
+    public function testValidateAtomsThrowsStaleWhenAcceptedAtomNoLongerOffered(): void
+    {
+        // Simulates the canonical/source changing after the reviewer loaded the
+        // diff: a matrix block the reviewer accepted is no longer in the fresh
+        // diff, so the apply must abort as stale rather than apply a phantom.
+        $freshDiff = new DiffResult(['fieldDiffs' => [
+            $this->fieldDiff([
+                'fieldHandle' => 'blocks',
+                'fieldType' => 'craft\\fields\\Matrix',
+                'diffHtml' => json_encode([['type' => 'added', 'blockUid' => 'A']]),
+            ]),
+        ]]);
+        $available = MergeService::collectAvailableAtoms($freshDiff);
+
+        $this->expectException(StaleAtomException::class);
+        MergeService::validateAtoms($available, ['matrix-block:blocks:GONE:added']);
     }
 }

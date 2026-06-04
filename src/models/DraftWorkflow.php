@@ -54,4 +54,20 @@ class DraftWorkflow extends Model
     {
         return $this->state === self::STATE_PENDING;
     }
+
+    /**
+     * Human-readable label for the current state. Single source of truth for
+     * the entry-index column pill and the sidebar status pill.
+     */
+    public function statusLabel(): string
+    {
+        return match ($this->state) {
+            self::STATE_PENDING => \Craft::t('craft-delta', 'Pending review'),
+            self::STATE_APPROVED => $this->isScheduled()
+                ? \Craft::t('craft-delta', 'Approved — scheduled')
+                : \Craft::t('craft-delta', 'Approved'),
+            self::STATE_REJECTED => \Craft::t('craft-delta', 'Rejected'),
+            default => $this->state,
+        };
+    }
 }

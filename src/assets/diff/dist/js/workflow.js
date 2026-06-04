@@ -41,7 +41,10 @@
                     return;
                 }
                 resp.assignees.forEach(function(u) {
-                    $select.append('<option value="' + u.id + '">' + u.name + '</option>');
+                    // Build via .val()/.text() — never concatenate the user's
+                    // name into an HTML string (it would be a stored-XSS vector
+                    // since names are user-controlled profile data).
+                    $select.append($('<option></option>').val(u.id).text(u.name));
                 });
                 $modal.find('.btn.submit').removeClass('disabled');
             })
@@ -74,6 +77,11 @@
      * Called by delta.js after slideout HTML loads.
      */
     Craft.Delta.mountWorkflowToolbar = function($toolbar) {
+        // mountWorkflowToolbar runs on every diff load; guard so a re-rendered
+        // toolbar node isn't wired twice (which would fire duplicate POSTs).
+        if ($toolbar.data('delta-mounted')) { return; }
+        $toolbar.data('delta-mounted', true);
+
         var workflowId = $toolbar.data('workflow-id');
 
         $toolbar.find('.delta-approve-now').on('click', function() {
@@ -114,8 +122,10 @@
         });
 
         $toolbar.find('.delta-reject').on('click', function() {
-            var note = prompt(Craft.t('craft-delta', 'Optional note for the author:')) || '';
+            // Confirm the (final) rejection BEFORE prompting for the note, so
+            // cancelling doesn't first drag the reviewer through a note dialog.
             if (!confirm(Craft.t('craft-delta', 'Reject this draft? Rejection is final.'))) return;
+            var note = prompt(Craft.t('craft-delta', 'Optional note for the author:')) || '';
             Craft.postActionRequest(
                 'craft-delta/workflow/reject',
                 { workflowId: workflowId, note: note },

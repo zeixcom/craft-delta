@@ -162,13 +162,7 @@ class Delta extends Plugin
                     $event->html = '';
                     return;
                 }
-                $label = match ($wf->state) {
-                    'pending' => Craft::t('craft-delta', 'Pending review'),
-                    'approved' => $wf->isScheduled() ? Craft::t('craft-delta', 'Approved — scheduled') : Craft::t('craft-delta', 'Approved'),
-                    'rejected' => Craft::t('craft-delta', 'Rejected'),
-                    default => $wf->state,
-                };
-                $event->html = '<span class="status ' . htmlspecialchars($wf->state) . '"></span>' . htmlspecialchars($label);
+                $event->html = '<span class="status ' . htmlspecialchars($wf->state) . '"></span>' . htmlspecialchars($wf->statusLabel());
             }
         );
     }
@@ -289,17 +283,8 @@ class Delta extends Plugin
                                 . $submitLabel
                                 . '</button>';
                         } else {
-                            if ($wf->state === DraftWorkflow::STATE_APPROVED) {
-                                $pillLabel = $wf->isScheduled()
-                                    ? htmlspecialchars(Craft::t('craft-delta', 'Approved — scheduled'))
-                                    : htmlspecialchars(Craft::t('craft-delta', 'Approved'));
-                            } elseif ($wf->state === DraftWorkflow::STATE_REJECTED) {
-                                $pillLabel = htmlspecialchars(Craft::t('craft-delta', 'Rejected'));
-                            } else {
-                                $pillLabel = htmlspecialchars(Craft::t('craft-delta', 'Pending review'));
-                            }
                             $workflowHtml = '<p class="delta-workflow-status delta-workflow-status--' . htmlspecialchars($wf->state) . '">'
-                                . $pillLabel
+                                . htmlspecialchars($wf->statusLabel())
                                 . '</p>';
                         }
                     }

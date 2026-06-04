@@ -16,6 +16,22 @@ use zeixcom\craftdelta\Delta;
 
 class WorkflowController extends Controller
 {
+    /**
+     * Block every workflow endpoint when the feature is switched off, so the
+     * `enableWorkflow` setting is a real kill-switch rather than only hiding
+     * the sidebar Submit button.
+     */
+    public function beforeAction($action): bool
+    {
+        if (!parent::beforeAction($action)) {
+            return false;
+        }
+        if (!Delta::getInstance()->getSettings()->enableWorkflow) {
+            throw new NotFoundHttpException('The review workflow is disabled.');
+        }
+        return true;
+    }
+
     public function actionSubmit(): Response
     {
         $this->requireAcceptsJson();
@@ -64,7 +80,7 @@ class WorkflowController extends Controller
         $scheduledForRaw = $request->getBodyParam('scheduledFor');
 
         $plugin = Delta::getInstance();
-        $wf = $plugin->workflow->getByDraftIdOrId($workflowId);
+        $wf = $plugin->workflow->getById($workflowId);
         if ($wf === null) {
             throw new NotFoundHttpException('Workflow not found.');
         }
@@ -112,7 +128,7 @@ class WorkflowController extends Controller
         $note = $request->getBodyParam('note');
 
         $plugin = Delta::getInstance();
-        $wf = $plugin->workflow->getByDraftIdOrId($workflowId);
+        $wf = $plugin->workflow->getById($workflowId);
         if ($wf === null) {
             throw new NotFoundHttpException('Workflow not found.');
         }

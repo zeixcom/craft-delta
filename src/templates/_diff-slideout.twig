@@ -41,7 +41,8 @@
          data-entry-id="{{ entryId }}"
          data-site-id="{{ siteId }}"
          data-source-ref="{{ sourceRef }}"
-         data-canonical-updated-at="{{ canonicalUpdatedAt }}">
+         data-canonical-updated-at="{{ canonicalUpdatedAt }}"
+         data-source-updated-at="{{ sourceUpdatedAt }}">
         {% if not showGranularReview %}
             <button type="button" class="btn delta-review-start" data-action="start-review">
                 {{ 'Start Review'|t('craft-delta') }}

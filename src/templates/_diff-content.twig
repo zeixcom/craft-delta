@@ -2,9 +2,18 @@
    Parameters:
      - diffHtml:   the raw diff HTML or JSON string
      - fieldType:  the fully-qualified field class name (used to detect Matrix/Table)
+     - nested:     true when rendered inside a Matrix block's sub-fields. Nested
+                   Matrix-in-Matrix blocks must NOT emit their own atom-ids or
+                   accept/reject controls: they aren't individually applicable
+                   (the server only offers top-level atoms, and accepting the
+                   parent "modified" block already copies the whole block,
+                   nested Matrix included). Emitting them would surface buttons
+                   whose atoms fail validation as "stale".
 #}
 
 {% set fieldClass = fieldType|split('\\')|last %}
+{% set isNested = nested ?? false %}
+{% set atomsEnabled = (reviewMode is defined and reviewMode) and not isNested %}
 
 {% if fieldClass in ['Matrix'] and diffHtml starts with '[' %}
     {% set changes = diffHtml|json_decode %}
@@ -14,7 +23,7 @@
                 {% set blockClass = {added: 'delta-block-added', removed: 'delta-block-removed', modified: 'delta-block-modified'} %}
                 {% set blockIcon = {added: '+', removed: '-', modified: '&bull;'} %}
                 <div class="delta-block {{ blockClass[change.type] }}"
-                     data-atom-id="matrix-block:{{ fieldHandle }}:{{ change.blockUid }}:{{ change.type }}">
+                     {% if not isNested %}data-atom-id="matrix-block:{{ fieldHandle }}:{{ change.blockUid }}:{{ change.type }}"{% endif %}>
                     {% if change.fieldChanges is defined and change.fieldChanges is iterable %}
                         <button type="button" class="delta-block-toggle" aria-expanded="true">
                             <svg class="delta-block-chevron" viewBox="0 0 16 16" fill="currentColor">
@@ -33,7 +42,8 @@
                                             diffHtml: fc.diffHtml,
                                             fieldType: fc.fieldType ?? '',
                                             fieldHandle: fieldHandle,
-                                            reviewMode: reviewMode ?? false
+                                            reviewMode: reviewMode ?? false,
+                                            nested: true
                                         } only %}
                                     {% endif %}
                                 </div>
@@ -44,7 +54,7 @@
                         <span class="delta-block-type">{{ change.blockType ?? 'Block' }}</span>
                         <span class="delta-block-summary">{{ change.summary ?? '' }}</span>
                     {% endif %}
-                    {% if reviewMode is defined and reviewMode %}
+                    {% if atomsEnabled %}
                         <span class="delta-atom-actions" hidden data-atom-actions>
                             <button type="button" class="btn small delta-atom-accept" data-action="accept">✓</button>
                             <button type="button" class="btn small delta-atom-reject" data-action="reject">✗</button>
@@ -52,10 +62,10 @@
                     {% endif %}
                 </div>
             {% elseif change.type == 'reordered' %}
-                <div class="delta-block delta-block-reordered" data-atom-id="matrix-reorder:{{ fieldHandle }}">
+                <div class="delta-block delta-block-reordered"{% if not isNested %} data-atom-id="matrix-reorder:{{ fieldHandle }}"{% endif %}>
                     <span class="delta-block-icon">&harr;</span>
                     <span>{{ 'Blocks were reordered'|t('craft-delta') }}</span>
-                    {% if reviewMode is defined and reviewMode %}
+                    {% if atomsEnabled %}
                         <span class="delta-atom-actions" hidden data-atom-actions>
                             <button type="button" class="btn small delta-atom-accept" data-action="accept">✓</button>
                             <button type="button" class="btn small delta-atom-reject" data-action="reject">✗</button>
