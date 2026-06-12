@@ -58,7 +58,6 @@ class MergeServiceTest extends TestCase
 
     public function testValidateAtomsAcceptsKnownAtoms(): void
     {
-        // Set of stable keys representing the fresh diff's available atoms
         $availableAtoms = [
             'field:title',
             'matrix-block:blocks:8a3f:added',
@@ -67,7 +66,6 @@ class MergeServiceTest extends TestCase
 
         $accepted = ['field:title', 'matrix-reorder:blocks'];
 
-        // No exception means valid
         MergeService::validateAtoms($availableAtoms, $accepted);
         $this->addToAssertionCount(1);
     }
@@ -297,8 +295,6 @@ class MergeServiceTest extends TestCase
         $this->assertSame(['B', 'A'], array_column($result, 'uid'));
     }
 
-    // ─── buildMatrixSetValue (Craft UID-mode payload) ───
-
     public function testBuildMatrixSetValueExistingFirstKeepsUidMode(): void
     {
         $ordered = [
@@ -358,8 +354,6 @@ class MergeServiceTest extends TestCase
         $this->assertSame(['new1', 'new2'], array_keys($value['entries']));
         $this->assertSame(['new1', 'new2'], $value['sortOrder']);
     }
-
-    // ─── collectAvailableAtoms + stale-atom contract ───
 
     private function fieldDiff(array $config): FieldDiff
     {

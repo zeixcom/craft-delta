@@ -13,14 +13,8 @@ use yii\web\Response;
 use zeixcom\craftdelta\Delta;
 use zeixcom\craftdelta\i18n\TranslationKeys;
 
-/**
- * Handles diff comparison requests from the control panel.
- */
 class DiffController extends Controller
 {
-    /**
-     * Verify the current user can view the given entry's section.
-     */
     private function requireEntryAccess(Entry $entry): void
     {
         $user = Craft::$app->getUser()->getIdentity();
@@ -39,8 +33,6 @@ class DiffController extends Controller
     }
 
     /**
-     * Returns the diff slideout HTML for two versions.
-     *
      * Accepts "current", "draft:<draftId>", or a numeric revision ID
      * for both the `older` and `newer` params.
      */
@@ -176,9 +168,6 @@ class DiffController extends Controller
         ]);
     }
 
-    /**
-     * Returns the revision list for the selector dropdowns.
-     */
     public function actionRevisions(): Response
     {
         $this->requireAcceptsJson();
@@ -200,15 +189,17 @@ class DiffController extends Controller
         $revisions = $plugin->revision->getRevisions($entryId, 20, $siteId);
         $drafts = $plugin->revision->getDrafts($entryId, $siteId);
 
-        $revisionOptions = array_map(function($rev) {
+        $revisionOptions = array_map(function(Entry $rev) {
+            /** @var \craft\behaviors\RevisionBehavior|null $behavior */
             $behavior = $rev->getBehavior('revision');
             $creator = $behavior?->getCreator()?->friendlyName ?? Craft::t('craft-delta', TranslationKeys::UNKNOWN);
+            $revisionNum = $behavior?->revisionNum ?? 0;
 
             return [
                 'id' => $rev->id,
-                'num' => $rev->revisionNum,
+                'num' => $revisionNum,
                 'label' => Craft::t('craft-delta', TranslationKeys::REV_NUM_CREATOR, [
-                    'num' => $rev->revisionNum,
+                    'num' => $revisionNum,
                     'creator' => $creator,
                 ]),
                 'date' => $rev->dateCreated?->format('M j, Y g:ia') ?? '',
@@ -218,17 +209,14 @@ class DiffController extends Controller
 
         $draftOptions = [];
         $user = Craft::$app->getUser()->getIdentity();
-        $section = $canonical->getSection();
-        $canViewPeerDrafts = $user && $section && $user->can("viewPeerEntryDrafts:{$section->uid}");
 
         foreach ($drafts as $draft) {
-            /** @var \craft\behaviors\DraftBehavior|null $behavior */
-            $behavior = $draft->getBehavior('draft');
-
-            $creatorId = $behavior?->creatorId;
-            if ($creatorId && (int)$creatorId !== (int)$user?->id && !$canViewPeerDrafts) {
+            if (!$this->userCanViewDraft($draft, $canonical, $user)) {
                 continue;
             }
+
+            /** @var \craft\behaviors\DraftBehavior|null $behavior */
+            $behavior = $draft->getBehavior('draft');
 
             $draftName = $behavior?->draftName ?? Craft::t('craft-delta', TranslationKeys::DRAFT);
             $creator = $behavior?->getCreator()?->friendlyName ?? Craft::t('craft-delta', TranslationKeys::UNKNOWN);
@@ -245,6 +233,20 @@ class DiffController extends Controller
             'drafts' => $draftOptions,
             'hasCurrent' => $canonical !== null,
         ]);
+    }
+
+    private function userCanViewDraft(Entry $draft, Entry $canonical, ?\craft\elements\User $user): bool
+    {
+        /** @var \craft\behaviors\DraftBehavior|null $behavior */
+        $behavior = $draft->getBehavior('draft');
+        $creatorId = $behavior?->creatorId;
+        if ($creatorId && (int)$creatorId !== (int)$user?->id) {
+            $section = $canonical->getSection();
+            if ($section && !$user?->can("viewPeerEntryDrafts:{$section->uid}")) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** @return array{0: Entry, 1: Entry} */
@@ -281,30 +283,10 @@ class DiffController extends Controller
 
         if (str_starts_with($ref, 'draft:')) {
             $draftId = (int)substr($ref, 6);
-            $query = Entry::find()
-                ->draftId($draftId)
-                ->draftOf($canonical->id)
-                ->status(null);
-
-            if ($siteId !== null) {
-                $query->siteId($siteId);
+            $draft = $plugin->revision->getDraftByDraftId($draftId, $canonical->id, $siteId);
+            if ($draft !== null && !$this->userCanViewDraft($draft, $canonical, Craft::$app->getUser()->getIdentity())) {
+                return null;
             }
-
-            $draft = $query->one();
-
-            if ($draft !== null) {
-                $user = Craft::$app->getUser()->getIdentity();
-                /** @var \craft\behaviors\DraftBehavior|null $draftBehavior */
-                $draftBehavior = $draft->getBehavior('draft');
-                $creatorId = $draftBehavior?->creatorId;
-                if ($creatorId && (int)$creatorId !== (int)$user?->id) {
-                    $section = $canonical->getSection();
-                    if ($section && !$user?->can("viewPeerEntryDrafts:{$section->uid}")) {
-                        return null;
-                    }
-                }
-            }
-
             return $draft;
         }
 
@@ -354,10 +336,6 @@ class DiffController extends Controller
 
         $this->requireEntryAccess($canonical);
 
-        // Permission: user must hold the dedicated review-mode apply permission.
-        // Granted via Settings → Users → User group permissions. Which sections
-        // they may reach is governed by Craft's native section permissions
-        // (already enforced by requireEntryAccess() above).
         $user = Craft::$app->getUser()->getIdentity();
         if (!$user || !$user->can(Delta::PERMISSION_APPLY)) {
             throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NO_PERMISSION_APPLY_REVIEW));
@@ -405,7 +383,7 @@ class DiffController extends Controller
         // non-reviewer publishing a curated merge while leaving the workflow
         // "pending" for a later wholesale double-apply.
         $workflow = $sourceDraftId !== null ? $plugin->workflow->getByDraftId($sourceDraftId) : null;
-        if ($workflow !== null && $workflow->isPending() && !$plugin->workflow->canReview($user, $workflow)) {
+        if ($workflow !== null && $workflow->isActive() && !$plugin->workflow->canReview($user, $workflow)) {
             throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::ONLY_ASSIGNED_REVIEWER_MAY_APPLY));
         }
 
@@ -417,7 +395,7 @@ class DiffController extends Controller
             $published = Craft::$app->getDb()->transaction(function() use ($plugin, $canonical, $source, $acceptedAtoms, $workflow, $user) {
                 $published = $plugin->merge->merge($canonical, $source, $acceptedAtoms, false);
 
-                if ($workflow !== null && $workflow->isPending()) {
+                if ($workflow !== null && $workflow->isActive()) {
                     // Reviewer rights were asserted above. Resolve BEFORE the
                     // source-draft delete below, or the FK ON DELETE CASCADE
                     // removes the workflow row before we can record the decision.

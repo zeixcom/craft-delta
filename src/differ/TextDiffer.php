@@ -44,6 +44,7 @@ class TextDiffer implements DifferInterface
         return $renderer->render($differ);
     }
 
+    /** @return array{additions: int, deletions: int} */
     public function getStats(mixed $oldValue, mixed $newValue): array
     {
         $old = str_word_count((string)($oldValue ?? ''));

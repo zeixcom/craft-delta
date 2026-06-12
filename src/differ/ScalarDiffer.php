@@ -28,6 +28,7 @@ class ScalarDiffer implements DifferInterface
         );
     }
 
+    /** @return array{additions: int, deletions: int} */
     public function getStats(mixed $oldValue, mixed $newValue): array
     {
         $old = $this->normalize($oldValue);
@@ -45,6 +46,8 @@ class ScalarDiffer implements DifferInterface
 
     /**
      * Normalize a value to a comparable string representation.
+     *
+     * @param bool|\DateTime|\Money\Money|float|int|object|string|null $value
      */
     private function normalize(mixed $value): string
     {
@@ -76,6 +79,8 @@ class ScalarDiffer implements DifferInterface
 
     /**
      * Format a value for user-facing display in the diff output.
+     *
+     * @param bool|\DateTime|\Money\Money|float|int|object|string|null $value
      */
     private function display(mixed $value): string
     {

@@ -61,7 +61,6 @@ class Install extends Migration
         $this->addForeignKey(null, '{{%craftdelta_review_reviewers}}', ['reviewId'], '{{%craftdelta_reviews}}', ['id'], 'CASCADE');
         $this->addForeignKey(null, '{{%craftdelta_review_reviewers}}', ['userId'], '{{%users}}', ['id'], 'CASCADE');
 
-        // Phase 2: review comments (anchored or general feedback, one level of replies).
         $this->createTable('{{%craftdelta_review_comments}}', [
             'id' => $this->primaryKey(),
             'reviewId' => $this->integer()->notNull(),

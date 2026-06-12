@@ -59,8 +59,8 @@ class Delta extends Plugin
     {
         return [
             'components' => [
-                'diff' => DiffService::class,
                 'fieldDiff' => FieldDiffService::class,
+                'diff' => DiffService::class,
                 'revision' => RevisionService::class,
                 'merge' => MergeService::class,
                 'workflow' => WorkflowService::class,
@@ -141,9 +141,14 @@ class Delta extends Plugin
                 if (!$user->admin && !$user->can(self::PERMISSION_SUBMIT) && !$user->can(self::PERMISSION_REVIEW)) {
                     return;
                 }
+                $badgeCount = $user->can(self::PERMISSION_REVIEW)
+                    ? $this->workflow->countAwaitingVerdict($user)
+                    : 0;
+
                 $event->navItems[] = [
                     'url' => 'delta-reviews',
                     'label' => Craft::t('craft-delta', TranslationKeys::WORKFLOW_REVIEWS_TITLE),
+                    'badgeCount' => $badgeCount,
                     // Mask variant: the CP tints nav icons as monochrome glyphs,
                     // so the branded icon.svg (solid background) renders as a
                     // black square here.
@@ -153,9 +158,6 @@ class Delta extends Plugin
         );
     }
 
-    /**
-     * Expose translation keys to Twig as `deltaKeys.compareRevisions`, etc.
-     */
     private function registerTwigGlobals(): void
     {
         Event::on(
@@ -167,9 +169,6 @@ class Delta extends Plugin
         );
     }
 
-    /**
-     * Register control panel routes for full-page diff view.
-     */
     private function registerCpRoutes(): void
     {
         Event::on(
@@ -227,10 +226,6 @@ class Delta extends Plugin
         );
     }
 
-    /**
-     * Register a "Workflow" column on entry index pages showing a status pill
-     * for entries that have an active workflow row.
-     */
     private function registerWorkflowColumn(): void
     {
         Event::on(
@@ -266,9 +261,6 @@ class Delta extends Plugin
         );
     }
 
-    /**
-     * Inject the "Compare Revisions" button into entry editor sidebars.
-     */
     private function registerEditorAssets(): void
     {
         Event::on(

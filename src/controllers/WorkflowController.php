@@ -14,15 +14,20 @@ use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 use zeixcom\craftdelta\Delta;
+use zeixcom\craftdelta\helpers\UserName;
 use zeixcom\craftdelta\i18n\TranslationKeys;
 use zeixcom\craftdelta\models\Review;
 use zeixcom\craftdelta\models\ReviewComment;
 use zeixcom\craftdelta\services\MergeService;
+use zeixcom\craftdelta\types\ArrayTypes;
 
 /**
  * Endpoints for the review-request workflow. The WorkflowService owns all state;
  * this controller stays thin: resolve params, enforce the native publish gate
  * where relevant, delegate, and shape the JSON response.
+ *
+ * @phpstan-import-type CommentJsonPayload from \zeixcom\craftdelta\types\ArrayTypes
+ * @phpstan-import-type ReviewSummaryPayload from \zeixcom\craftdelta\types\ArrayTypes
  */
 class WorkflowController extends Controller
 {
@@ -42,7 +47,6 @@ class WorkflowController extends Controller
         return true;
     }
 
-    /** The Reviews dashboard (CP nav landing page). */
     public function actionIndex(): Response
     {
         $this->requireCpRequest();
@@ -56,13 +60,24 @@ class WorkflowController extends Controller
 
         // Enrich each review with its canonical entry's title + edit URL so the
         // template doesn't run element queries.
-        $rows = static function(array $reviews): array {
-            return array_map(static function(Review $review): array {
-                $entry = Craft::$app->getEntries()->getEntryById($review->canonicalEntryId);
+        $plugin = Delta::getInstance();
+        $rows = static function(array $reviews) use ($plugin): array {
+            return array_map(static function(Review $review) use ($plugin): array {
+                $canonical = Craft::$app->getEntries()->getEntryById($review->canonicalEntryId);
+                $draft = $review->draftId !== null
+                    ? $plugin->revision->getDraftByDraftId($review->draftId)
+                    : null;
+                // Prefer the draft edit URL so the slideout auto-selects it.
+                $entry = $draft ?? $canonical;
+                $url = $entry?->getCpEditUrl();
+                if ($url !== null && $review->draftId !== null && $review->isActive()) {
+                    $url .= '#delta-compare';
+                }
+
                 return [
                     'review' => $review,
-                    'title' => $entry?->title ?? ('#' . $review->canonicalEntryId),
-                    'url' => $entry?->getCpEditUrl(),
+                    'title' => $canonical?->title ?? ('#' . $review->canonicalEntryId),
+                    'url' => $url,
                 ];
             }, $reviews);
         };
@@ -89,7 +104,7 @@ class WorkflowController extends Controller
 
         // `draftId` is the drafts-table id (matching $entry->draftId everywhere
         // else in this plugin), not an element id.
-        $draft = Entry::find()->draftId($draftId)->status(null)->one();
+        $draft = Delta::getInstance()->revision->getDraftByDraftId($draftId);
         if (!$draft instanceof Entry || !$draft->getIsDraft()) {
             throw new NotFoundHttpException(Craft::t('craft-delta', TranslationKeys::DRAFT_NOT_FOUND));
         }
@@ -203,16 +218,11 @@ class WorkflowController extends Controller
             'success' => true,
             'assignees' => array_map(fn($u) => [
                 'id' => $u->id,
-                'name' => $u->fullName ?: $u->username,
+                'name' => UserName::of($u),
             ], $assignees),
         ]);
     }
 
-    // ---------------------------------------------------------------------
-    // Comments (Phase 2)
-    // ---------------------------------------------------------------------
-
-    /** Add a comment — general (no atomId) or anchored to a diff atom. */
     public function actionComment(): Response
     {
         [$plugin, $review, $user] = $this->resolveReview();
@@ -238,7 +248,6 @@ class WorkflowController extends Controller
         return $this->asJson(['success' => true, 'comment' => $this->commentPayload($comment)]);
     }
 
-    /** Mark a comment resolved/unresolved. */
     public function actionResolveComment(): Response
     {
         $this->requireAcceptsJson();
@@ -254,36 +263,20 @@ class WorkflowController extends Controller
         if ($comment === null) {
             throw new NotFoundHttpException(Craft::t('craft-delta', TranslationKeys::WORKFLOW_NOT_FOUND));
         }
-        $review = $plugin->workflow->getById($comment->reviewId);
-        if ($review === null) {
-            throw new NotFoundHttpException(Craft::t('craft-delta', TranslationKeys::WORKFLOW_NOT_FOUND));
-        }
-        $user = Craft::$app->getUser()->getIdentity();
-        if ($user === null) {
-            throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NOT_AUTHORIZED));
-        }
+        [$plugin, $review, $user] = $this->loadAuthenticatedReview($comment->reviewId);
         $this->assertCanView($plugin, $review, $user);
 
         $updated = $plugin->reviewComment->resolveComment($commentId, $resolved);
         return $this->asJson(['success' => true, 'comment' => $this->commentPayload($updated)]);
     }
 
-    /** The comment thread for a review, with each anchored comment's outdated flag. */
     public function actionThread(): Response
     {
         $this->requireAcceptsJson();
         $this->requireCpRequest();
 
         $reviewId = (int)Craft::$app->getRequest()->getRequiredParam('reviewId');
-        $plugin = Delta::getInstance();
-        $review = $plugin->workflow->getById($reviewId);
-        if ($review === null) {
-            throw new NotFoundHttpException(Craft::t('craft-delta', TranslationKeys::WORKFLOW_NOT_FOUND));
-        }
-        $user = Craft::$app->getUser()->getIdentity();
-        if ($user === null) {
-            throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NOT_AUTHORIZED));
-        }
+        [$plugin, $review, $user] = $this->loadAuthenticatedReview($reviewId);
         $this->assertCanView($plugin, $review, $user);
 
         $comments = $plugin->reviewComment->commentsForReview($review->id, $this->liveAtomKeys($review));
@@ -317,18 +310,15 @@ class WorkflowController extends Controller
         }
         $plugin = Delta::getInstance();
         $canonical = Craft::$app->getEntries()->getEntryById($review->canonicalEntryId);
-        $draft = Entry::find()->draftId($review->draftId)->status(null)->one();
+        $draft = Delta::getInstance()->revision->getDraftByDraftId($review->draftId);
         if (!$canonical instanceof Entry || !$draft instanceof Entry) {
             return null;
         }
-        try {
-            return MergeService::collectAvailableAtoms($plugin->diff->compare($canonical, $draft));
-        } catch (\Throwable) {
-            return null;
-        }
+
+        return MergeService::collectAvailableAtoms($plugin->diff->compare($canonical, $draft));
     }
 
-    /** @return array<string, mixed> */
+    /** @return CommentJsonPayload */
     private function commentPayload(ReviewComment $c): array
     {
         return [
@@ -349,19 +339,12 @@ class WorkflowController extends Controller
     }
 
     /**
-     * Shared setup for the verdict/transition actions: enforce JSON+CP+POST,
-     * load the review (404 if missing), and resolve the acting user (403 if
-     * none). Per-action permission rules live in the service.
+     * Load a review and authenticated user (404/403 on failure).
      *
      * @return array{0: Delta, 1: Review, 2: \craft\elements\User}
      */
-    private function resolveReview(): array
+    private function loadAuthenticatedReview(int $reviewId): array
     {
-        $this->requireAcceptsJson();
-        $this->requireCpRequest();
-        $this->requirePostRequest();
-
-        $reviewId = (int)Craft::$app->getRequest()->getRequiredBodyParam('reviewId');
         $plugin = Delta::getInstance();
         $review = $plugin->workflow->getById($reviewId);
         if ($review === null) {
@@ -376,13 +359,29 @@ class WorkflowController extends Controller
         return [$plugin, $review, $user];
     }
 
+    /**
+     * Shared setup for the verdict/transition actions: enforce JSON+CP+POST,
+     * load the review (404 if missing), and resolve the acting user (403 if
+     * none). Per-action permission rules live in the service.
+     *
+     * @return array{0: Delta, 1: Review, 2: \craft\elements\User}
+     */
+    private function resolveReview(): array
+    {
+        $this->requireAcceptsJson();
+        $this->requireCpRequest();
+        $this->requirePostRequest();
+
+        return $this->loadAuthenticatedReview((int)Craft::$app->getRequest()->getRequiredBodyParam('reviewId'));
+    }
+
     private function noteParam(): ?string
     {
         $note = Craft::$app->getRequest()->getBodyParam('note');
         return is_string($note) && $note !== '' ? $note : null;
     }
 
-    /** @return array<string, mixed> */
+    /** @return ReviewSummaryPayload */
     private function reviewPayload(Review $review): array
     {
         return [

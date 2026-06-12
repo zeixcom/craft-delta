@@ -83,6 +83,25 @@
                 <button type="button" class="btn" data-wf-action="withdraw">{{ deltaKeys.workflowWithdraw|t('craft-delta') }}</button>
             </div>
         {% endif %}
+
+        <div class="delta-review-comments" data-review-comments hidden>
+            <details class="delta-comments-outdated" data-outdated-comments hidden>
+                <summary data-outdated-summary></summary>
+                <div class="delta-comment-list" data-outdated-comment-list></div>
+            </details>
+
+            <div class="delta-comments-general">
+                <h4 class="delta-comments-heading">{{ deltaKeys.workflowGeneralDiscussion|t('craft-delta') }}</h4>
+                <div class="delta-comment-list" data-general-comment-list></div>
+                <div class="delta-comment-compose" data-general-compose>
+                    <textarea class="text fullwidth" rows="2" data-general-comment-input
+                              placeholder="{{ deltaKeys.workflowCommentPlaceholder|t('craft-delta') }}"></textarea>
+                    <button type="button" class="btn submit" data-general-comment-post>
+                        {{ deltaKeys.workflowPostComment|t('craft-delta') }}
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 {% endif %}
 

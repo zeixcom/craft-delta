@@ -28,6 +28,19 @@
       this.entryId = entryId;
       this.options = options || {};
       this.bindCompareButton();
+      this.openFromHash();
+    },
+
+    openFromHash: function () {
+      if (window.location.hash !== '#delta-compare') {
+        return;
+      }
+      var self = this;
+      window.setTimeout(function () {
+        if (document.getElementById('delta-compare-btn')) {
+          self.openSlideout();
+        }
+      }, 300);
     },
 
     bindCompareButton: function () {
@@ -415,6 +428,9 @@
           // or decisions keep recording against the old comparison's state.
           if (Craft.Delta.reviewMode.active) {
             Craft.Delta.reviewMode.exit();
+          }
+          if (Craft.Delta.reviewComments) {
+            Craft.Delta.reviewComments.closePanel();
           }
 
           if (!response.data.success) {

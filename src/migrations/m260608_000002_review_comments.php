@@ -7,9 +7,8 @@ namespace zeixcom\craftdelta\migrations;
 use craft\db\Migration;
 
 /**
- * Phase 2: review comments. Anchored (field/atom) or general feedback tied to a
- * review and round; one level of replies via parentId. "Outdated" is derived at
- * render time (anchor no longer in the live diff), not stored.
+ * Review comments: anchored (field/atom) or general feedback per round.
+ * One level of replies via parentId. "Outdated" is derived at render time.
  */
 class m260608_000002_review_comments extends Migration
 {

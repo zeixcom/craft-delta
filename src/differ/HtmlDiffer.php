@@ -48,6 +48,7 @@ class HtmlDiffer implements DifferInterface
         return $renderer->render($differ);
     }
 
+    /** @return array{additions: int, deletions: int} */
     public function getStats(mixed $oldValue, mixed $newValue): array
     {
         $oldText = $this->htmlToText((string)($oldValue ?? ''));

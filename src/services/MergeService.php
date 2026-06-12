@@ -5,9 +5,16 @@ declare(strict_types=1);
 namespace zeixcom\craftdelta\services;
 
 use craft\base\Component;
+use craft\elements\db\EntryQuery;
+use craft\elements\ElementCollection;
 use craft\elements\Entry;
+use zeixcom\craftdelta\enums\AtomKind;
+use zeixcom\craftdelta\enums\DiffChangeType;
 use zeixcom\craftdelta\i18n\TranslationKeys;
 use zeixcom\craftdelta\models\DiffResult;
+use zeixcom\craftdelta\util\AtomKey;
+use zeixcom\craftdelta\models\FieldDiff;
+use zeixcom\craftdelta\types\ArrayTypes;
 
 /**
  * Owns the write side of review mode: validates accepted atoms against a
@@ -15,55 +22,25 @@ use zeixcom\craftdelta\models\DiffResult;
  * canonical entry, saves once.
  *
  * Pure write-side. Shares no mutable state with DiffService.
+ *
+ * @phpstan-import-type ParsedAtomKey from \zeixcom\craftdelta\types\ArrayTypes
+ * @phpstan-import-type MatrixBlockAtom from \zeixcom\craftdelta\types\ArrayTypes
+ * @phpstan-import-type SerializedMatrixBlock from \zeixcom\craftdelta\types\ArrayTypes
  */
 class MergeService extends Component
 {
+    public ?DiffService $diffService = null;
+
     /**
      * Parse a stable atom key into a structured array.
      *
-     * @return array{kind: 'field', handle: string}|array{kind: 'matrix-block', fieldHandle: string, blockUid: string, changeType: string}|array{kind: 'matrix-reorder', fieldHandle: string}
+     * @return ParsedAtomKey
      * @throws \InvalidArgumentException when the key is malformed
+     * @deprecated Use {@see AtomKey::parse()} instead.
      */
     public static function parseAtomKey(string $key): array
     {
-        if ($key === '') {
-            throw new \InvalidArgumentException('Empty atom key');
-        }
-
-        $parts = explode(':', $key);
-        $kind = $parts[0];
-
-        switch ($kind) {
-            case 'field':
-                if (count($parts) !== 2 || $parts[1] === '') {
-                    throw new \InvalidArgumentException("Malformed field atom: $key");
-                }
-                return ['kind' => 'field', 'handle' => $parts[1]];
-
-            case 'matrix-block':
-                if (count($parts) !== 4) {
-                    throw new \InvalidArgumentException("Malformed matrix-block atom: $key");
-                }
-                $changeType = $parts[3];
-                if (!in_array($changeType, ['added', 'removed', 'modified'], true)) {
-                    throw new \InvalidArgumentException("Unknown change type: $changeType");
-                }
-                return [
-                    'kind' => 'matrix-block',
-                    'fieldHandle' => $parts[1],
-                    'blockUid' => $parts[2],
-                    'changeType' => $changeType,
-                ];
-
-            case 'matrix-reorder':
-                if (count($parts) !== 2 || $parts[1] === '') {
-                    throw new \InvalidArgumentException("Malformed matrix-reorder atom: $key");
-                }
-                return ['kind' => 'matrix-reorder', 'fieldHandle' => $parts[1]];
-
-            default:
-                throw new \InvalidArgumentException("Unknown atom kind: $kind");
-        }
+        return AtomKey::parse($key);
     }
 
     /**
@@ -81,7 +58,7 @@ class MergeService extends Component
         $available = array_flip($availableAtoms);
 
         foreach ($acceptedAtoms as $atom) {
-            self::parseAtomKey($atom); // throws on malformed
+            AtomKey::parse($atom); // throws on malformed
 
             if (!isset($available[$atom])) {
                 throw new StaleAtomException("Atom '$atom' is not present in the fresh diff");
@@ -96,7 +73,7 @@ class MergeService extends Component
      *
      * @param array<int, array<string, mixed>> $current        Current blocks
      * @param array<int, array<string, mixed>> $source         Source blocks
-     * @param array<int, array{blockUid: string, changeType: string}> $atoms Accepted block atoms for this field
+     * @param array<int, MatrixBlockAtom> $atoms Accepted block atoms for this field
      * @return array<int, array<string, mixed>>                Surviving blocks (order not yet applied)
      */
     public static function buildMatrixBlockList(array $current, array $source, array $atoms): array
@@ -114,15 +91,15 @@ class MergeService extends Component
         foreach ($atoms as $atom) {
             $uid = $atom['blockUid'];
             switch ($atom['changeType']) {
-                case 'added':
+                case DiffChangeType::Added->value:
                     if (isset($sourceByUid[$uid])) {
                         $working[$uid] = $sourceByUid[$uid];
                     }
                     break;
-                case 'removed':
+                case DiffChangeType::Removed->value:
                     unset($working[$uid]);
                     break;
-                case 'modified':
+                case DiffChangeType::Modified->value:
                     if (isset($sourceByUid[$uid])) {
                         $working[$uid] = $sourceByUid[$uid];
                     }
@@ -153,7 +130,6 @@ class MergeService extends Component
             return self::orderByCurrentSpine($survivorsByUid, $current, $source);
         }
 
-        // Reorder branch implemented in Task 7
         return self::orderBySourceSpine($survivorsByUid, $current, $source);
     }
 
@@ -198,14 +174,11 @@ class MergeService extends Component
      */
     private static function orderBySourceSpine(array $survivorsByUid, array $current, array $source): array
     {
-        // 1. Identify which surviving UIDs are in source (anchors + source-only adds).
         $sourceUids = [];
         foreach ($source as $block) {
             $sourceUids[$block['uid']] = true;
         }
 
-        // 2. Walk current's order; for each current-only kept survivor, find its
-        //    most-recent both-sides anchor (or null if none yet seen).
         $anchorByCurrentOnly = [];
         $currentOnlyOrder = [];
         $lastAnchor = null;
@@ -223,11 +196,9 @@ class MergeService extends Component
             }
         }
 
-        // 3. Walk source's order, emitting source survivors. After each anchor,
-        //    flush any current-only blocks that anchor to it.
         $result = [];
 
-        // Flush current-only blocks with no anchor (lastAnchor was null) first.
+        // Current-only blocks with no both-sides anchor go first.
         foreach ($currentOnlyOrder as $uid) {
             if ($anchorByCurrentOnly[$uid] === null) {
                 $result[] = $survivorsByUid[$uid];
@@ -241,7 +212,6 @@ class MergeService extends Component
             }
             $result[] = $survivorsByUid[$uid];
 
-            // Flush current-only blocks anchored to this UID, in their original current-order.
             foreach ($currentOnlyOrder as $coUid) {
                 if ($anchorByCurrentOnly[$coUid] === $uid) {
                     $result[] = $survivorsByUid[$coUid];
@@ -311,16 +281,11 @@ class MergeService extends Component
         return ['entries' => $entries, 'sortOrder' => $sortOrder];
     }
 
-    /**
-     * Apply field-kind atoms onto a draft by copying values from source.
-     * Handles native attributes (title, slug) separately from field handles.
-     *
-     * @param string[] $fieldAtoms List of "field:<handle>" atom keys
-     */
+    /** @param string[] $fieldAtoms "field:<handle>" atom keys */
     private function applyFieldAtoms(Entry $draft, Entry $source, array $fieldAtoms): void
     {
         foreach ($fieldAtoms as $atom) {
-            $parsed = self::parseAtomKey($atom);
+            $parsed = AtomKey::parse($atom);
             $handle = $parsed['handle'];
 
             // Native attributes (matches DiffService::compareAttributes)
@@ -342,7 +307,7 @@ class MergeService extends Component
     /**
      * Apply matrix-block and matrix-reorder atoms onto a draft for one Matrix field.
      *
-     * @param array<int, array{blockUid: string, changeType: string}> $blockAtoms
+     * @param array<int, MatrixBlockAtom> $blockAtoms
      */
     private function applyMatrixAtoms(
         Entry $draft,
@@ -376,13 +341,23 @@ class MergeService extends Component
      * setFieldValue so Craft patches the right draft entry rather than creating
      * a duplicate.
      *
-     * @param mixed $matrixValue The result of $entry->getFieldValue($handle) for a Matrix field
-     * @return array<int, array{uid: string, draftEntryUid: string, payload: array<string, mixed>}>
+     * @param EntryQuery|ElementCollection|list<Entry>|null $matrixValue
+     * @return list<SerializedMatrixBlock>
      */
-    private function serializeMatrixBlocks(mixed $matrixValue): array
+    private function serializeMatrixBlocks(EntryQuery|ElementCollection|array|null $matrixValue): array
     {
+        $blocks = match (true) {
+            $matrixValue === null => [],
+            $matrixValue instanceof EntryQuery => $matrixValue->status(null)->all(),
+            $matrixValue instanceof ElementCollection => $matrixValue->all(),
+            default => $matrixValue,
+        };
+
         $result = [];
-        foreach ($matrixValue as $block) {
+        foreach ($blocks as $block) {
+            if (!$block instanceof Entry) {
+                continue;
+            }
             // Mirror Craft's MatrixField::serializeValue() shape so block-level
             // attributes (title, slug, enabled, collapsed) round-trip on apply.
             $result[] = [
@@ -412,26 +387,23 @@ class MergeService extends Component
      */
     public function merge(Entry $canonical, Entry $source, array $acceptedAtoms, bool $deleteSourceDraft = false): Entry
     {
-        // 1. Re-run a fresh diff and build the available-atoms set.
-        $plugin = \zeixcom\craftdelta\Delta::getInstance();
-        $freshDiff = $plugin->diff->compare($canonical, $source);
+        $diffService = $this->diffService
+            ?? \zeixcom\craftdelta\Delta::getInstance()->diff;
+        $freshDiff = $diffService->compare($canonical, $source);
         $availableAtoms = self::collectAvailableAtoms($freshDiff);
-
-        // 2. Validate every accepted atom is still present in the fresh diff.
         self::validateAtoms($availableAtoms, $acceptedAtoms);
 
-        // 3. Group accepted atoms by kind / Matrix field.
         $fieldAtoms = [];
         $matrixBlockAtomsByHandle = [];
         $reorderAcceptedHandles = [];
 
         foreach ($acceptedAtoms as $atom) {
-            $parsed = self::parseAtomKey($atom);
+            $parsed = AtomKey::parse($atom);
             switch ($parsed['kind']) {
-                case 'field':
+                case AtomKind::Field->value:
                     $fieldAtoms[] = $atom;
                     break;
-                case 'matrix-block':
+                case AtomKind::MatrixBlock->value:
                     $h = $parsed['fieldHandle'];
                     $matrixBlockAtomsByHandle[$h] ??= [];
                     $matrixBlockAtomsByHandle[$h][] = [
@@ -439,13 +411,12 @@ class MergeService extends Component
                         'changeType' => $parsed['changeType'],
                     ];
                     break;
-                case 'matrix-reorder':
+                case AtomKind::MatrixReorder->value:
                     $reorderAcceptedHandles[$parsed['fieldHandle']] = true;
                     break;
             }
         }
 
-        // 4. Create a draft of the canonical entry.
         $user = \Craft::$app->getUser()->getIdentity();
         $draft = \Craft::$app->getDrafts()->createDraft(
             $canonical,
@@ -453,11 +424,8 @@ class MergeService extends Component
             \Craft::t('craft-delta', TranslationKeys::REVIEW_OF_REF, ['ref' => $this->humanRefForSource($source)]),
         );
 
-        // 5. Apply field atoms.
         $this->applyFieldAtoms($draft, $source, $fieldAtoms);
 
-        // 6. Apply Matrix atoms — one call per Matrix field.
-        //    Include fields with reorder-only atoms (no block atoms).
         $matrixHandles = array_unique(array_merge(
             array_keys($matrixBlockAtomsByHandle),
             array_keys($reorderAcceptedHandles),
@@ -468,22 +436,17 @@ class MergeService extends Component
             $this->applyMatrixAtoms($draft, $source, $handle, $blockAtoms, $acceptedReorder);
         }
 
-        // 7. ONE save on the draft — never per field.
         if (!\Craft::$app->getElements()->saveElement($draft)) {
             $errors = $draft->getErrors();
             throw new \RuntimeException('Draft validation failed: ' . json_encode($errors));
         }
 
-        // 8. Publish the draft to canonical via Craft's normal lifecycle. The
-        //    transient draft is discarded; canonical receives a new revision.
         $published = \Craft::$app->getDrafts()->applyDraft($draft);
         if (!$published instanceof Entry) {
             $errors = $draft->getErrors();
             throw new \RuntimeException('Failed to publish: ' . json_encode($errors));
         }
 
-        // 9. Optional: delete the source draft if the caller asked for it. Only
-        //    applies when source IS a draft (not canonical, not a revision).
         if ($deleteSourceDraft && $source->getBehavior('draft') !== null) {
             \Craft::$app->getElements()->deleteElement($source, true);
         }
@@ -514,11 +477,10 @@ class MergeService extends Component
             // `field:` atom this set lacks and the whole apply fails as stale.
             $isMatrix = str_ends_with($fd->fieldType, '\\Matrix');
             if (!$isMatrix) {
-                $atoms[] = 'field:' . $fd->fieldHandle;
+                $atoms[] = AtomKind::Field->value . ':' . $fd->fieldHandle;
                 continue;
             }
 
-            // Matrix field — diffHtml is JSON describing block changes.
             $changes = json_decode($fd->diffHtml, true);
             if (!is_array($changes)) {
                 continue;
@@ -527,19 +489,19 @@ class MergeService extends Component
             $hasReorder = false;
             foreach ($changes as $change) {
                 $type = $change['type'] ?? null;
-                if ($type === 'reordered') {
+                if ($type === DiffChangeType::Reordered->value) {
                     $hasReorder = true;
                     continue;
                 }
-                if (in_array($type, ['added', 'removed', 'modified'], true)
+                if (in_array($type, DiffChangeType::atomValues(), true)
                     && !empty($change['blockUid'])
                 ) {
-                    $atoms[] = 'matrix-block:' . $fd->fieldHandle . ':' . $change['blockUid'] . ':' . $type;
+                    $atoms[] = AtomKind::MatrixBlock->value . ':' . $fd->fieldHandle . ':' . $change['blockUid'] . ':' . $type;
                 }
             }
 
             if ($hasReorder) {
-                $atoms[] = 'matrix-reorder:' . $fd->fieldHandle;
+                $atoms[] = AtomKind::MatrixReorder->value . ':' . $fd->fieldHandle;
             }
         }
 

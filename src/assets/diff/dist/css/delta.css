@@ -999,3 +999,220 @@ button.delta-field-header {
 [data-atom-id].delta-atom-state-pending {
     border-left: var(--delta-accent) dotted var(--delta-border);
 }
+
+/* ─── Workflow toolbar ─── */
+
+.delta-workflow-toolbar {
+    padding: 12px 16px;
+    background: var(--delta-review-bar-bg);
+    border-bottom: 1px solid var(--delta-review-bar-border);
+}
+
+.delta-review-roster {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+    font-size: 13px;
+}
+
+.delta-review-roster-label {
+    font-weight: 600;
+    color: var(--gray-600, #59667d);
+}
+
+.delta-reviewer-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    background: var(--gray-100, #e8eaed);
+    color: var(--gray-700, #3f4a5a);
+}
+
+.delta-reviewer-pill--approved {
+    background: #e6f4ea;
+    color: #137333;
+}
+
+.delta-reviewer-pill--changes_requested {
+    background: #fef7e0;
+    color: #b06000;
+}
+
+.delta-reviewer-pill--pending {
+    background: var(--gray-100, #e8eaed);
+}
+
+.delta-review-round {
+    margin-left: auto;
+    color: var(--gray-500, #7b8794);
+    font-size: 12px;
+}
+
+.delta-workflow-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+/* ─── Review comments (PR-style) ─── */
+
+.delta-review-comments {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--delta-review-bar-border);
+}
+
+.delta-comments-heading {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.delta-comments-outdated {
+    margin-bottom: 12px;
+    opacity: 0.75;
+}
+
+.delta-comments-outdated summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--gray-600, #59667d);
+}
+
+.delta-comment-list {
+    margin: 8px 0;
+}
+
+.delta-comment-empty {
+    margin: 0;
+    font-size: 13px;
+    color: var(--gray-500, #7b8794);
+    font-style: italic;
+}
+
+.delta-comment-compose {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.delta-comment-compose textarea {
+    min-height: 56px;
+    resize: vertical;
+}
+
+.delta-comment-trigger {
+    position: relative;
+    margin-left: 6px;
+    padding: 2px 6px;
+    line-height: 1;
+    vertical-align: middle;
+}
+
+.delta-comment-trigger.is-open {
+    background: var(--delta-link, #0b69ff);
+    color: #fff;
+    border-color: var(--delta-link, #0b69ff);
+}
+
+.delta-comment-trigger-icon {
+    font-size: 14px;
+    line-height: 1;
+}
+
+.delta-comment-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--delta-link, #0b69ff);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+}
+
+.delta-comment-panel {
+    margin: 8px 0 12px 16px;
+    padding: 10px 12px;
+    border: 1px solid var(--delta-review-bar-border);
+    border-radius: var(--delta-radius, 4px);
+    background: #fff;
+}
+
+.delta-comment-item {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--hairline-color, #e3e5e8);
+}
+
+.delta-comment-item:last-child {
+    border-bottom: none;
+}
+
+.delta-comment-item--resolved {
+    opacity: 0.65;
+}
+
+.delta-comment-item--resolved .delta-comment-body {
+    text-decoration: line-through;
+}
+
+.delta-comment-item--outdated .delta-comment-body {
+    font-style: italic;
+}
+
+.delta-comment-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
+.delta-comment-meta strong {
+    font-weight: 600;
+}
+
+.delta-comment-round {
+    color: var(--gray-500, #7b8794);
+}
+
+.delta-comment-body {
+    font-size: 13px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.delta-comment-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.delta-comment-reply-form {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.delta-comment-replies {
+    margin-left: 16px;
+    padding-left: 12px;
+    border-left: 2px solid var(--hairline-color, #e3e5e8);
+}
+
+.delta-field-headerbar .delta-comment-trigger,
+.delta-block .delta-comment-trigger {
+    flex-shrink: 0;
+}

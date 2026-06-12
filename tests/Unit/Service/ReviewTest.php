@@ -24,8 +24,6 @@ class ReviewTest extends TestCase
         foreach ([Review::STATE_OPEN, Review::STATE_CHANGES_REQUESTED, Review::STATE_APPROVED] as $state) {
             $review = new Review(['state' => $state, 'appliedAt' => null]);
             $this->assertTrue($review->isActive(), "expected {$state} to be active");
-            // isPending() is the back-compat alias the granular-apply gate uses.
-            $this->assertTrue($review->isPending(), "expected {$state} isPending()");
         }
     }
 

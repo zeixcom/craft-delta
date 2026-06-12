@@ -6,6 +6,7 @@ namespace zeixcom\craftdelta\models;
 
 use craft\base\Model;
 use DateTime;
+use zeixcom\craftdelta\enums\ReviewState;
 use zeixcom\craftdelta\i18n\TranslationKeys;
 
 /**
@@ -25,12 +26,12 @@ use zeixcom\craftdelta\i18n\TranslationKeys;
  */
 class Review extends Model
 {
-    public const STATE_OPEN = 'open';
-    public const STATE_CHANGES_REQUESTED = 'changes_requested';
-    public const STATE_APPROVED = 'approved';
-    public const STATE_DECLINED = 'declined';
-    public const STATE_CANCELLED = 'cancelled';
-    public const STATE_PUBLISHED = 'published';
+    public const STATE_OPEN = ReviewState::Open->value;
+    public const STATE_CHANGES_REQUESTED = ReviewState::ChangesRequested->value;
+    public const STATE_APPROVED = ReviewState::Approved->value;
+    public const STATE_DECLINED = ReviewState::Declined->value;
+    public const STATE_CANCELLED = ReviewState::Cancelled->value;
+    public const STATE_PUBLISHED = ReviewState::Published->value;
 
     public ?int $id = null;
     // Null once published: applyDraft() deletes the draft and the FK SET NULLs
@@ -52,11 +53,6 @@ class Review extends Model
     /** @var ReviewReviewer[] current-round reviewers, hydrated by the service */
     public array $reviewers = [];
 
-    public function isOpen(): bool
-    {
-        return $this->state === self::STATE_OPEN;
-    }
-
     public function isChangesRequested(): bool
     {
         return $this->state === self::STATE_CHANGES_REQUESTED;
@@ -67,20 +63,11 @@ class Review extends Model
         return $this->state === self::STATE_APPROVED;
     }
 
-    /**
-     * Still in flight and resolvable — not declined, cancelled, or published.
-     * The granular-apply path (DiffController) keys on this.
-     */
+    /** Still in flight — not declined, cancelled, or published. */
     public function isActive(): bool
     {
         return in_array($this->state, [self::STATE_OPEN, self::STATE_CHANGES_REQUESTED, self::STATE_APPROVED], true)
             && $this->appliedAt === null;
-    }
-
-    /** Back-compat alias used by the granular-apply gate in DiffController. */
-    public function isPending(): bool
-    {
-        return $this->isActive();
     }
 
     public function isScheduled(): bool

@@ -16,21 +16,15 @@ use zeixcom\craftdelta\differ\ScalarDiffer;
 use zeixcom\craftdelta\differ\TableDiffer;
 use zeixcom\craftdelta\differ\TextDiffer;
 use zeixcom\craftdelta\events\RegisterDiffersEvent;
+use zeixcom\craftdelta\helpers\DiffHtml;
 use zeixcom\craftdelta\i18n\TranslationKeys;
 use zeixcom\craftdelta\models\FieldDiff;
 
-/**
- * Resolves the appropriate differ for each field type and produces diffs.
- */
 class FieldDiffService extends Component
 {
     public const EVENT_REGISTER_DIFFERS = 'registerDiffers';
 
-    /**
-     * Built-in map of field class to differ class.
-     *
-     * @var array<class-string, class-string>
-     */
+    /** @var array<class-string, class-string> */
     private array $differMap = [
         \craft\fields\PlainText::class => TextDiffer::class,
         \craft\fields\Email::class => ScalarDiffer::class,
@@ -61,18 +55,11 @@ class FieldDiffService extends Component
         \craft\fields\Json::class => ScalarDiffer::class,
     ];
 
-    /**
-     * Cached differ instances.
-     *
-     * @var array<class-string, DifferInterface>
-     */
+    /** @var array<class-string, DifferInterface> */
     private array $differInstances = [];
 
     private bool $differsRegistered = false;
 
-    /**
-     * Diff a single field's values and return a FieldDiff (or null if unchanged).
-     */
     public function diff(FieldInterface $field, mixed $oldValue, mixed $newValue): ?FieldDiff
     {
         $differ = $this->resolveDiffer($field);
@@ -83,16 +70,14 @@ class FieldDiffService extends Component
             $oldLen = is_string($oldValue) ? mb_strlen($oldValue) : 0;
             $newLen = is_string($newValue) ? mb_strlen($newValue) : 0;
             if ($oldLen > $maxLen || $newLen > $maxLen) {
-                return new FieldDiff([
-                    'fieldHandle' => $field->handle,
-                    'fieldLabel' => $field->name,
-                    'fieldType' => get_class($field),
-                    'hasChanges' => true,
-                    'diffHtml' => htmlspecialchars(Craft::t('craft-delta', TranslationKeys::FIELD_TOO_LARGE, [
+                return $this->makeFieldDiff(
+                    $field,
+                    true,
+                    htmlspecialchars(Craft::t('craft-delta', TranslationKeys::FIELD_TOO_LARGE, [
                         'length' => max($oldLen, $newLen),
                     ])),
-                    'stats' => ['additions' => 1, 'deletions' => 1],
-                ]);
+                    ['additions' => 1, 'deletions' => 1],
+                );
             }
         }
 
@@ -101,14 +86,7 @@ class FieldDiffService extends Component
         } catch (\Exception $e) {
             Craft::warning("Differ threw for field '{$field->handle}': {$e->getMessage()}", __METHOD__);
 
-            return new FieldDiff([
-                'fieldHandle' => $field->handle,
-                'fieldLabel' => $field->name,
-                'fieldType' => get_class($field),
-                'hasChanges' => true,
-                'diffHtml' => '<em class="delta-error">' . htmlspecialchars(Craft::t('craft-delta', TranslationKeys::UNABLE_TO_DIFF_FIELD)) . '</em>',
-                'stats' => ['additions' => 0, 'deletions' => 0],
-            ]);
+            return $this->makeFieldDiff($field, true, DiffHtml::unableToDiffField(), ['additions' => 0, 'deletions' => 0]);
         }
 
         if ($diffHtml === null) {
@@ -129,19 +107,32 @@ class FieldDiffService extends Component
             }
         }
 
+        return $this->makeFieldDiff(
+            $field,
+            true,
+            $diffHtml,
+            $differ->getStats($oldValue, $newValue),
+        );
+    }
+
+    private function makeFieldDiff(
+        FieldInterface $field,
+        bool $hasChanges,
+        string $diffHtml,
+        array $stats,
+        string $tabName = '',
+    ): FieldDiff {
         return new FieldDiff([
             'fieldHandle' => $field->handle,
             'fieldLabel' => $field->name,
             'fieldType' => get_class($field),
-            'hasChanges' => true,
+            'tabName' => $tabName,
+            'hasChanges' => $hasChanges,
             'diffHtml' => $diffHtml,
-            'stats' => $differ->getStats($oldValue, $newValue),
+            'stats' => $stats,
         ]);
     }
 
-    /**
-     * Get the TextDiffer instance (used by DiffService for attribute diffs).
-     */
     public function getTextDiffer(): TextDiffer
     {
         if (!isset($this->differInstances[TextDiffer::class])) {
@@ -152,9 +143,6 @@ class FieldDiffService extends Component
         return $this->differInstances[TextDiffer::class];
     }
 
-    /**
-     * Resolve the appropriate differ for a field.
-     */
     private function resolveDiffer(FieldInterface $field): DifferInterface
     {
         $this->registerThirdPartyDiffers();
@@ -174,9 +162,6 @@ class FieldDiffService extends Component
         return $this->differInstances[$differClass];
     }
 
-    /**
-     * Create a differ instance, passing settings where applicable.
-     */
     private function createDiffer(string $differClass): DifferInterface
     {
         /** @var \zeixcom\craftdelta\models\Settings|null $settings */
@@ -191,12 +176,13 @@ class FieldDiffService extends Component
             return new HtmlDiffer($context);
         }
 
+        if ($differClass === MatrixDiffer::class) {
+            return new MatrixDiffer($this);
+        }
+
         return new $differClass();
     }
 
-    /**
-     * Fire the event to allow third-party plugins to register differs.
-     */
     private function registerThirdPartyDiffers(): void
     {
         if ($this->differsRegistered) {

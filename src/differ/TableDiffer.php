@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace zeixcom\craftdelta\differ;
 
+use zeixcom\craftdelta\enums\DiffChangeType;
+
 /**
  * Diff for Table fields.
  */
@@ -27,19 +29,19 @@ class TableDiffer implements DifferInterface
 
             if ($oldRow === null && $newRow !== null) {
                 $changes[] = [
-                    'type' => 'added',
+                    'type' => DiffChangeType::Added->value,
                     'row' => $i + 1,
                     'values' => $newRow,
                 ];
             } elseif ($newRow === null && $oldRow !== null) {
                 $changes[] = [
-                    'type' => 'removed',
+                    'type' => DiffChangeType::Removed->value,
                     'row' => $i + 1,
                     'values' => $oldRow,
                 ];
             } elseif ($oldRow !== null && $newRow !== null && $oldRow !== $newRow) {
                 $changes[] = [
-                    'type' => 'modified',
+                    'type' => DiffChangeType::Modified->value,
                     'row' => $i + 1,
                     'cells' => $this->compareCells($oldRow, $newRow),
                     // Unchanged cells (identical on both sides) for the
@@ -56,6 +58,7 @@ class TableDiffer implements DifferInterface
         return json_encode($changes, JSON_THROW_ON_ERROR);
     }
 
+    /** @return array{additions: int, deletions: int} */
     public function getStats(mixed $oldValue, mixed $newValue): array
     {
         $oldRows = is_array($oldValue) ? array_values($oldValue) : [];
@@ -82,6 +85,8 @@ class TableDiffer implements DifferInterface
     /**
      * Compare cells within a row and return per-cell diffs.
      *
+     * @param array<string, mixed> $oldRow
+     * @param array<string, mixed> $newRow
      * @return array<int, array{col: string, old: string, new: string}>
      */
     private function compareCells(array $oldRow, array $newRow): array

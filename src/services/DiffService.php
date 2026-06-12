@@ -7,21 +7,18 @@ namespace zeixcom\craftdelta\services;
 use Craft;
 use craft\base\Component;
 use craft\base\ElementInterface;
-use zeixcom\craftdelta\i18n\TranslationKeys;
+use zeixcom\craftdelta\helpers\DiffHtml;
 use zeixcom\craftdelta\models\DiffResult;
 use zeixcom\craftdelta\models\FieldDiff;
 
-/**
- * Core diff orchestration — compares two element revisions field by field.
- */
 class DiffService extends Component
 {
-    /**
-     * Compare two element revisions and return a structured diff.
-     */
+    public ?FieldDiffService $fieldDiffService = null;
+
     public function compare(ElementInterface $older, ElementInterface $newer): DiffResult
     {
-        $fieldDiffService = \zeixcom\craftdelta\Delta::getInstance()->fieldDiff;
+        $fieldDiffService = $this->fieldDiffService
+            ?? \zeixcom\craftdelta\Delta::getInstance()->fieldDiff;
 
         $fieldDiffs = [];
         $fieldLayout = $newer->getFieldLayout();
@@ -79,7 +76,7 @@ class DiffService extends Component
                         'fieldType' => get_class($field),
                         'tabName' => $tabName,
                         'hasChanges' => true,
-                        'diffHtml' => '<em class="delta-error">' . htmlspecialchars(Craft::t('craft-delta', TranslationKeys::UNABLE_TO_DIFF_FIELD)) . '</em>',
+                        'diffHtml' => DiffHtml::unableToDiffField(),
                         'stats' => ['additions' => 0, 'deletions' => 0],
                     ]);
                 }

@@ -57,6 +57,7 @@ class OptionDiffer implements DifferInterface
         return implode("\n", $lines);
     }
 
+    /** @return array{additions: int, deletions: int} */
     public function getStats(mixed $oldValue, mixed $newValue): array
     {
         $oldLabels = $this->resolveLabels($oldValue);
@@ -82,7 +83,8 @@ class OptionDiffer implements DifferInterface
     /**
      * Extract display labels from single or multi-option field data.
      *
-     * @return string|string[]
+     * @param SingleOptionFieldData|MultiOptionsFieldData|list<string>|string|null $value
+     * @return string|list<string>
      */
     private function resolveLabels(mixed $value): string|array
     {

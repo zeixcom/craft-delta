@@ -7,7 +7,7 @@ namespace zeixcom\craftdelta\models;
 use craft\base\Model;
 
 /**
- * Full diff result comparing two revisions.
+ * @phpstan-import-type AggregateDiffStats from \zeixcom\craftdelta\types\ArrayTypes
  */
 class DiffResult extends Model
 {
@@ -21,9 +21,7 @@ class DiffResult extends Model
     public ?int $olderRevisionNum = null;
     public ?int $newerRevisionNum = null;
 
-    /**
-     * Get aggregate stats across all field diffs.
-     */
+    /** @return AggregateDiffStats */
     public function getStats(): array
     {
         $totalAdded = 0;
@@ -45,9 +43,6 @@ class DiffResult extends Model
         ];
     }
 
-    /**
-     * Whether any fields have changes.
-     */
     public function hasChanges(): bool
     {
         foreach ($this->fieldDiffs as $diff) {

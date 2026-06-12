@@ -6,24 +6,10 @@ namespace zeixcom\craftdelta\models;
 
 use craft\base\Model;
 
-/**
- * Global plugin settings for Craft Delta.
- */
 class Settings extends Model
 {
-    /**
-     * Number of unchanged lines to show around changes.
-     */
     public int $diffContext = 3;
-
-    /**
-     * Max characters before showing simplified diff.
-     */
     public int $maxFieldLength = 50000;
-
-    /**
-     * Show unchanged fields by default.
-     */
     public bool $defaultShowUnchanged = false;
 
     /**
@@ -35,7 +21,8 @@ class Settings extends Model
     /**
      * Enable the submit-for-review workflow (v2.0+). When false, the plugin
      * behaves exactly like v1.1: no Submit button, no workflow toolbar.
-     * The Apply Review permission still gates the legacy granular review.
+     * Review Mode remains gated separately by enableReviewMode and the
+     * Apply review-mode changes permission.
      */
     public bool $enableWorkflow = true;
 

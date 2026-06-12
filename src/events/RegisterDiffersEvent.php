@@ -20,10 +20,6 @@ use yii\base\Event;
  */
 class RegisterDiffersEvent extends Event
 {
-    /**
-     * Map of field class => differ class.
-     *
-     * @var array<class-string, class-string>
-     */
+    /** @var array<class-string, class-string> */
     public array $differs = [];
 }

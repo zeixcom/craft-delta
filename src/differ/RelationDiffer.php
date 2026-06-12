@@ -9,7 +9,12 @@ use craft\base\ElementInterface;
 use craft\elements\Asset;
 use craft\elements\db\ElementQuery;
 use craft\elements\ElementCollection;
+use zeixcom\craftdelta\enums\DiffChangeType;
+use zeixcom\craftdelta\types\ArrayTypes;
 
+/**
+ * @phpstan-import-type DiffStats from \zeixcom\craftdelta\types\ArrayTypes
+ */
 class RelationDiffer implements DifferInterface
 {
     private const ASSET_THUMB_SIZE = 64;
@@ -32,20 +37,20 @@ class RelationDiffer implements DifferInterface
         $lines = [];
 
         foreach ($removed as $element) {
-            $lines[] = $this->renderLine($element, 'removed');
+            $lines[] = $this->renderLine($element, DiffChangeType::Removed->value);
         }
 
         foreach ($added as $element) {
-            $lines[] = $this->renderLine($element, 'added');
+            $lines[] = $this->renderLine($element, DiffChangeType::Added->value);
         }
 
         return implode("\n", $lines);
     }
 
-    private function renderLine(mixed $element, string $changeType): string
+    private function renderLine(ElementInterface $element, string $changeType): string
     {
-        $cssClass = $changeType === 'added' ? 'delta-relation-added' : 'delta-relation-removed';
-        $sign = $changeType === 'added' ? '+' : '-';
+        $cssClass = $changeType === DiffChangeType::Added->value ? 'delta-relation-added' : 'delta-relation-removed';
+        $sign = $changeType === DiffChangeType::Added->value ? '+' : '-';
 
         if ($element instanceof Asset) {
             return $this->renderAssetLine($element, $cssClass, $sign);
@@ -92,6 +97,7 @@ class RelationDiffer implements DifferInterface
         );
     }
 
+    /** @return DiffStats */
     public function getStats(mixed $oldValue, mixed $newValue): array
     {
         $oldElements = $this->resolveElements($oldValue);
@@ -106,7 +112,11 @@ class RelationDiffer implements DifferInterface
         ];
     }
 
-    private function resolveElements(mixed $value): array
+    /**
+     * @param ElementQuery|ElementCollection|list<ElementInterface|int|string>|null $value
+     * @return list<ElementInterface>
+     */
+    private function resolveElements(ElementQuery|ElementCollection|array|null $value): array
     {
         if ($value === null) {
             return [];
@@ -161,6 +171,10 @@ class RelationDiffer implements DifferInterface
         return Craft::$app->getAssets()->getThumbUrl($asset, self::ASSET_THUMB_SIZE);
     }
 
+    /**
+     * @param list<ElementInterface> $elements
+     * @return array<int, ElementInterface>
+     */
     private function indexById(array $elements): array
     {
         $map = [];

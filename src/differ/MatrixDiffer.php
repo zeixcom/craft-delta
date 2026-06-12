@@ -6,15 +6,22 @@ namespace zeixcom\craftdelta\differ;
 
 use Craft;
 use craft\elements\db\EntryQuery;
+use craft\elements\ElementCollection;
 use craft\elements\Entry;
-use zeixcom\craftdelta\Delta;
+use zeixcom\craftdelta\enums\DiffChangeType;
 use zeixcom\craftdelta\i18n\TranslationKeys;
+use zeixcom\craftdelta\services\FieldDiffService;
 
 /**
  * Diff for Matrix / nested entry fields.
  */
 class MatrixDiffer implements DifferInterface
 {
+    public function __construct(
+        private readonly FieldDiffService $fieldDiffService,
+    ) {
+    }
+
     public function diff(mixed $oldValue, mixed $newValue): ?string
     {
         $oldEntries = $this->resolveEntries($oldValue);
@@ -28,7 +35,7 @@ class MatrixDiffer implements DifferInterface
         foreach ($oldById as $id => $entry) {
             if (!isset($newById[$id])) {
                 $change = [
-                    'type' => 'removed',
+                    'type' => DiffChangeType::Removed->value,
                     'blockUid' => $entry->canonicalUid,
                     'blockType' => $entry->type->name ?? Craft::t('craft-delta', TranslationKeys::BLOCK),
                     'summary' => $this->summarizeEntry($entry),
@@ -44,7 +51,7 @@ class MatrixDiffer implements DifferInterface
         foreach ($newById as $id => $entry) {
             if (!isset($oldById[$id])) {
                 $change = [
-                    'type' => 'added',
+                    'type' => DiffChangeType::Added->value,
                     'blockUid' => $entry->canonicalUid,
                     'blockType' => $entry->type->name ?? Craft::t('craft-delta', TranslationKeys::BLOCK),
                     'summary' => $this->summarizeEntry($entry),
@@ -64,7 +71,7 @@ class MatrixDiffer implements DifferInterface
 
                 if (!empty($fieldChanges)) {
                     $changes[] = [
-                        'type' => 'modified',
+                        'type' => DiffChangeType::Modified->value,
                         'blockUid' => $newEntry->canonicalUid,
                         'blockType' => $newEntry->type->name ?? Craft::t('craft-delta', TranslationKeys::BLOCK),
                         'summary' => $this->summarizeEntry($newEntry),
@@ -79,7 +86,7 @@ class MatrixDiffer implements DifferInterface
         $commonOld = array_values(array_intersect($oldOrder, $newOrder));
         $commonNew = array_values(array_intersect($newOrder, $oldOrder));
         if ($commonOld !== $commonNew) {
-            $changes[] = ['type' => 'reordered'];
+            $changes[] = ['type' => DiffChangeType::Reordered->value];
         }
 
         if (empty($changes)) {
@@ -89,6 +96,7 @@ class MatrixDiffer implements DifferInterface
         return json_encode($changes, JSON_THROW_ON_ERROR);
     }
 
+    /** @return array{additions: int, deletions: int} */
     public function getStats(mixed $oldValue, mixed $newValue): array
     {
         $oldEntries = $this->resolveEntries($oldValue);
@@ -104,22 +112,35 @@ class MatrixDiffer implements DifferInterface
     }
 
     /**
-     * Resolve an EntryQuery or array to a flat array of Entry objects.
+     * Resolve an EntryQuery, ElementCollection, or array to Entry objects.
      *
-     * @return Entry[]
+     * @param EntryQuery|ElementCollection|list<Entry>|null $value
+     * @return list<Entry>
      */
-    private function resolveEntries(mixed $value): array
+    private function resolveEntries(EntryQuery|ElementCollection|array|null $value): array
     {
+        if ($value === null) {
+            return [];
+        }
+
         if ($value instanceof EntryQuery) {
             return $value->status(null)->all();
         }
 
-        return is_array($value) ? $value : [];
+        if ($value instanceof ElementCollection) {
+            return array_values(array_filter(
+                $value->all(),
+                fn($entry): bool => $entry instanceof Entry,
+            ));
+        }
+
+        return $value;
     }
 
     /**
      * Index entries by their canonical ID for stable matching across drafts/revisions.
      *
+     * @param list<Entry> $entries
      * @return array<int, Entry>
      */
     private function indexByCanonicalId(array $entries): array
@@ -159,11 +180,6 @@ class MatrixDiffer implements DifferInterface
             return [];
         }
 
-        $plugin = Delta::getInstance();
-        if ($plugin === null) {
-            return [];
-        }
-
         $fields = [];
         foreach ($fieldLayout->getCustomFields() as $field) {
             $value = $entry->getFieldValue($field->handle);
@@ -171,21 +187,14 @@ class MatrixDiffer implements DifferInterface
             $oldVal = $isNew ? null : $value;
             $newVal = $isNew ? $value : null;
 
-            try {
-                $fieldDiff = $plugin->fieldDiff->diff($field, $oldVal, $newVal);
-                if ($fieldDiff !== null && $fieldDiff->hasChanges) {
-                    $fields[] = [
-                        'handle' => $field->handle,
-                        'label' => $field->name,
-                        'fieldType' => get_class($field),
-                        'diffHtml' => $fieldDiff->diffHtml,
-                    ];
-                }
-            } catch (\Exception $e) {
-                Craft::warning(
-                    "MatrixDiffer: failed to diff field '{$field->handle}': {$e->getMessage()}",
-                    __METHOD__,
-                );
+            $fieldDiff = $this->fieldDiffService->diff($field, $oldVal, $newVal);
+            if ($fieldDiff !== null && $fieldDiff->hasChanges) {
+                $fields[] = [
+                    'handle' => $field->handle,
+                    'label' => $field->name,
+                    'fieldType' => get_class($field),
+                    'diffHtml' => $fieldDiff->diffHtml,
+                ];
             }
         }
 
@@ -205,17 +214,12 @@ class MatrixDiffer implements DifferInterface
         }
 
         $changedFields = [];
-        $plugin = Delta::getInstance();
 
         foreach ($fieldLayout->getCustomFields() as $field) {
-            if ($plugin === null) {
-                continue;
-            }
-
             $oldVal = $old->getFieldValue($field->handle);
             $newVal = $new->getFieldValue($field->handle);
 
-            $fieldDiff = $plugin->fieldDiff->diff($field, $oldVal, $newVal);
+            $fieldDiff = $this->fieldDiffService->diff($field, $oldVal, $newVal);
             if ($fieldDiff === null || !$fieldDiff->hasChanges) {
                 continue;
             }

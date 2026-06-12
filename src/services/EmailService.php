@@ -20,52 +20,29 @@ use zeixcom\craftdelta\models\Review;
  */
 class EmailService extends Component
 {
-    /** A draft was submitted for review — notify one requested reviewer. */
     public function sendSubmitted(Review $review, Entry $draft, int $reviewerUserId): void
     {
-        $reviewer = Craft::$app->getUsers()->getUserById($reviewerUserId);
-        $author = Craft::$app->getUsers()->getUserById($review->submittedBy);
-        if (!$reviewer || !$author) {
-            return;
-        }
-
-        $this->dispatch(
-            $reviewer,
-            fn() => Craft::t('craft-delta', TranslationKeys::EMAIL_DRAFT_AWAITING_REVIEW, ['title' => $draft->title]),
+        $this->notifyReviewer(
+            $review,
+            $draft,
+            $reviewerUserId,
             'submitted',
-            [
-                'reviewer' => $reviewer,
-                'author' => $author,
-                'entry' => $draft,
-                'url' => $this->editUrl($draft),
-            ],
+            fn() => Craft::t('craft-delta', TranslationKeys::EMAIL_DRAFT_AWAITING_REVIEW, ['title' => $draft->title]),
         );
     }
 
-    /** The author revised and re-requested review — notify one reviewer. */
     public function sendReRequested(Review $review, Entry $draft, int $reviewerUserId): void
     {
-        $reviewer = Craft::$app->getUsers()->getUserById($reviewerUserId);
-        $author = Craft::$app->getUsers()->getUserById($review->submittedBy);
-        if (!$reviewer || !$author) {
-            return;
-        }
-
-        $this->dispatch(
-            $reviewer,
-            fn() => Craft::t('craft-delta', TranslationKeys::EMAIL_DRAFT_RESUBMITTED, ['title' => $draft->title]),
+        $this->notifyReviewer(
+            $review,
+            $draft,
+            $reviewerUserId,
             're-requested',
-            [
-                'reviewer' => $reviewer,
-                'author' => $author,
-                'entry' => $draft,
-                'url' => $this->editUrl($draft),
-                'round' => $review->round,
-            ],
+            fn() => Craft::t('craft-delta', TranslationKeys::EMAIL_DRAFT_RESUBMITTED, ['title' => $draft->title]),
+            ['round' => $review->round],
         );
     }
 
-    /** A reviewer requested changes — notify the author. */
     public function sendChangesRequested(Review $review, Entry $draft, User $author, ?string $note): void
     {
         $this->dispatch(
@@ -81,7 +58,6 @@ class EmailService extends Component
         );
     }
 
-    /** A reviewer declined the draft — notify the author. */
     public function sendDeclined(Review $review, Entry $draft, User $author, ?string $note): void
     {
         $this->dispatch(
@@ -97,7 +73,6 @@ class EmailService extends Component
         );
     }
 
-    /** The draft was approved/published (or scheduled) — notify the author. */
     public function sendPublished(Review $review, Entry $draft, User $author): void
     {
         $this->dispatch(
@@ -112,6 +87,37 @@ class EmailService extends Component
                 'url' => $this->editUrl($draft),
                 'scheduledFor' => $review->scheduledFor,
             ],
+        );
+    }
+
+    /**
+     * @param callable(): string $subject
+     * @param array<string, mixed> $extraVars
+     */
+    private function notifyReviewer(
+        Review $review,
+        Entry $draft,
+        int $reviewerUserId,
+        string $template,
+        callable $subject,
+        array $extraVars = [],
+    ): void {
+        $reviewer = Craft::$app->getUsers()->getUserById($reviewerUserId);
+        $author = Craft::$app->getUsers()->getUserById($review->submittedBy);
+        if (!$reviewer || !$author) {
+            return;
+        }
+
+        $this->dispatch(
+            $reviewer,
+            $subject,
+            $template,
+            array_merge([
+                'reviewer' => $reviewer,
+                'author' => $author,
+                'entry' => $draft,
+                'url' => $this->editUrl($draft),
+            ], $extraVars),
         );
     }
 

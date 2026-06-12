@@ -8,23 +8,29 @@ use Craft;
 use craft\base\Component;
 use craft\elements\User;
 use yii\base\InvalidArgumentException;
+use zeixcom\craftdelta\helpers\DbDate;
+use zeixcom\craftdelta\helpers\UserName;
+use zeixcom\craftdelta\enums\AtomKind;
 use zeixcom\craftdelta\models\Review;
 use zeixcom\craftdelta\models\ReviewComment;
 use zeixcom\craftdelta\records\ReviewCommentRecord;
+use zeixcom\craftdelta\util\AtomKey;
 
 /**
  * Owns review comments: anchored (field/atom) or general feedback, with one
  * level of replies. "Outdated" is derived at read time against the live diff's
  * atom set — never stored.
+ *
+ * @phpstan-import-type CommentAnchor from \zeixcom\craftdelta\types\ArrayTypes
  */
 class ReviewCommentService extends Component
 {
     /**
      * Decompose a client atom-id into a stable anchor. A null/empty id is a
      * general (request-level) comment. Mirrors the atom-key grammar in
-     * MergeService so anchored comments map back onto the diff.
+     * {@see AtomKey} so anchored comments map back onto the diff.
      *
-     * @return array{anchorType: string, fieldHandle: ?string, blockUid: ?string, atomId: ?string}
+     * @return CommentAnchor
      */
     public static function anchorFromAtomId(?string $atomId): array
     {
@@ -32,13 +38,12 @@ class ReviewCommentService extends Component
             return ['anchorType' => ReviewComment::ANCHOR_GENERAL, 'fieldHandle' => null, 'blockUid' => null, 'atomId' => null];
         }
 
-        $parsed = MergeService::parseAtomKey($atomId); // throws on malformed
+        $parsed = AtomKey::parse($atomId);
 
-        // No default arm: parseAtomKey() throws on any other kind.
         return match ($parsed['kind']) {
-            'field' => ['anchorType' => ReviewComment::ANCHOR_FIELD, 'fieldHandle' => $parsed['handle'], 'blockUid' => null, 'atomId' => $atomId],
-            'matrix-block' => ['anchorType' => ReviewComment::ANCHOR_ATOM, 'fieldHandle' => $parsed['fieldHandle'], 'blockUid' => $parsed['blockUid'], 'atomId' => $atomId],
-            'matrix-reorder' => ['anchorType' => ReviewComment::ANCHOR_ATOM, 'fieldHandle' => $parsed['fieldHandle'], 'blockUid' => null, 'atomId' => $atomId],
+            AtomKind::Field->value => ['anchorType' => ReviewComment::ANCHOR_FIELD, 'fieldHandle' => $parsed['handle'], 'blockUid' => null, 'atomId' => $atomId],
+            AtomKind::MatrixBlock->value => ['anchorType' => ReviewComment::ANCHOR_ATOM, 'fieldHandle' => $parsed['fieldHandle'], 'blockUid' => $parsed['blockUid'], 'atomId' => $atomId],
+            AtomKind::MatrixReorder->value => ['anchorType' => ReviewComment::ANCHOR_ATOM, 'fieldHandle' => $parsed['fieldHandle'], 'blockUid' => null, 'atomId' => $atomId],
         };
     }
 
@@ -151,31 +156,18 @@ class ReviewCommentService extends Component
             'atomId' => $record->atomId,
             'resolved' => (bool)$record->resolved,
             'parentId' => $record->parentId,
-            'dateCreated' => $this->parseDbDate($record->dateCreated),
-            'dateUpdated' => $this->parseDbDate($record->dateUpdated),
+            'dateCreated' => DbDate::parse($record->dateCreated),
+            'dateUpdated' => DbDate::parse($record->dateUpdated),
             'uid' => $record->uid,
         ]);
 
         $author = Craft::$app->getUsers()->getUserById((int)$record->authorId);
-        $model->authorName = $author ? ($author->fullName ?: $author->username) : null;
+        $model->authorName = UserName::of($author);
 
         if ($liveAtomKeys !== null) {
             $model->outdated = self::isOutdated($model->anchorType, $model->atomId, $liveAtomKeys);
         }
 
         return $model;
-    }
-
-    /**
-     * Parse a UTC datetime string from the DB. A bare `new DateTime($str)` would
-     * misread it in the server/user timezone; DateTimeHelper pins UTC.
-     */
-    private function parseDbDate(?string $value): ?\DateTime
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
-        $date = \craft\helpers\DateTimeHelper::toDateTime($value);
-        return $date instanceof \DateTime ? $date : null;
     }
 }

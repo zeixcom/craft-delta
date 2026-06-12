@@ -16,9 +16,6 @@ use yii\console\ExitCode;
  */
 class SmokeController extends Controller
 {
-    /**
-     * Runs the Matrix `added` end-to-end smoke test.
-     */
     public function actionMatrixApply(): int
     {
         return $this->runScript('matrix-apply-smoke.php');
@@ -43,6 +40,21 @@ class SmokeController extends Controller
     public function actionSetupWorkflowUsers(): int
     {
         return $this->runScript('setup-workflow-users.php');
+    }
+
+    /**
+     * Creates a submitted draft review fixture for the PR-style comments smoke
+     * test. Prints draft URL + review id for the browser walkthrough.
+     */
+    public function actionReviewCommentsSetup(): int
+    {
+        return $this->runScript('review-comments-setup-smoke.php');
+    }
+
+    /** Verifies atom + general comments exist for the smoke review fixture. */
+    public function actionReviewCommentsVerify(): int
+    {
+        return $this->runScript('review-comments-verify-smoke.php');
     }
 
     private function runScript(string $name): int

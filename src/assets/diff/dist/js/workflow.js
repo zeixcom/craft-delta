@@ -165,5 +165,458 @@
                 Craft.cp.displayError(Craft.t('craft-delta', Craft.Delta._keys.reviewModeUnavailable));
             }
         });
+
+        if (Craft.Delta.reviewComments) {
+            Craft.Delta.reviewComments.mount($toolbar);
+        }
     };
+
+    function deltaT(keyProp, params) {
+        var key = Craft.Delta._keys[keyProp];
+        return key ? Craft.t('craft-delta', key, params || {}) : '';
+    }
+
+    /**
+     * PR-style review comments: per-atom threads, general discussion, outdated
+     * collapse. Fetches workflow/thread on slideout load and hydrates the diff.
+     */
+    Craft.Delta.reviewComments = {
+        reviewId: null,
+        $root: null,
+        $toolbar: null,
+        comments: [],
+        openPanelAtomId: null,
+
+        mount: function($toolbar) {
+            if ($toolbar.data('delta-comments-mounted')) {
+                return;
+            }
+            $toolbar.data('delta-comments-mounted', true);
+
+            this.$toolbar = $toolbar;
+            this.reviewId = $toolbar[0].dataset.reviewId;
+            this.$root = $toolbar.closest('.delta-slideout, .delta-modal-body, .delta-fullpage');
+            if (!this.$root.length) {
+                this.$root = $toolbar.parent();
+            }
+
+            this.closePanel();
+
+            var $section = $toolbar.find('[data-review-comments]');
+            if (!$section.length) {
+                return;
+            }
+            $section.prop('hidden', false);
+
+            var self = this;
+            this.bindDelegatedHandlers();
+
+            $section.find('[data-general-comment-post]').on('click', function() {
+                var body = $section.find('[data-general-comment-input]').val();
+                self.postComment(null, body, null, function() {
+                    $section.find('[data-general-comment-input]').val('');
+                });
+            });
+
+            $.getJSON(Craft.getActionUrl('craft-delta/workflow/thread'), { reviewId: this.reviewId })
+                .done(function(resp) {
+                    if (!resp.success) {
+                        return;
+                    }
+                    self.comments = resp.comments || [];
+                    self.render();
+                });
+        },
+
+        bindDelegatedHandlers: function() {
+            if (this._delegated) {
+                return;
+            }
+            this._delegated = true;
+            var self = this;
+
+            document.addEventListener('click', function(e) {
+                if (!self.$toolbar || !self.$toolbar.length) {
+                    return;
+                }
+                var root = self.$root && self.$root[0];
+                if (!root || !root.contains(e.target)) {
+                    return;
+                }
+
+                var trigger = e.target.closest('[data-comment-trigger]');
+                if (trigger) {
+                    e.preventDefault();
+                    self.togglePanel(trigger.dataset.commentTrigger);
+                    return;
+                }
+
+                var resolveBtn = e.target.closest('[data-comment-resolve]');
+                if (resolveBtn) {
+                    e.preventDefault();
+                    self.resolveComment(parseInt(resolveBtn.dataset.commentResolve, 10), resolveBtn.dataset.resolved !== '1');
+                    return;
+                }
+
+                var replyBtn = e.target.closest('[data-comment-reply-toggle]');
+                if (replyBtn) {
+                    e.preventDefault();
+                    var item = replyBtn.closest('[data-comment-id]');
+                    if (item) {
+                        var form = item.querySelector('[data-comment-reply-form]');
+                        if (form) {
+                            form.hidden = !form.hidden;
+                            if (!form.hidden) {
+                                form.querySelector('textarea').focus();
+                            }
+                        }
+                    }
+                    return;
+                }
+
+                var postReply = e.target.closest('[data-comment-reply-post]');
+                if (postReply) {
+                    e.preventDefault();
+                    var parentItem = postReply.closest('[data-comment-id]');
+                    if (!parentItem) {
+                        return;
+                    }
+                    var parentId = parseInt(parentItem.dataset.commentId, 10);
+                    var formEl = parentItem.querySelector('[data-comment-reply-form]');
+                    var replyBody = formEl ? formEl.querySelector('textarea').value : '';
+                    var atomId = postReply.closest('[data-comment-panel]')
+                        ? postReply.closest('[data-comment-panel]').dataset.commentPanel
+                        : null;
+                    if (atomId === 'general') {
+                        atomId = null;
+                    }
+                    self.postComment(atomId, replyBody, parentId, function() {
+                        if (formEl) {
+                            formEl.querySelector('textarea').value = '';
+                            formEl.hidden = true;
+                        }
+                    });
+                    return;
+                }
+
+                var postAtom = e.target.closest('[data-comment-atom-post]');
+                if (postAtom) {
+                    e.preventDefault();
+                    var panel = postAtom.closest('[data-comment-panel]');
+                    if (!panel) {
+                        return;
+                    }
+                    var atom = panel.dataset.commentPanel;
+                    var text = panel.querySelector('[data-comment-atom-input]').value;
+                    self.postComment(atom, text, null, function() {
+                        panel.querySelector('[data-comment-atom-input]').value = '';
+                    });
+                }
+            });
+        },
+
+        partition: function() {
+            var general = [];
+            var byAtom = {};
+            var outdated = [];
+
+            this.comments.forEach(function(c) {
+                if (c.outdated) {
+                    outdated.push(c);
+                    return;
+                }
+                if (!c.atomId || c.anchorType === 'general') {
+                    general.push(c);
+                    return;
+                }
+                if (!byAtom[c.atomId]) {
+                    byAtom[c.atomId] = [];
+                }
+                byAtom[c.atomId].push(c);
+            });
+
+            return { general: general, byAtom: byAtom, outdated: outdated };
+        },
+
+        render: function() {
+            var parts = this.partition();
+            var $section = this.$toolbar.find('[data-review-comments]');
+
+            this.renderList($section.find('[data-general-comment-list]'), parts.general, true);
+
+            var $outdatedWrap = $section.find('[data-outdated-comments]');
+            if (parts.outdated.length) {
+                $section.find('[data-outdated-summary]').text(
+                    deltaT('outdated', { count: parts.outdated.length })
+                );
+                this.renderList($section.find('[data-outdated-comment-list]'), parts.outdated, false);
+                $outdatedWrap.prop('hidden', false);
+            } else {
+                $outdatedWrap.prop('hidden', true);
+            }
+
+            this.mountAtomTriggers(parts.byAtom);
+        },
+
+        mountAtomTriggers: function(byAtom) {
+            var self = this;
+            var root = this.$root[0];
+            if (!root) {
+                return;
+            }
+
+            root.querySelectorAll('[data-atom-id]').forEach(function(el) {
+                var atomId = el.dataset.atomId;
+                var count = (byAtom[atomId] || []).length;
+                var existing = el.querySelector('[data-comment-trigger]');
+                if (existing) {
+                    var badge = existing.querySelector('.delta-comment-badge');
+                    if (count > 0) {
+                        if (!badge) {
+                            badge = document.createElement('span');
+                            badge.className = 'delta-comment-badge';
+                            existing.appendChild(badge);
+                        }
+                        badge.textContent = String(count);
+                    } else if (badge) {
+                        badge.remove();
+                    }
+                    return;
+                }
+
+                var trigger = document.createElement('button');
+                trigger.type = 'button';
+                trigger.className = 'btn small delta-comment-trigger';
+                trigger.dataset.commentTrigger = atomId;
+                trigger.title = deltaT('comments');
+                trigger.innerHTML = '<span class="delta-comment-trigger-icon" aria-hidden="true">&#128172;</span>';
+                if (count > 0) {
+                    var badge = document.createElement('span');
+                    badge.className = 'delta-comment-badge';
+                    badge.textContent = String(count);
+                    trigger.appendChild(badge);
+                }
+
+                var host = el.querySelector('.delta-field-headerbar')
+                    || el.querySelector('.delta-block-toggle')
+                    || el;
+                if (host.classList.contains('delta-field-headerbar')) {
+                    host.appendChild(trigger);
+                } else if (host === el) {
+                    el.appendChild(trigger);
+                } else {
+                    host.parentElement.insertBefore(trigger, host.nextSibling);
+                }
+            });
+
+            // Refresh open panel if still valid
+            if (this.openPanelAtomId) {
+                this.openPanel(this.openPanelAtomId);
+            }
+        },
+
+        togglePanel: function(atomId) {
+            if (this.openPanelAtomId === atomId) {
+                this.closePanel();
+                return;
+            }
+            this.openPanel(atomId);
+        },
+
+        openPanel: function(atomId) {
+            this.closePanel();
+            this.openPanelAtomId = atomId;
+
+            var root = this.$root[0];
+            var el = root.querySelector('[data-atom-id="' + cssEscape(atomId) + '"]');
+            if (!el) {
+                return;
+            }
+
+            var threads = this.partition().byAtom[atomId] || [];
+            var panel = document.createElement('div');
+            panel.className = 'delta-comment-panel';
+            panel.dataset.commentPanel = atomId;
+
+            var list = document.createElement('div');
+            list.className = 'delta-comment-list';
+            this.renderList($(list), threads, true);
+            panel.appendChild(list);
+
+            var compose = document.createElement('div');
+            compose.className = 'delta-comment-compose';
+            compose.innerHTML =
+                '<textarea class="text fullwidth" rows="2" data-comment-atom-input'
+                + ' placeholder="' + escAttr(deltaT('commentPlaceholder')) + '"></textarea>'
+                + '<button type="button" class="btn submit" data-comment-atom-post>'
+                + escHtml(deltaT('postComment')) + '</button>';
+            panel.appendChild(compose);
+
+            el.insertAdjacentElement('afterend', panel);
+
+            root.querySelectorAll('[data-comment-trigger]').forEach(function(btn) {
+                btn.classList.toggle('is-open', btn.dataset.commentTrigger === atomId);
+            });
+        },
+
+        closePanel: function() {
+            var root = this.$root && this.$root[0];
+            if (!root) {
+                this.openPanelAtomId = null;
+                return;
+            }
+            root.querySelectorAll('.delta-comment-panel').forEach(function(p) {
+                p.remove();
+            });
+            root.querySelectorAll('[data-comment-trigger].is-open').forEach(function(btn) {
+                btn.classList.remove('is-open');
+            });
+            this.openPanelAtomId = null;
+        },
+
+        renderList: function($container, comments, interactive) {
+            $container.empty();
+            if (!comments.length) {
+                $container.append(
+                    $('<p class="delta-comment-empty"></p>').text(deltaT('noComments'))
+                );
+                return;
+            }
+
+            var self = this;
+            comments.forEach(function(c) {
+                $container.append(self.renderComment(c, interactive));
+            });
+        },
+
+        renderComment: function(c, interactive) {
+            var $item = $('<div class="delta-comment-item"></div>');
+            if (c.resolved) {
+                $item.addClass('delta-comment-item--resolved');
+            }
+            if (c.outdated) {
+                $item.addClass('delta-comment-item--outdated');
+            }
+            $item.attr('data-comment-id', c.id);
+
+            var meta = $('<div class="delta-comment-meta"></div>');
+            meta.append($('<strong></strong>').text(c.authorName || ''));
+            meta.append($('<span class="delta-comment-round"></span>').text(
+                deltaT('roundLabel', { round: c.round })
+            ));
+            $item.append(meta);
+            $item.append($('<div class="delta-comment-body"></div>').text(c.body));
+
+            if (interactive) {
+                var actions = $('<div class="delta-comment-actions"></div>');
+                actions.append(
+                    $('<button type="button" class="btn small" data-comment-reply-toggle></button>')
+                        .text(deltaT('reply'))
+                );
+                actions.append(
+                    $('<button type="button" class="btn small" data-comment-resolve></button>')
+                        .attr('data-comment-resolve', c.id)
+                        .attr('data-resolved', c.resolved ? '1' : '0')
+                        .text(c.resolved ? deltaT('unresolve') : deltaT('resolve'))
+                );
+                $item.append(actions);
+
+                var $replyForm = $(
+                    '<div class="delta-comment-reply-form" data-comment-reply-form hidden>'
+                    + '<textarea class="text fullwidth" rows="2"'
+                    + ' placeholder="' + escAttr(deltaT('replyPlaceholder')) + '"></textarea>'
+                    + '<button type="button" class="btn small" data-comment-reply-post>'
+                    + escHtml(deltaT('reply')) + '</button>'
+                    + '</div>'
+                );
+                $item.append($replyForm);
+            }
+
+            if (c.replies && c.replies.length) {
+                var $replies = $('<div class="delta-comment-replies"></div>');
+                var self = this;
+                c.replies.forEach(function(r) {
+                    $replies.append(self.renderComment(r, interactive));
+                });
+                $item.append($replies);
+            }
+
+            return $item;
+        },
+
+        postComment: function(atomId, body, parentId, onSuccess) {
+            body = (body || '').trim();
+            if (!body) {
+                return;
+            }
+
+            var self = this;
+            var data = { reviewId: this.reviewId, body: body };
+            if (atomId) {
+                data.atomId = atomId;
+            }
+            if (parentId) {
+                data.parentId = parentId;
+            }
+
+            Craft.sendActionRequest('POST', 'craft-delta/workflow/comment', { data: data })
+                .then(function() {
+                    return $.getJSON(Craft.getActionUrl('craft-delta/workflow/thread'), { reviewId: self.reviewId });
+                })
+                .then(function(resp) {
+                    if (resp.success) {
+                        self.comments = resp.comments || [];
+                        var openAtom = self.openPanelAtomId;
+                        self.render();
+                        if (openAtom) {
+                            self.openPanel(openAtom);
+                        }
+                        if (typeof onSuccess === 'function') {
+                            onSuccess();
+                        }
+                    }
+                })
+                .catch(function() {
+                    Craft.cp.displayError(deltaT('commentFailed'));
+                });
+        },
+
+        resolveComment: function(commentId, resolved) {
+            var self = this;
+            Craft.sendActionRequest('POST', 'craft-delta/workflow/resolve-comment', {
+                data: { commentId: commentId, resolved: resolved ? 1 : 0 },
+            })
+                .then(function() {
+                    return $.getJSON(Craft.getActionUrl('craft-delta/workflow/thread'), { reviewId: self.reviewId });
+                })
+                .then(function(resp) {
+                    if (resp.success) {
+                        self.comments = resp.comments || [];
+                        var openAtom = self.openPanelAtomId;
+                        self.render();
+                        if (openAtom) {
+                            self.openPanel(openAtom);
+                        }
+                    }
+                })
+                .catch(function() {
+                    Craft.cp.displayError(deltaT('commentFailed'));
+                });
+        },
+    };
+
+    function escHtml(s) {
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    function escAttr(s) {
+        return escHtml(s).replace(/"/g, '&quot;');
+    }
+
+    function cssEscape(s) {
+        return (window.CSS && window.CSS.escape) ? window.CSS.escape(s) : String(s).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+    }
 })();

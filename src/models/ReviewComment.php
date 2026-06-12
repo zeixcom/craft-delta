@@ -6,6 +6,7 @@ namespace zeixcom\craftdelta\models;
 
 use craft\base\Model;
 use DateTime;
+use zeixcom\craftdelta\enums\CommentAnchorType;
 
 /**
  * A review comment: general (request-level thread) or anchored to a field/atom
@@ -15,9 +16,9 @@ use DateTime;
  */
 class ReviewComment extends Model
 {
-    public const ANCHOR_GENERAL = 'general';
-    public const ANCHOR_FIELD = 'field';
-    public const ANCHOR_ATOM = 'atom';
+    public const ANCHOR_GENERAL = CommentAnchorType::General->value;
+    public const ANCHOR_FIELD = CommentAnchorType::Field->value;
+    public const ANCHOR_ATOM = CommentAnchorType::Atom->value;
 
     public ?int $id = null;
     public int $reviewId = 0;
@@ -42,9 +43,4 @@ class ReviewComment extends Model
 
     /** @var ReviewComment[] replies, hydrated by the service */
     public array $replies = [];
-
-    public function isAnchored(): bool
-    {
-        return $this->anchorType !== self::ANCHOR_GENERAL;
-    }
 }

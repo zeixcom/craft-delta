@@ -7,7 +7,7 @@ namespace zeixcom\craftdelta\models;
 use craft\base\Model;
 
 /**
- * Represents the diff result for a single field.
+ * @phpstan-import-type DiffStats from \zeixcom\craftdelta\types\ArrayTypes
  */
 class FieldDiff extends Model
 {
@@ -17,13 +17,18 @@ class FieldDiff extends Model
     public string $tabName = '';
     public bool $hasChanges = false;
 
-    /**
-     * Rendered HTML of the diff, or structured JSON for complex fields.
-     */
     public ?string $diffHtml = null;
 
+    /** @var DiffStats */
+    public array $stats = ['additions' => 0, 'deletions' => 0];
+
     /**
-     * Stats about the changes (additions, deletions).
+     * Whether a field type class string refers to Craft's Matrix field.
+     * Must match the templates' Matrix test (_field-diff.twig and
+     * _diff-content.twig both key on the class ending in "\Matrix").
      */
-    public array $stats = [];
+    public static function isMatrixFieldType(string $fieldType): bool
+    {
+        return str_ends_with($fieldType, '\\Matrix');
+    }
 }
