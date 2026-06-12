@@ -7,33 +7,34 @@ namespace zeixcom\craftdelta\services;
 use Craft;
 use craft\base\Component;
 use craft\elements\Entry;
+use craft\elements\User;
 use craft\helpers\UrlHelper;
 use craft\web\View;
-use zeixcom\craftdelta\models\DraftWorkflow;
+use zeixcom\craftdelta\i18n\TranslationKeys;
+use zeixcom\craftdelta\models\Review;
 
 /**
- * Composes and sends the three workflow notification emails. Wraps
- * Craft::$app->getMailer() so callers stay short.
+ * Composes and sends the review notification emails. Wraps
+ * Craft::$app->getMailer() so callers stay short. A failed send never throws —
+ * a notification must not abort the committed transition that triggered it.
  */
 class EmailService extends Component
 {
-    public function sendSubmitted(DraftWorkflow $wf, Entry $draft): void
+    /** A draft was submitted for review — notify one requested reviewer. */
+    public function sendSubmitted(Review $review, Entry $draft, int $reviewerUserId): void
     {
-        if ($wf->assigneeId === null) {
-            return;
-        }
-        $assignee = Craft::$app->getUsers()->getUserById($wf->assigneeId);
-        $author = Craft::$app->getUsers()->getUserById($wf->submittedBy);
-        if (!$assignee || !$author) {
+        $reviewer = Craft::$app->getUsers()->getUserById($reviewerUserId);
+        $author = Craft::$app->getUsers()->getUserById($review->submittedBy);
+        if (!$reviewer || !$author) {
             return;
         }
 
         $this->dispatch(
-            $assignee->email,
-            Craft::t('craft-delta', 'Draft awaiting your review: {title}', ['title' => $draft->title]),
+            $reviewer,
+            fn() => Craft::t('craft-delta', TranslationKeys::EMAIL_DRAFT_AWAITING_REVIEW, ['title' => $draft->title]),
             'submitted',
             [
-                'assignee' => $assignee,
+                'reviewer' => $reviewer,
                 'author' => $author,
                 'entry' => $draft,
                 'url' => $this->editUrl($draft),
@@ -41,72 +42,105 @@ class EmailService extends Component
         );
     }
 
-    public function sendApproved(DraftWorkflow $wf, Entry $draft): void
+    /** The author revised and re-requested review — notify one reviewer. */
+    public function sendReRequested(Review $review, Entry $draft, int $reviewerUserId): void
     {
-        [$author, $reviewer] = $this->resolveAuthorAndReviewer($wf);
-        if (!$author || !$reviewer) {
+        $reviewer = Craft::$app->getUsers()->getUserById($reviewerUserId);
+        $author = Craft::$app->getUsers()->getUserById($review->submittedBy);
+        if (!$reviewer || !$author) {
             return;
         }
 
         $this->dispatch(
-            $author->email,
-            Craft::t('craft-delta', 'Your draft was approved: {title}', ['title' => $draft->title]),
-            'approved',
+            $reviewer,
+            fn() => Craft::t('craft-delta', TranslationKeys::EMAIL_DRAFT_RESUBMITTED, ['title' => $draft->title]),
+            're-requested',
             [
-                'author' => $author,
                 'reviewer' => $reviewer,
+                'author' => $author,
                 'entry' => $draft,
                 'url' => $this->editUrl($draft),
-                'scheduledFor' => $wf->scheduledFor,
+                'round' => $review->round,
             ],
         );
     }
 
-    public function sendRejected(DraftWorkflow $wf, Entry $draft): void
+    /** A reviewer requested changes — notify the author. */
+    public function sendChangesRequested(Review $review, Entry $draft, User $author, ?string $note): void
     {
-        [$author, $reviewer] = $this->resolveAuthorAndReviewer($wf);
-        if (!$author || !$reviewer) {
-            return;
-        }
-
         $this->dispatch(
-            $author->email,
-            Craft::t('craft-delta', 'Your draft was rejected: {title}', ['title' => $draft->title]),
-            'rejected',
+            $author,
+            fn() => Craft::t('craft-delta', TranslationKeys::EMAIL_CHANGES_REQUESTED_ON_DRAFT, ['title' => $draft->title]),
+            'changes-requested',
             [
                 'author' => $author,
-                'reviewer' => $reviewer,
                 'entry' => $draft,
                 'url' => $this->editUrl($draft),
-                'note' => $wf->rejectNote,
+                'note' => $note,
+            ],
+        );
+    }
+
+    /** A reviewer declined the draft — notify the author. */
+    public function sendDeclined(Review $review, Entry $draft, User $author, ?string $note): void
+    {
+        $this->dispatch(
+            $author,
+            fn() => Craft::t('craft-delta', TranslationKeys::EMAIL_DRAFT_DECLINED, ['title' => $draft->title]),
+            'declined',
+            [
+                'author' => $author,
+                'entry' => $draft,
+                'url' => $this->editUrl($draft),
+                'note' => $note,
+            ],
+        );
+    }
+
+    /** The draft was approved/published (or scheduled) — notify the author. */
+    public function sendPublished(Review $review, Entry $draft, User $author): void
+    {
+        $this->dispatch(
+            $author,
+            fn() => $review->isScheduled()
+                ? Craft::t('craft-delta', TranslationKeys::EMAIL_DRAFT_APPROVED_SCHEDULED, ['title' => $draft->title])
+                : Craft::t('craft-delta', TranslationKeys::EMAIL_DRAFT_PUBLISHED, ['title' => $draft->title]),
+            'published',
+            [
+                'author' => $author,
+                'entry' => $draft,
+                'url' => $this->editUrl($draft),
+                'scheduledFor' => $review->scheduledFor,
             ],
         );
     }
 
     /**
-     * The submitting author and the deciding reviewer, used by the approve/reject
-     * notifications. Either may be null if the user no longer exists.
+     * Render a template and send it as a plain-text email, in the RECIPIENT's
+     * preferred language — not the acting user's request language (a German
+     * reviewer declining must not produce a German email to a French author).
+     * The subject is a closure so its Craft::t() also runs under the switched
+     * language. A failed send (SMTP down, template error) is logged and
+     * swallowed — the workflow transition is already committed by now.
      *
-     * @return array{0: \craft\elements\User|null, 1: \craft\elements\User|null}
+     * @param callable(): string $subject
      */
-    private function resolveAuthorAndReviewer(DraftWorkflow $wf): array
+    private function dispatch(User $recipient, callable $subject, string $template, array $vars): void
     {
-        $author = Craft::$app->getUsers()->getUserById($wf->submittedBy);
-        $reviewer = $wf->decidedBy ? Craft::$app->getUsers()->getUserById($wf->decidedBy) : null;
-        return [$author, $reviewer];
-    }
+        $originalLanguage = Craft::$app->language;
+        Craft::$app->language = $recipient->preferredLanguage ?? $originalLanguage;
 
-    /**
-     * Render a template and send it as a plain-text email. Single point where
-     * the mailer chain lives, so recipient/subject/body handling stays uniform.
-     */
-    private function dispatch(string $to, string $subject, string $template, array $vars): void
-    {
-        Craft::$app->getMailer()->compose()
-            ->setTo($to)
-            ->setSubject($subject)
-            ->setTextBody($this->render($template, $vars))
-            ->send();
+        try {
+            Craft::$app->getMailer()->compose()
+                ->setTo($recipient->email)
+                ->setSubject($subject())
+                ->setTextBody($this->render($template, $vars))
+                ->send();
+        } catch (\Throwable $e) {
+            Craft::warning("Craft Delta review notification failed: {$e->getMessage()}", __METHOD__);
+        } finally {
+            Craft::$app->language = $originalLanguage;
+        }
     }
 
     private function render(string $template, array $vars): string
@@ -117,6 +151,9 @@ class EmailService extends Component
 
     private function editUrl(Entry $draft): string
     {
-        return UrlHelper::cpUrl("entries/{$draft->getCanonicalId()}");
+        // Link to the entry's own edit URL so a submitted draft opens the DRAFT
+        // (with its proposed changes), not the live canonical entry. Falls back
+        // to the canonical URL if the element can't produce one.
+        return $draft->getCpEditUrl() ?? UrlHelper::cpUrl("entries/{$draft->getCanonicalId()}");
     }
 }

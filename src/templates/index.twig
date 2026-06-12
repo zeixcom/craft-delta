@@ -1,0 +1,57 @@
+{% extends "_layouts/cp" %}
+
+{% set title = deltaKeys.workflowReviewsTitle|t('craft-delta') %}
+
+{% block content %}
+    {% set sections = [
+        { heading: deltaKeys.workflowAssignedToMe|t('craft-delta'), rows: assigned },
+        { heading: deltaKeys.workflowMySubmissions|t('craft-delta'), rows: submitted },
+    ] %}
+    {% if isAdmin %}
+        {% set sections = sections|merge([{ heading: deltaKeys.workflowAllReviews|t('craft-delta'), rows: all }]) %}
+    {% endif %}
+
+    {% set anyRows = false %}
+    {% for s in sections %}{% if s.rows|length %}{% set anyRows = true %}{% endif %}{% endfor %}
+
+    {% if not anyRows %}
+        <p class="zilch">{{ deltaKeys.workflowNoReviews|t('craft-delta') }}</p>
+    {% endif %}
+
+    {% for s in sections %}
+        {% if s.rows|length %}
+            <h2>{{ s.heading }}</h2>
+            <table class="data fullwidth">
+                <thead>
+                    <tr>
+                        <th>{{ deltaKeys.workflowColEntry|t('craft-delta') }}</th>
+                        <th>{{ deltaKeys.workflowColStatus|t('craft-delta') }}</th>
+                        <th>{{ deltaKeys.workflowColRound|t('craft-delta') }}</th>
+                        <th>{{ deltaKeys.workflowReviewers|t('craft-delta') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in s.rows %}
+                        {% set r = row.review %}
+                        <tr>
+                            <td>
+                                {% if row.url %}
+                                    <a href="{{ row.url }}">{{ row.title }}</a>
+                                {% else %}
+                                    {{ row.title }}
+                                {% endif %}
+                            </td>
+                            <td><span class="status {{ r.state }}"></span>{{ r.statusLabel() }}</td>
+                            <td>{{ r.round }}</td>
+                            <td>
+                                {% for rv in r.reviewers %}
+                                    <span class="delta-reviewer-pill delta-reviewer-pill--{{ rv.verdict }}">{{ rv.userName ?? ('#' ~ rv.userId) }}</span>
+                                {% endfor %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    {% endfor %}
+{% endblock %}

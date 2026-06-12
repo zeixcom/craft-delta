@@ -8,6 +8,7 @@ use Craft;
 use craft\elements\db\EntryQuery;
 use craft\elements\Entry;
 use zeixcom\craftdelta\Delta;
+use zeixcom\craftdelta\i18n\TranslationKeys;
 
 /**
  * Diff for Matrix / nested entry fields.
@@ -29,7 +30,7 @@ class MatrixDiffer implements DifferInterface
                 $change = [
                     'type' => 'removed',
                     'blockUid' => $entry->canonicalUid,
-                    'blockType' => $entry->type->name ?? 'Block',
+                    'blockType' => $entry->type->name ?? Craft::t('craft-delta', TranslationKeys::BLOCK),
                     'summary' => $this->summarizeEntry($entry),
                 ];
                 $fieldChanges = $this->extractEntryFields($entry, false);
@@ -45,7 +46,7 @@ class MatrixDiffer implements DifferInterface
                 $change = [
                     'type' => 'added',
                     'blockUid' => $entry->canonicalUid,
-                    'blockType' => $entry->type->name ?? 'Block',
+                    'blockType' => $entry->type->name ?? Craft::t('craft-delta', TranslationKeys::BLOCK),
                     'summary' => $this->summarizeEntry($entry),
                 ];
                 $fieldChanges = $this->extractEntryFields($entry, true);
@@ -65,7 +66,7 @@ class MatrixDiffer implements DifferInterface
                     $changes[] = [
                         'type' => 'modified',
                         'blockUid' => $newEntry->canonicalUid,
-                        'blockType' => $newEntry->type->name ?? 'Block',
+                        'blockType' => $newEntry->type->name ?? Craft::t('craft-delta', TranslationKeys::BLOCK),
                         'summary' => $this->summarizeEntry($newEntry),
                         'fieldChanges' => $fieldChanges,
                     ];

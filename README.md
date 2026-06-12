@@ -32,11 +32,12 @@ php craft plugin/install craft-delta
 
 **Submit-for-review workflow** (v2.0+)
 
-- Authors submit a draft and assign a reviewer; reviewers approve (now or scheduled), reject with a note, or apply changes granularly
-- Email notifications on submit / approve / reject
-- A **Workflow** status column on entry index pages
+- Authors submit a draft to one or more reviewers; reviewers approve, request changes with a note, or decline. Authors revise and re-request (a new review round) or withdraw.
+- Approved reviews publish wholesale — immediately or scheduled via a queued job — or granularly through Review Mode
+- A **Reviews** dashboard in the CP nav (assigned to me / my submissions / all for admins) and a **Workflow** status column on entry index pages
+- Email notifications on every transition, sent in the recipient's preferred language
 - Section-agnostic permissions that compose with Craft's native section access
-- `EVENT_AFTER_SUBMIT` / `EVENT_AFTER_APPROVE` / `EVENT_AFTER_REJECT` events for third-party integration
+- `EVENT_AFTER_SUBMIT`, `EVENT_AFTER_APPROVE`, `EVENT_AFTER_CHANGES_REQUESTED`, `EVENT_AFTER_DECLINE`, `EVENT_AFTER_REREQUEST`, `EVENT_AFTER_WITHDRAW`, and `EVENT_AFTER_PUBLISH` events for third-party integration
 
 **Platform**
 
@@ -51,7 +52,7 @@ Open any entry that has at least one revision (or a published draft). A **Compar
 
 - Pick the two versions with the dropdowns — Current, any draft, or any revision. The diff loads automatically when the selection changes.
 - Reverse direction with the **swap** button; hide unchanged fields with **Changed only**.
-- **Open full page** shows the same diff as a standalone page. That is a plugin route, so a non-admin needs permission to access the plugin (Craft's *Access Craft Delta* permission) to open it — the in-sidebar slideout needs only section view access.
+- **Open full page** shows the same diff as a standalone page. Like the slideout, it only needs view access to the entry's section.
 
 ### Review Mode
 
@@ -70,26 +71,32 @@ Decisions live in browser `localStorage` until you Apply or Cancel. If the canon
 
 Toggle the whole workflow with **Settings → Plugins → Craft Delta → Enable Workflow** (on by default). With it off, the plugin behaves like v1.1 — diff and Review Mode only.
 
-**Submitting (author).** An author with **Submit drafts for review** sees a **Submit for review** button on a published draft. Clicking it asks them to choose a reviewer (only eligible reviewers are listed — see [Permissions & access](#permissions--access)). The assigned reviewer gets an email linking to the entry, and the draft shows a **Pending review** status.
+**Submitting (author).** An author with **Submit drafts for review** sees a **Submit for review** button on a published draft. Clicking it asks them to choose one or more reviewers (only eligible reviewers are listed — see [Permissions & access](#permissions--access)). Each requested reviewer gets an email linking to the entry, and the draft shows an **In review** status.
 
-**Reviewing.** Opening the submitted draft's diff, the assigned reviewer gets a toolbar:
+**Reviewing.** Opening the submitted draft's diff, an assigned reviewer gets a toolbar showing all reviewers' verdicts and the current round, plus:
 
-- **Approve all** — publishes the whole draft to canonical immediately.
-- **Schedule for…** — publishes the whole draft later, via a queued job at the date/time you enter.
+- **Approve** — records an approval verdict. One approval (with no outstanding change requests) moves the review to **Approved**; a single **Request changes** from any reviewer blocks it.
+- **Request changes** — sends the author a note and moves the review to **Changes requested**.
 - **Granular review** — enters Review Mode so you can accept/reject individual changes, then apply only the accepted ones (requires **Apply review-mode changes**).
-- **Reject** — terminal; the author keeps the draft and receives your optional note by email.
+- **Decline** — terminal; the author keeps the draft and receives your optional note by email.
+
+**Iterating (author).** When changes are requested, the author revises the draft and clicks **Re-request review** — the same reviewers are asked again in a new **round**. The author can also **Withdraw** the request at any time while it's active.
+
+**Publishing.** Once approved, **Publish** (now) and **Schedule for…** (later, via a queued job) appear for the reviewer and the author. Publishing additionally requires Craft's native save permission on the entry, so a review-only role can't push content live. Scheduling is rescinded automatically if a reviewer subsequently requests changes or the review is declined/withdrawn.
 
 A submitted draft is **not** locked. If the author keeps editing, a scheduled apply publishes whatever the draft contains at apply time.
 
-Rejected drafts can't be re-submitted; to revise, duplicate the draft and submit the copy.
+A **withdrawn** request can simply be resubmitted — the review re-opens with a new round. **Declined** is terminal for that draft; to start over after a decline, duplicate the draft and submit the copy. Deleting a draft cancels its active review.
+
+The **Reviews** item in the CP nav opens a dashboard listing reviews awaiting your verdict, your own submissions, and (for admins) all reviews.
 
 #### What a granular (partial) apply does to the workflow
 
-Applying accepted changes through Review Mode **is** the review decision, so the workflow is **closed as Approved** — recorded with the reviewer and a timestamp. This holds whether you accepted every change or only some: a partial apply **finalizes** the workflow rather than leaving it open for a second pass.
+Applying accepted changes through Review Mode **is** the review decision, so the review is **closed as Published** — recorded with the reviewer and a timestamp. This holds whether you accepted every change or only some: a partial apply **finalizes** the review rather than leaving it open for a second pass.
 
-The rejected changes aren't lost. The source draft is left untouched and becomes a record of what was declined — re-opening the diff afterward shows only the changes you didn't accept (canonical now matches the draft for everything that was). Tick **Also delete source draft** before applying to discard those leftovers instead; deleting the draft also removes the workflow record, which is keyed to the draft.
+The rejected changes aren't lost. The source draft is left untouched and becomes a record of what was declined — re-opening the diff afterward shows only the changes you didn't accept (canonical now matches the draft for everything that was). Tick **Also delete source draft** before applying to discard those leftovers instead; the closed review is kept as an audit record either way.
 
-> **Design note — why a partial apply closes the workflow.** A reviewer who applies has made their call, so the workflow mirrors **Approve all** and closes. The plugin does **not** support iterative review (apply some now, keep the workflow open, apply more later) — for that, reject the draft and have the author resubmit a revised copy. This keeps the state machine to a single, terminal decision per submission. Implemented in `WorkflowService::resolveByReview()`, called from `DiffController::actionApply()`.
+> **Design note — why a partial apply closes the review.** A reviewer who applies has made their call, so the review concludes the same way a wholesale publish does. The plugin does **not** support iterative apply (apply some now, keep the review open, apply more later) — for iteration, use **Request changes** and let the author re-request a new round. Implemented in `WorkflowService::resolveByReview()`, called from `DiffController::actionApply()`.
 
 ### Permissions & access
 
@@ -100,7 +107,7 @@ Plugin permissions live under **Settings → Users → User Groups → Permissio
 | Permission | Key | Grants |
 |---|---|---|
 | Submit drafts for review | `craftdelta-submitDraft` | The **Submit for review** button on the holder's own drafts. |
-| Review submitted drafts | `craftdelta-reviewDraft` | Being assignable as a reviewer, plus the Approve / Reject actions. |
+| Review submitted drafts | `craftdelta-reviewDraft` | Being assignable as a reviewer, plus the Approve / Request changes / Decline verdicts. |
 | Apply review-mode changes | `craftdelta-applyReview` | Entering Review Mode and publishing accepted changes — both standalone Review Mode and the workflow's **Granular review**. |
 
 Section access is **not** handled by the plugin. Give each role the native Craft section permissions for the sections they work in, for example:
@@ -122,7 +129,7 @@ Users with none of the plugin permissions still see the read-only diff. Admins h
 | Max Field Length | 50,000 | Character count above which a field falls back to a simplified diff (min 1,000). |
 | Show Unchanged Fields | Off | Whether unchanged fields are shown by default. |
 | Enable Review Mode | On | Show **Start Review** and the accept/reject/apply controls. Off = read-only diff. |
-| Enable Workflow | On | Show the Submit / Approve / Reject UI. Off = v1.1 behavior. |
+| Enable Workflow | On | Show the submit-for-review workflow (and its endpoints). Off = v1.1 behavior. |
 
 ## Extending
 
@@ -153,13 +160,17 @@ Field types without a registered differ fall back to the scalar differ.
 
 ### Workflow events
 
-`WorkflowService` fires events carrying the affected `DraftWorkflow` as `$event->workflow` — hook them for custom notifications, audit logging, or syncing to external systems:
+`WorkflowService` fires events carrying the affected `Review` model as `$event->review` — hook them for custom notifications, audit logging, or syncing to external systems:
 
 | Constant | Fires after |
 |---|---|
 | `WorkflowService::EVENT_AFTER_SUBMIT` | a draft is submitted for review |
-| `WorkflowService::EVENT_AFTER_APPROVE` | a draft is approved — wholesale *or* via a granular Review Mode apply |
-| `WorkflowService::EVENT_AFTER_REJECT` | a draft is rejected |
+| `WorkflowService::EVENT_AFTER_APPROVE` | a reviewer records an approval verdict |
+| `WorkflowService::EVENT_AFTER_CHANGES_REQUESTED` | a reviewer requests changes |
+| `WorkflowService::EVENT_AFTER_DECLINE` | a reviewer declines (terminal) |
+| `WorkflowService::EVENT_AFTER_REREQUEST` | the author re-requests review (new round) |
+| `WorkflowService::EVENT_AFTER_WITHDRAW` | the author withdraws (terminal) |
+| `WorkflowService::EVENT_AFTER_PUBLISH` | the draft is published — immediately, scheduled, *or* via a granular Review Mode apply |
 
 ```php
 use yii\base\Event;
@@ -168,10 +179,10 @@ use zeixcom\craftdelta\events\WorkflowEvent;
 
 Event::on(
     WorkflowService::class,
-    WorkflowService::EVENT_AFTER_APPROVE,
+    WorkflowService::EVENT_AFTER_PUBLISH,
     function (WorkflowEvent $event) {
-        $workflow = $event->workflow; // DraftWorkflow
-        // …
+        $review = $event->review; // zeixcom\craftdelta\models\Review
+        // $review->state, $review->round, $review->canonicalEntryId, …
     }
 );
 ```

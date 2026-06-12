@@ -51,7 +51,7 @@
       var $loading = $('<div class="delta-slideout">' +
         '<div class="delta-loading">' +
         '<div class="spinner"></div>' +
-        Craft.t('craft-delta', 'Loading revisions\u2026') +
+        Craft.t('craft-delta', Craft.Delta._keys.loadingRevisions) +
         '</div></div>');
 
       var slideout = new Craft.Slideout($loading);
@@ -136,7 +136,10 @@
 
     openFullPage: function () {
       this.closeModal();
-      var url = Craft.getCpUrl('craft-delta/compare', { entryId: this.entryId, siteId: this.options.siteId });
+      // 'delta-compare', not 'craft-delta/compare': handle-prefixed CP URLs
+      // require the accessPlugin-craft-delta permission, which plain editors
+      // don't have.
+      var url = Craft.getCpUrl('delta-compare', { entryId: this.entryId, siteId: this.options.siteId });
       window.location.href = url;
     },
 
@@ -156,7 +159,7 @@
           if (revisions.length < 1 && drafts.length < 1 && !(self.options.isDraft && hasCurrent)) {
             $container.html(
               '<div class="delta-slideout"><div class="delta-empty"><p>' +
-              Craft.t('craft-delta', 'At least two revisions are needed to compare.') +
+              Craft.t('craft-delta', Craft.Delta._keys.needTwoRevisions) +
               '</p></div></div>'
             );
             return;
@@ -167,7 +170,7 @@
         .catch(function () {
           $container.html(
             '<div class="delta-slideout"><div class="delta-empty"><p>' +
-            Craft.t('craft-delta', 'Failed to load revisions.') +
+            Craft.t('craft-delta', Craft.Delta._keys.failedLoadRevisions) +
             '</p></div></div>'
           );
         });
@@ -184,7 +187,7 @@
         if (!found) {
           drafts.unshift({
             id: currentDraftRef,
-            label: Craft.t('craft-delta', 'Current Draft'),
+            label: Craft.t('craft-delta', Craft.Delta._keys.currentDraft),
             date: '',
           });
         }
@@ -195,12 +198,12 @@
 
       // Top row: title + actions
       var $topRow = $('<div class="delta-toolbar-top"></div>');
-      var $title = $('<span class="delta-toolbar-title">' + Craft.t('craft-delta', 'Compare Revisions') + '</span>');
+      var $title = $('<span class="delta-toolbar-title">' + Craft.t('craft-delta', Craft.Delta._keys.compareRevisions) + '</span>');
       var $actions = $('<div class="delta-toolbar-actions"></div>');
 
       // Expand button: slideout → modal (only in slideout mode)
       if (this.mode === 'slideout') {
-        var $expandBtn = $('<button type="button" class="delta-toolbar-btn" title="' + Craft.t('craft-delta', 'Expand') + '"></button>');
+        var $expandBtn = $('<button type="button" class="delta-toolbar-btn" title="' + Craft.t('craft-delta', Craft.Delta._keys.expand) + '"></button>');
         $expandBtn.html('<svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.75 2h2.5a.75.75 0 010 1.5H4.56l2.72 2.72a.75.75 0 01-1.06 1.06L3.5 4.56v1.69a.75.75 0 01-1.5 0v-2.5A1.75 1.75 0 013.75 2zm8.5 0h-2.5a.75.75 0 000 1.5h1.69L8.72 6.22a.75.75 0 001.06 1.06l2.72-2.72v1.69a.75.75 0 001.5 0v-2.5A1.75 1.75 0 0012.25 2zM3.5 9.75a.75.75 0 00-1.5 0v2.5c0 .966.784 1.75 1.75 1.75h2.5a.75.75 0 000-1.5H4.56l2.72-2.72a.75.75 0 00-1.06-1.06L3.5 11.44V9.75zm9 0a.75.75 0 011.5 0v2.5A1.75 1.75 0 0112.25 14h-2.5a.75.75 0 010-1.5h1.69l-2.72-2.72a.75.75 0 011.06-1.06l2.72 2.72V9.75z"/></svg>');
         $expandBtn.on('click', function () { self.openModal(); });
         $actions.append($expandBtn);
@@ -208,7 +211,7 @@
 
       // Full page button (shown in slideout and modal, not in fullpage)
       if (this.mode !== 'fullpage') {
-        var $fullPageBtn = $('<button type="button" class="delta-toolbar-btn" title="' + Craft.t('craft-delta', 'Open full page') + '"></button>');
+        var $fullPageBtn = $('<button type="button" class="delta-toolbar-btn" title="' + Craft.t('craft-delta', Craft.Delta._keys.openFullPage) + '"></button>');
         $fullPageBtn.html('<svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.75 2A1.75 1.75 0 002 3.75v8.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0014 12.25v-3.5a.75.75 0 00-1.5 0v3.5a.25.25 0 01-.25.25h-8.5a.25.25 0 01-.25-.25v-8.5a.25.25 0 01.25-.25h3.5a.75.75 0 000-1.5h-3.5zm6.75 0a.75.75 0 000 1.5h1.19L8.22 6.97a.75.75 0 001.06 1.06l3.5-3.5v1.22a.75.75 0 001.5 0v-3A.75.75 0 0013.53 2h-3z"/></svg>');
         $fullPageBtn.on('click', function () { self.openFullPage(); });
         $actions.append($fullPageBtn);
@@ -216,7 +219,7 @@
 
       // Close button (not shown in fullpage mode)
       if (this.mode !== 'fullpage') {
-        var $closeBtn = $('<button type="button" class="delta-toolbar-btn" title="Close"></button>');
+        var $closeBtn = $('<button type="button" class="delta-toolbar-btn" title="' + Craft.t('craft-delta', Craft.Delta._keys.close) + '"></button>');
         $closeBtn.html('<svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z"/></svg>');
         $closeBtn.on('click', function () {
           if (self.mode === 'slideout' && self.slideout) {
@@ -238,13 +241,13 @@
         // "Current" option (always first)
         var currentOpt = document.createElement('option');
         currentOpt.value = 'current';
-        currentOpt.textContent = Craft.t('craft-delta', 'Current');
+        currentOpt.textContent = Craft.t('craft-delta', Craft.Delta._keys.current);
         $select.append(currentOpt);
 
         // Drafts group
         if (drafts.length > 0) {
           var $draftGroup = $('<optgroup></optgroup>');
-          $draftGroup.attr('label', Craft.t('craft-delta', 'Drafts'));
+          $draftGroup.attr('label', Craft.t('craft-delta', Craft.Delta._keys.drafts));
           drafts.forEach(function (d) {
             var opt = document.createElement('option');
             opt.value = d.id;
@@ -259,7 +262,7 @@
         // Revisions group
         if (revisions.length > 0) {
           var $revGroup = $('<optgroup></optgroup>');
-          $revGroup.attr('label', Craft.t('craft-delta', 'Revisions'));
+          $revGroup.attr('label', Craft.t('craft-delta', Craft.Delta._keys.revisions));
           revisions.forEach(function (rev) {
             var opt = document.createElement('option');
             opt.value = rev.id;
@@ -319,7 +322,7 @@
         self.applyFilter();
       });
       self.$filterCheckbox = $checkbox;
-      $filter.append($checkbox).append(Craft.t('craft-delta', 'Changed only'));
+      $filter.append($checkbox).append(Craft.t('craft-delta', Craft.Delta._keys.changedOnly));
       $bottomRow.append($filter);
 
       $toolbar.append($bottomRow);
@@ -368,7 +371,7 @@
         this.$resultContainer.html(
           '<div class="delta-loading">' +
           '<div class="spinner"></div>' +
-          Craft.t('craft-delta', 'Comparing\u2026') +
+          Craft.t('craft-delta', Craft.Delta._keys.comparing) +
           '</div>'
         );
       }
@@ -407,10 +410,17 @@
           // Ignore stale responses from earlier requests
           if (requestId !== self._loadId) { return; }
 
+          // Replacing the diff DOM invalidates any in-flight review session
+          // (atom ids, storage key, key handler, observers) — close it first
+          // or decisions keep recording against the old comparison's state.
+          if (Craft.Delta.reviewMode.active) {
+            Craft.Delta.reviewMode.exit();
+          }
+
           if (!response.data.success) {
             $result.html(
               '<div class="delta-empty"><p>' +
-              (response.data.error || Craft.t('craft-delta', 'Failed to load diff.')) +
+              (response.data.error || Craft.t('craft-delta', Craft.Delta._keys.failedLoadDiff)) +
               '</p></div>'
             );
             return;
@@ -445,7 +455,7 @@
 
           $result.html(
             '<div class="delta-empty"><p>' +
-            Craft.t('craft-delta', 'Failed to load diff.') +
+            Craft.t('craft-delta', Craft.Delta._keys.failedLoadDiff) +
             '</p></div>'
           );
         });
@@ -685,8 +695,10 @@
       this.keyHandler = function (e) {
         if (!self.active) return;
         if (!e.key) return; // synthetic / IME-composition events have no key
-        // Skip when typing in an input
-        if (e.target.matches('input, textarea, [contenteditable], [contenteditable="true"]')) return;
+        // Never hijack browser/OS shortcuts (Cmd+A select-all, Ctrl+R reload, …)
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        // Skip when typing in an input or operating a select
+        if (e.target.matches('input, textarea, select, [contenteditable], [contenteditable="true"]')) return;
         switch (e.key.toLowerCase()) {
           case 'j': self.next(); e.preventDefault(); break;
           case 'k': self.prev(); e.preventDefault(); break;
@@ -761,7 +773,7 @@
       // Stale check
       if (parsed.canonicalUpdatedAt && parsed.canonicalUpdatedAt !== liveUpdatedAt) {
         try { localStorage.removeItem(key); } catch (e) {}
-        banner.textContent = Craft.t('craft-delta', 'The entry has changed since your last review; starting fresh.');
+        banner.textContent = Craft.t('craft-delta', Craft.Delta._keys.entryChangedSinceLastReview);
         banner.removeAttribute('hidden');
         return;
       }
@@ -771,7 +783,7 @@
 
       banner.innerHTML = '';
       const text = document.createElement('span');
-      text.textContent = Craft.t('craft-delta', 'Resume previous review ({decided} of {total} decided)?', {
+      text.textContent = Craft.t('craft-delta', Craft.Delta._keys.resumePreviousReview, {
         decided: decided,
         total: total,
       }) + ' ';
@@ -780,7 +792,7 @@
       const resume = document.createElement('button');
       resume.type = 'button';
       resume.className = 'btn submit';
-      resume.textContent = Craft.t('craft-delta', 'Resume');
+      resume.textContent = Craft.t('craft-delta', Craft.Delta._keys.resume);
       resume.addEventListener('click', function () {
         Craft.Delta.reviewMode.enter(toolbar);
         banner.setAttribute('hidden', '');
@@ -790,7 +802,7 @@
       const fresh = document.createElement('button');
       fresh.type = 'button';
       fresh.className = 'btn';
-      fresh.textContent = Craft.t('craft-delta', 'Start fresh');
+      fresh.textContent = Craft.t('craft-delta', Craft.Delta._keys.startFresh);
       fresh.addEventListener('click', function () {
         try { localStorage.removeItem(key); } catch (e) {}
         banner.setAttribute('hidden', '');
@@ -933,7 +945,7 @@
 
       const progressEl = document.querySelector('[data-review-progress]');
       if (progressEl) {
-        progressEl.textContent = Craft.t('craft-delta', '{decided} of {total} decided', {
+        progressEl.textContent = Craft.t('craft-delta', Craft.Delta._keys.decidedOfTotal, {
           decided: decided,
           total: total,
         });
@@ -941,7 +953,7 @@
 
       const applyBtn = document.querySelector('[data-action="apply"]');
       if (applyBtn) {
-        applyBtn.textContent = Craft.t('craft-delta', 'Apply {count} accepted', { count: accepted });
+        applyBtn.textContent = Craft.t('craft-delta', Craft.Delta._keys.applyCountAccepted, { count: accepted });
         applyBtn.disabled = accepted === 0;
       }
     },
@@ -978,9 +990,6 @@
           self.cancel();
           return;
         }
-
-        if (action === 'next-change') { self.next(); return; }
-        if (action === 'prev-change') { self.prev(); return; }
 
         if (action === 'apply') { self.apply(); return; }
       });
@@ -1055,7 +1064,7 @@
     cancel: function () {
       const decided = Object.keys(this.state).length;
       if (decided > 0) {
-        if (!confirm(Craft.t('craft-delta', 'Discard {decided} decisions?', { decided: decided }))) return;
+        if (!confirm(Craft.t('craft-delta', Craft.Delta._keys.discardDecisions, { decided: decided }))) return;
       }
       try { localStorage.removeItem(this.storageKey); } catch (e) {}
       this.exit();
@@ -1071,7 +1080,7 @@
 
       const confirmed = confirm(Craft.t(
         'craft-delta',
-        'Publish {count} accepted changes to this entry? This creates a new revision. Rejected changes will not affect the entry.',
+        Craft.Delta._keys.publishAcceptedConfirm,
         { count: accepted.length }
       ));
       if (!confirmed) return;
@@ -1115,7 +1124,7 @@
     handleApplySuccess: function (data) {
       try { localStorage.removeItem(this.storageKey); } catch (e) {}
       this.exit();
-      const goNow = confirm(Craft.t('craft-delta', 'Changes published. Open the entry?'));
+      const goNow = confirm(Craft.t('craft-delta', Craft.Delta._keys.changesPublishedOpenEntry));
       if (goNow && data.entryEditUrl) {
         window.location.href = data.entryEditUrl;
       }
@@ -1127,7 +1136,7 @@
         case 'stale-atoms':
           try { localStorage.removeItem(this.storageKey); } catch (e) {}
           if (banner) {
-            banner.textContent = data.error || Craft.t('craft-delta', 'The entry has changed since you started reviewing. Please reload the diff and restart your review.');
+            banner.textContent = data.error || Craft.t('craft-delta', Craft.Delta._keys.entryChangedSinceReviewStarted);
             banner.removeAttribute('hidden');
           }
           // Trigger a fresh diff reload if a helper exists; otherwise no-op.
@@ -1137,14 +1146,14 @@
           break;
         case 'validation-failed':
           // Preserve localStorage; show the error
-          alert((data.error || Craft.t('craft-delta', 'Validation failed.')) + '\n\n' + Craft.t('craft-delta', 'Your decisions are still saved. Adjust and try again.'));
+          alert((data.error || Craft.t('craft-delta', Craft.Delta._keys.validationFailed)) + '\n\n' + Craft.t('craft-delta', Craft.Delta._keys.decisionsSavedRetry));
           break;
         case 'no-changes':
           // Shouldn't happen — apply button is disabled when 0 accepted
-          alert(data.error || Craft.t('craft-delta', 'No changes to apply.'));
+          alert(data.error || Craft.t('craft-delta', Craft.Delta._keys.noChangesToApply));
           break;
         default:
-          alert((data.error || Craft.t('craft-delta', 'Apply failed.')) + '\n\n' + Craft.t('craft-delta', 'Your decisions are still saved.'));
+          alert((data.error || Craft.t('craft-delta', Craft.Delta._keys.applyFailed)) + '\n\n' + Craft.t('craft-delta', Craft.Delta._keys.decisionsStillSaved));
       }
     },
   };

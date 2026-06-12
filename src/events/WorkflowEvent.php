@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace zeixcom\craftdelta\events;
 
 use yii\base\Event;
-use zeixcom\craftdelta\models\DraftWorkflow;
+use zeixcom\craftdelta\models\Review;
 
 /**
  * Fired by WorkflowService when state transitions occur. Listeners can
@@ -13,5 +13,5 @@ use zeixcom\craftdelta\models\DraftWorkflow;
  */
 class WorkflowEvent extends Event
 {
-    public DraftWorkflow $workflow;
+    public Review $review;
 }

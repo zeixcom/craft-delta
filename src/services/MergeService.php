@@ -6,6 +6,7 @@ namespace zeixcom\craftdelta\services;
 
 use craft\base\Component;
 use craft\elements\Entry;
+use zeixcom\craftdelta\i18n\TranslationKeys;
 use zeixcom\craftdelta\models\DiffResult;
 
 /**
@@ -20,7 +21,7 @@ class MergeService extends Component
     /**
      * Parse a stable atom key into a structured array.
      *
-     * @return array{kind: string, ...}
+     * @return array{kind: 'field', handle: string}|array{kind: 'matrix-block', fieldHandle: string, blockUid: string, changeType: string}|array{kind: 'matrix-reorder', fieldHandle: string}
      * @throws \InvalidArgumentException when the key is malformed
      */
     public static function parseAtomKey(string $key): array
@@ -216,7 +217,7 @@ class MergeService extends Component
 
             if ($isSurvivor && $isInSource) {
                 $lastAnchor = $uid;
-            } elseif ($isSurvivor && !$isInSource) {
+            } elseif ($isSurvivor) { // surviving current-only block
                 $anchorByCurrentOnly[$uid] = $lastAnchor;
                 $currentOnlyOrder[] = $uid;
             }
@@ -449,7 +450,7 @@ class MergeService extends Component
         $draft = \Craft::$app->getDrafts()->createDraft(
             $canonical,
             $user?->id ?? 0,
-            \Craft::t('craft-delta', 'Review of {ref}', ['ref' => $this->humanRefForSource($source)]),
+            \Craft::t('craft-delta', TranslationKeys::REVIEW_OF_REF, ['ref' => $this->humanRefForSource($source)]),
         );
 
         // 5. Apply field atoms.
@@ -506,7 +507,12 @@ class MergeService extends Component
                 continue;
             }
 
-            $isMatrix = str_contains($fd->fieldType, '\\Matrix');
+            // Must match the templates' Matrix test (_field-diff.twig and
+            // _diff-content.twig both key on the class ending in "\Matrix"). A
+            // broader str_contains() here would classify a field as Matrix that
+            // the templates render as a plain field, so the client offers a
+            // `field:` atom this set lacks and the whole apply fails as stale.
+            $isMatrix = str_ends_with($fd->fieldType, '\\Matrix');
             if (!$isMatrix) {
                 $atoms[] = 'field:' . $fd->fieldHandle;
                 continue;
@@ -547,13 +553,13 @@ class MergeService extends Component
         /** @var \craft\behaviors\RevisionBehavior|null $revisionBehavior */
         $revisionBehavior = $source->getBehavior('revision');
         if ($revisionBehavior !== null && $revisionBehavior->revisionNum !== null) {
-            return 'Rev ' . $revisionBehavior->revisionNum;
+            return \Craft::t('craft-delta', TranslationKeys::REV_NUM, ['num' => $revisionBehavior->revisionNum]);
         }
         /** @var \craft\behaviors\DraftBehavior|null $draftBehavior */
         $draftBehavior = $source->getBehavior('draft');
         if ($draftBehavior !== null) {
-            return $draftBehavior->draftName ?? 'Draft';
+            return $draftBehavior->draftName ?? \Craft::t('craft-delta', TranslationKeys::DRAFT);
         }
-        return 'Source';
+        return \Craft::t('craft-delta', TranslationKeys::SOURCE);
     }
 }

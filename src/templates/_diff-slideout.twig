@@ -5,9 +5,9 @@
 <div class="delta-stats" data-stats>
     <span>
         {%- if stats.fieldsChanged == 1 -%}
-            {{ '1 field changed'|t('craft-delta') }}
+            {{ deltaKeys.oneFieldChanged|t('craft-delta') }}
         {%- else -%}
-            {{ '{count} fields changed'|t('craft-delta', { count: stats.fieldsChanged }) }}
+            {{ deltaKeys.countFieldsChanged|t('craft-delta', { count: stats.fieldsChanged }) }}
         {%- endif -%}
     </span>
     {% if stats.additions > 0 %}
@@ -18,20 +18,71 @@
     {% endif %}
 </div>
 
-{% set hasWorkflowActions = workflow is defined and workflow and isReviewer is defined and isReviewer and workflow.isPending() %}
-{# When the reviewer can apply, the workflow toolbar's "Granular review" button
-   is the entry point into Review Mode, so the standalone "Start Review" button
-   below is suppressed to avoid two identical controls. #}
-{% set showGranularReview = hasWorkflowActions and currentUser.can('craftdelta-applyReview') %}
+{% set isReviewerActive = workflow is defined and workflow and isReviewer is defined and isReviewer and workflow.isActive() %}
+{% set isReviewAuthor = workflow is defined and workflow and currentUser and (currentUser.id == workflow.submittedBy or currentUser.admin) %}
+{# When the reviewer can apply, the "Granular review" button is the entry point
+   into Review Mode, so the standalone "Start Review" button below is suppressed. #}
+{% set showGranularReview = isReviewerActive and currentUser.can('craftdelta-applyReview') %}
 
-{% if hasWorkflowActions %}
-    <div class="delta-workflow-toolbar" data-workflow-id="{{ workflow.id }}" data-section-uid="{{ workflow.sectionUid }}">
-        <button type="button" class="btn submit delta-approve-now">{{ 'Approve all'|t('craft-delta') }}</button>
-        <button type="button" class="btn delta-approve-schedule">{{ 'Schedule for…'|t('craft-delta') }}</button>
-        {% if showGranularReview %}
-            <button type="button" class="btn delta-granular-review">{{ 'Granular review'|t('craft-delta') }}</button>
+{% if workflow is defined and workflow %}
+    <div class="delta-workflow-toolbar"
+         data-review-id="{{ workflow.id }}"
+         data-section-uid="{{ workflow.sectionUid }}"
+         data-note-prompt="{{ deltaKeys.optionalNoteForAuthor|t('craft-delta') }}"
+         data-rc-prompt="{{ deltaKeys.workflowRequestChangesPrompt|t('craft-delta') }}"
+         data-confirm-decline="{{ deltaKeys.workflowDeclineConfirm|t('craft-delta') }}"
+         data-confirm-withdraw="{{ deltaKeys.workflowWithdrawConfirm|t('craft-delta') }}"
+         data-confirm-rerequest="{{ deltaKeys.workflowReRequestConfirm|t('craft-delta') }}"
+         data-confirm-publish="{{ deltaKeys.workflowPublishConfirm|t('craft-delta') }}"
+         data-publish-at-prompt="{{ deltaKeys.publishAtPrompt|t('craft-delta') }}"
+         data-done-approve="{{ deltaKeys.workflowDoneApproved|t('craft-delta') }}"
+         data-done-request-changes="{{ deltaKeys.workflowDoneChangesRequested|t('craft-delta') }}"
+         data-done-decline="{{ deltaKeys.workflowDoneDeclined|t('craft-delta') }}"
+         data-done-withdraw="{{ deltaKeys.workflowDoneWithdrawn|t('craft-delta') }}"
+         data-done-rerequest="{{ deltaKeys.workflowDoneReRequested|t('craft-delta') }}"
+         data-done-publish="{{ deltaKeys.workflowDonePublished|t('craft-delta') }}"
+         data-action-failed="{{ deltaKeys.workflowActionFailed|t('craft-delta') }}">
+
+        <div class="delta-review-roster">
+            <span class="delta-review-roster-label">{{ deltaKeys.workflowReviewers|t('craft-delta') }}:</span>
+            {% for r in workflow.reviewers %}
+                {% set verdictLabel = r.verdict == 'approved'
+                    ? deltaKeys.approved|t('craft-delta')
+                    : (r.verdict == 'changes_requested'
+                        ? deltaKeys.reviewChangesRequested|t('craft-delta')
+                        : deltaKeys.workflowAwaiting|t('craft-delta')) %}
+                <span class="delta-reviewer-pill delta-reviewer-pill--{{ r.verdict }}"
+                      title="{{ verdictLabel }}">{{ r.userName ?? ('#' ~ r.userId) }}</span>
+            {% endfor %}
+            <span class="delta-review-round">{{ deltaKeys.workflowRound|t('craft-delta', { round: workflow.round }) }}</span>
+        </div>
+
+        {% if isReviewerActive %}
+            <div class="delta-workflow-actions" data-role="reviewer">
+                <button type="button" class="btn submit" data-wf-action="approve">{{ deltaKeys.workflowApprove|t('craft-delta') }}</button>
+                <button type="button" class="btn" data-wf-action="request-changes">{{ deltaKeys.workflowRequestChanges|t('craft-delta') }}</button>
+                {% if showGranularReview %}
+                    <button type="button" class="btn delta-granular-review">{{ deltaKeys.granularReview|t('craft-delta') }}</button>
+                {% endif %}
+                <button type="button" class="btn" data-wf-action="decline">{{ deltaKeys.workflowDecline|t('craft-delta') }}</button>
+            </div>
         {% endif %}
-        <button type="button" class="btn delta-reject">{{ 'Reject'|t('craft-delta') }}</button>
+
+        {% if workflow.isApproved() and (isReviewerActive or isReviewAuthor) %}
+            <div class="delta-workflow-actions" data-role="publish">
+                <button type="button" class="btn submit" data-wf-action="publish">{{ deltaKeys.workflowPublish|t('craft-delta') }}</button>
+                <button type="button" class="btn" data-wf-action="schedule">{{ deltaKeys.scheduleFor|t('craft-delta') }}</button>
+            </div>
+        {% endif %}
+
+        {% if isReviewAuthor and workflow.isActive() %}
+            <div class="delta-workflow-actions" data-role="author">
+                {% if workflow.isChangesRequested() %}
+                    <button type="button" class="btn submit" data-wf-action="re-request">{{ deltaKeys.workflowReRequest|t('craft-delta') }}</button>
+                {% endif %}
+                <button type="button" class="btn" data-wf-action="withdraw">{{ deltaKeys.workflowWithdraw|t('craft-delta') }}</button>
+            </div>
+        {% endif %}
     </div>
 {% endif %}
 
@@ -45,28 +96,28 @@
          data-source-updated-at="{{ sourceUpdatedAt }}">
         {% if not showGranularReview %}
             <button type="button" class="btn delta-review-start" data-action="start-review">
-                {{ 'Start Review'|t('craft-delta') }}
+                {{ deltaKeys.startReview|t('craft-delta') }}
             </button>
         {% endif %}
     </div>
 
     <div class="delta-review-stepper" data-review-stepper hidden>
         <span class="delta-review-progress" data-review-progress
-              title="{{ 'Use J / K to navigate, A / R to decide'|t('craft-delta') }}">
-            {{ '{decided} of {total} decided'|t('craft-delta', { decided: 0, total: 0 }) }}
+              title="{{ deltaKeys.reviewKeyboardHint|t('craft-delta') }}">
+            {{ deltaKeys.decidedOfTotal|t('craft-delta', { decided: 0, total: 0 }) }}
         </span>
         {% if sourceRef starts with 'draft:' %}
             <label class="delta-review-cleanup">
                 <input type="checkbox" data-delete-source-draft>
-                {{ 'Also delete source draft'|t('craft-delta') }}
+                {{ deltaKeys.alsoDeleteSourceDraft|t('craft-delta') }}
             </label>
         {% endif %}
         <div class="delta-review-actions">
             <button type="button" class="btn submit" data-action="apply" disabled>
-                {{ 'Apply {count} accepted'|t('craft-delta', { count: 0 }) }}
+                {{ deltaKeys.applyCountAccepted|t('craft-delta', { count: 0 }) }}
             </button>
             <button type="button" class="btn delta-review-cancel" data-action="cancel-review">
-                {{ 'Cancel review'|t('craft-delta') }}
+                {{ deltaKeys.cancelReview|t('craft-delta') }}
             </button>
         </div>
     </div>
@@ -85,13 +136,13 @@
     {% endfor %}
 
     {% if namedTabs|length > 1 %}
-        <nav class="delta-tabnav" aria-label="{{ 'Jump to section'|t('craft-delta') }}">
+        <nav class="delta-tabnav" aria-label="{{ deltaKeys.jumpToSection|t('craft-delta') }}">
             {% for tab in namedTabs %}
                 {% set changedCount = tab.diffs|filter(d => d.hasChanges)|length %}
                 <a href="#delta-tab-{{ tab.index }}"
                    class="delta-tabnav-item{{ changedCount > 0 ? ' delta-tabnav-item-changed' : '' }}"
                    data-tab-target="delta-tab-{{ tab.index }}">
-                    <span class="delta-tabnav-prefix">{{ 'Tab'|t('craft-delta') }}:</span>
+                    <span class="delta-tabnav-prefix">{{ deltaKeys.tab|t('craft-delta') }}:</span>
                     {{ tab.name }}
                     {% if changedCount > 0 %}<span class="delta-tabnav-count">{{ changedCount }}</span>{% endif %}
                 </a>
@@ -108,7 +159,7 @@
     {% for tab in namedTabs %}
         <div class="delta-tab-group" id="delta-tab-{{ tab.index }}" data-tab="{{ tab.name }}">
             <div class="delta-tab-header">
-                <span class="delta-tab-header-prefix">{{ 'Tab'|t('craft-delta') }}:</span>
+                <span class="delta-tab-header-prefix">{{ deltaKeys.tab|t('craft-delta') }}:</span>
                 {{ tab.name }}
             </div>
             {% for diff in tab.diffs %}
@@ -118,6 +169,6 @@
     {% endfor %}
 {% else %}
     <div class="delta-empty">
-        <p>{{ 'No changes between these revisions.'|t('craft-delta') }}</p>
+        <p>{{ deltaKeys.noChangesBetweenRevisions|t('craft-delta') }}</p>
     </div>
 {% endif %}

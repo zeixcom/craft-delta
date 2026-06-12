@@ -16,6 +16,7 @@ use zeixcom\craftdelta\differ\ScalarDiffer;
 use zeixcom\craftdelta\differ\TableDiffer;
 use zeixcom\craftdelta\differ\TextDiffer;
 use zeixcom\craftdelta\events\RegisterDiffersEvent;
+use zeixcom\craftdelta\i18n\TranslationKeys;
 use zeixcom\craftdelta\models\FieldDiff;
 
 /**
@@ -87,7 +88,7 @@ class FieldDiffService extends Component
                     'fieldLabel' => $field->name,
                     'fieldType' => get_class($field),
                     'hasChanges' => true,
-                    'diffHtml' => htmlspecialchars(Craft::t('craft-delta', 'Field content too large to diff ({length} chars).', [
+                    'diffHtml' => htmlspecialchars(Craft::t('craft-delta', TranslationKeys::FIELD_TOO_LARGE, [
                         'length' => max($oldLen, $newLen),
                     ])),
                     'stats' => ['additions' => 1, 'deletions' => 1],
@@ -105,7 +106,7 @@ class FieldDiffService extends Component
                 'fieldLabel' => $field->name,
                 'fieldType' => get_class($field),
                 'hasChanges' => true,
-                'diffHtml' => '<em class="delta-error">' . htmlspecialchars(Craft::t('craft-delta', 'Unable to diff this field.')) . '</em>',
+                'diffHtml' => '<em class="delta-error">' . htmlspecialchars(Craft::t('craft-delta', TranslationKeys::UNABLE_TO_DIFF_FIELD)) . '</em>',
                 'stats' => ['additions' => 0, 'deletions' => 0],
             ]);
         }
@@ -114,7 +115,7 @@ class FieldDiffService extends Component
             return null;
         }
 
-        if ($field instanceof \craft\fields\Table && $diffHtml !== null) {
+        if ($field instanceof \craft\fields\Table) {
             $columns = [];
             foreach ($field->columns as $key => $col) {
                 $columns[$key] = $col['heading'] ?? $key;

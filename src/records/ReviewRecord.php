@@ -8,24 +8,24 @@ use craft\db\ActiveRecord;
 
 /**
  * @property int $id
- * @property int $draftId
+ * @property int|null $draftId
  * @property int $canonicalEntryId
  * @property string $sectionUid
  * @property string $state
+ * @property int $round
  * @property int $submittedBy
- * @property int|null $assigneeId
  * @property int|null $decidedBy
- * @property string|null $rejectNote
+ * @property string|null $decisionNote
  * @property string|null $scheduledFor
  * @property string|null $appliedAt
  * @property string $dateCreated
  * @property string $dateUpdated
  * @property string $uid
  */
-class DraftWorkflowRecord extends ActiveRecord
+class ReviewRecord extends ActiveRecord
 {
     public static function tableName(): string
     {
-        return '{{%craftdelta_draft_workflows}}';
+        return '{{%craftdelta_reviews}}';
     }
 }

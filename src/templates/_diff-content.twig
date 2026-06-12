@@ -30,7 +30,7 @@
                                 <path d="M4.427 7.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 7H4.604a.25.25 0 00-.177.427z"/>
                             </svg>
                             <span class="delta-block-icon">{{ blockIcon[change.type]|raw }}</span>
-                            <span class="delta-block-type">{{ change.blockType ?? 'Block' }}</span>
+                            <span class="delta-block-type">{{ change.blockType ?? deltaKeys.block|t('craft-delta') }}</span>
                             <span class="delta-block-summary">{{ change.summary ?? '' }}</span>
                         </button>
                         <div class="delta-block-subfields">
@@ -51,7 +51,7 @@
                         </div>
                     {% else %}
                         <span class="delta-block-icon">{{ blockIcon[change.type]|raw }}</span>
-                        <span class="delta-block-type">{{ change.blockType ?? 'Block' }}</span>
+                        <span class="delta-block-type">{{ change.blockType ?? deltaKeys.block|t('craft-delta') }}</span>
                         <span class="delta-block-summary">{{ change.summary ?? '' }}</span>
                     {% endif %}
                     {% if atomsEnabled %}
@@ -64,7 +64,7 @@
             {% elseif change.type == 'reordered' %}
                 <div class="delta-block delta-block-reordered"{% if not isNested %} data-atom-id="matrix-reorder:{{ fieldHandle }}"{% endif %}>
                     <span class="delta-block-icon">&harr;</span>
-                    <span>{{ 'Blocks were reordered'|t('craft-delta') }}</span>
+                    <span>{{ deltaKeys.blocksReordered|t('craft-delta') }}</span>
                     {% if atomsEnabled %}
                         <span class="delta-atom-actions" hidden data-atom-actions>
                             <button type="button" class="btn small delta-atom-accept" data-action="accept">✓</button>
@@ -76,7 +76,7 @@
         {% endfor %}
     {% else %}
         <div class="delta-field-body-padded delta-error">
-            {{ 'Unable to parse structured diff.'|t('craft-delta') }}
+            {{ deltaKeys.unableParseStructuredDiff|t('craft-delta') }}
         </div>
     {% endif %}
 
@@ -149,7 +149,7 @@
         </table>
     {% else %}
         <div class="delta-field-body-padded delta-error">
-            {{ 'Unable to parse table diff.'|t('craft-delta') }}
+            {{ deltaKeys.unableParseTableDiff|t('craft-delta') }}
         </div>
     {% endif %}
 

@@ -1,12 +1,8 @@
 # Changelog
 
-## Unreleased
+## 2.0.0 - 2026-06-12
 
-_No changes yet._
-
-## 2.0.0 - 2026-06-03
-
-Major release: adds an inline **Review Mode** and a **submit-for-review workflow** on top of the v1.x diff viewer.
+Major release: adds an inline **Review Mode** and a multi-reviewer **submit-for-review workflow** on top of the v1.x diff viewer.
 
 ### Added
 
@@ -21,23 +17,29 @@ Major release: adds an inline **Review Mode** and a **submit-for-review workflow
 
 **Submit-for-review workflow**
 
-- Authors submit a published draft and assign a reviewer. The reviewer can **Approve all** (publish now), **Schedule for…** (publish later via a queued job), **Reject** (terminal, with an optional note emailed to the author), or run a **Granular review** — which opens Review Mode and, on apply, publishes the accepted changes *and* closes the workflow as Approved (a partial apply finalizes the workflow; see the README).
-- Three **general** (section-agnostic) permissions under *Craft Delta*: **Submit drafts for review** (`craftdelta-submitDraft`), **Review submitted drafts** (`craftdelta-reviewDraft`), and **Apply review-mode changes** (`craftdelta-applyReview`). Which sections a user can act on is governed by Craft's native section permissions; the reviewer dropdown lists only users who can view peer drafts in the draft's section.
-- Email notifications on submit / approve / reject.
-- A **Workflow** status column on entry index pages (Pending review / Approved / Approved — scheduled / Rejected).
-- `WorkflowService` public API with `EVENT_AFTER_SUBMIT` / `EVENT_AFTER_APPROVE` / `EVENT_AFTER_REJECT` events for third-party integration.
-- `Enable Workflow` setting (default on) as a kill switch.
+- Authors submit a published draft to **one or more reviewers**. Reviewers record verdicts: **Approve**, **Request changes** (with a note emailed to the author), or **Decline** (terminal). Any single change request blocks the review; one approval with no outstanding change requests approves it.
+- **Review rounds**: after changes are requested, the author revises and **re-requests** — the reviewer set carries into a new round with fresh verdicts. Authors can **withdraw** an active request and resubmit the same draft later (the review re-opens with a new round); **decline** is terminal.
+- **Publishing** an approved review — immediately or **scheduled** via a queued job — is additionally gated by Craft's native save permission on the entry. A schedule is rescinded automatically if the approval is rescinded (changes requested, decline, withdraw, re-request) and when the draft is deleted; deleting a draft cancels its active review.
+- A **Granular review** path: Review Mode on a submitted draft; applying accepted atoms publishes them and closes the review (a partial apply finalizes the review; see the README).
+- A **Reviews** dashboard in the CP nav: reviews awaiting your verdict, your submissions, and (admins) all reviews.
+- Review comments API: general or diff-atom-anchored comments with one level of replies, resolve/unresolve, and automatic outdated detection against the live diff (`workflow/comment`, `workflow/resolve-comment`, `workflow/thread`). UI lands in a follow-up release.
+- Three **general** (section-agnostic) permissions under *Craft Delta*: **Submit drafts for review** (`craftdelta-submitDraft`), **Review submitted drafts** (`craftdelta-reviewDraft`), and **Apply review-mode changes** (`craftdelta-applyReview`). Which sections a user can act on is governed by Craft's native section permissions; the reviewer picker lists only users who can view peer drafts in the draft's section.
+- Email notifications on every transition (submitted, re-requested, changes requested, declined, approved & scheduled, published), each sent in the recipient's preferred language.
+- A **Workflow** status column on entry index pages (In review / Changes requested / Approved / Approved — scheduled / Declined / Withdrawn / Published).
+- `WorkflowService` events for third-party integration: `EVENT_AFTER_SUBMIT`, `EVENT_AFTER_APPROVE`, `EVENT_AFTER_CHANGES_REQUESTED`, `EVENT_AFTER_DECLINE`, `EVENT_AFTER_REREQUEST`, `EVENT_AFTER_WITHDRAW`, `EVENT_AFTER_PUBLISH` — each carrying the `Review` model as `$event->review`.
+- `Enable Workflow` setting (default on) as a kill switch covering both the UI and the endpoints.
 
 **Other**
 
 - `MatrixDiffer` emits each change's canonical `blockUid` so atom keys round-trip across canonical / draft / revision.
 - Review-mode and workflow translations across all 8 supported locales.
-- PHPUnit coverage for atom parsing, validation, and the Matrix merge/order algorithm.
+- PHPUnit coverage for atom parsing, validation, the Matrix merge/order algorithm, and the workflow state machine.
 
 ### Changed
 
-- Schema version bumped to `2.0.0`. Existing v1.x installs run an upgrade migration that adds the `craftdelta_draft_workflows` table.
+- Schema version is `2.1.2`. The upgrade migrations create three tables: `craftdelta_reviews`, `craftdelta_review_reviewers`, and `craftdelta_review_comments`. Reviews survive publication as audit records (`reviews.draftId` is nulled when the draft is applied and deleted).
 - Applying changes (Review Mode or the workflow's Granular review) requires the dedicated **Apply review-mode changes** (`craftdelta-applyReview`) permission; edit/save permissions alone are not sufficient. Admins have it implicitly.
+- The full-page compare view moved to the `delta-compare` CP URL so it no longer requires the *Access Craft Delta* plugin permission (the old `craft-delta/compare` URL still resolves).
 
 ### Compatibility
 
@@ -46,6 +48,7 @@ Major release: adds an inline **Review Mode** and a **submit-for-review workflow
 ### Upgrading from a 2.0.0 pre-release
 
 - Workflow permissions are no longer scoped per section. If a pre-release granted `craftdelta-*:<sectionUid>` keys, those are obsolete — re-grant the three general permissions and manage section access through Craft's native section permissions.
+- The pre-release single-reviewer `craftdelta_draft_workflows` table is dropped and replaced by the reviews tables; pre-release workflow rows are not migrated.
 
 ## 1.1.0 - 2026-04-15
 

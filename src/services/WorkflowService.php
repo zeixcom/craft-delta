@@ -8,52 +8,126 @@ use Craft;
 use craft\base\Component;
 use craft\elements\Entry;
 use craft\elements\User;
-use craft\helpers\Db;
 use craft\helpers\DateTimeHelper;
+use craft\helpers\Db;
 use DateTime;
 use yii\base\InvalidArgumentException;
 use yii\web\ForbiddenHttpException;
 use zeixcom\craftdelta\Delta;
 use zeixcom\craftdelta\events\WorkflowEvent;
-use zeixcom\craftdelta\models\DraftWorkflow;
+use zeixcom\craftdelta\i18n\TranslationKeys;
+use zeixcom\craftdelta\models\Review;
+use zeixcom\craftdelta\models\ReviewReviewer;
 use zeixcom\craftdelta\queue\jobs\ApplyScheduledDraft;
-use zeixcom\craftdelta\records\DraftWorkflowRecord;
+use zeixcom\craftdelta\records\ReviewRecord;
+use zeixcom\craftdelta\records\ReviewReviewerRecord;
 
 /**
- * Owns the submit-for-review state machine and the only writer of the
- * craftdelta_draft_workflows table. Controllers stay thin and delegate here.
+ * Owns the review-request state machine and is the only writer of the
+ * craftdelta_reviews / craftdelta_review_reviewers tables. Controllers stay thin
+ * and delegate here.
+ *
+ * `reviews.state` is a CACHE of a derivation over the current round's reviewer
+ * verdicts (see deriveState). declined / cancelled / published are explicit,
+ * set by an action — never derived.
  */
 class WorkflowService extends Component
 {
     public const EVENT_AFTER_SUBMIT = 'afterSubmit';
     public const EVENT_AFTER_APPROVE = 'afterApprove';
-    public const EVENT_AFTER_REJECT = 'afterReject';
+    public const EVENT_AFTER_CHANGES_REQUESTED = 'afterChangesRequested';
+    public const EVENT_AFTER_DECLINE = 'afterDecline';
+    public const EVENT_AFTER_REREQUEST = 'afterReRequest';
+    public const EVENT_AFTER_WITHDRAW = 'afterWithdraw';
+    public const EVENT_AFTER_PUBLISH = 'afterPublish';
 
-    private const TRANSITIONS = [
-        DraftWorkflow::STATE_PENDING => [
-            DraftWorkflow::STATE_APPROVED,
-            DraftWorkflow::STATE_REJECTED,
-        ],
-        DraftWorkflow::STATE_APPROVED => [],
-        DraftWorkflow::STATE_REJECTED => [],
+    /** States from which the cached state may still be re-derived from verdicts. */
+    private const DERIVABLE_STATES = [
+        Review::STATE_OPEN,
+        Review::STATE_CHANGES_REQUESTED,
+        Review::STATE_APPROVED,
     ];
 
-    public static function isTransitionAllowed(string $from, string $to): bool
+    /**
+     * Derive a review's overall state from its current round's reviewer verdicts.
+     * Pure + static so the precedence rule is unit-testable without a kernel.
+     *
+     * Precedence: any "changes requested" blocks; else any "approved" passes;
+     * else still open.
+     *
+     * @param string[] $verdicts Current-round verdict strings.
+     */
+    public static function deriveState(array $verdicts): string
     {
-        return in_array($to, self::TRANSITIONS[$from] ?? [], true);
+        if (in_array(ReviewReviewer::VERDICT_CHANGES_REQUESTED, $verdicts, true)) {
+            return Review::STATE_CHANGES_REQUESTED;
+        }
+        if (in_array(ReviewReviewer::VERDICT_APPROVED, $verdicts, true)) {
+            return Review::STATE_APPROVED;
+        }
+        return Review::STATE_OPEN;
     }
 
-    public function getByDraftId(int $draftId): ?DraftWorkflow
+    // ---------------------------------------------------------------------
+    // Reads
+    // ---------------------------------------------------------------------
+
+    public function getByDraftId(int $draftId): ?Review
     {
-        $record = DraftWorkflowRecord::findOne(['draftId' => $draftId]);
+        $record = ReviewRecord::findOne(['draftId' => $draftId]);
         return $record ? $this->modelFromRecord($record) : null;
     }
 
-    public function getById(int $id): ?DraftWorkflow
+    public function getById(int $id): ?Review
     {
-        $record = DraftWorkflowRecord::findOne(['id' => $id]);
+        $record = ReviewRecord::findOne(['id' => $id]);
         return $record ? $this->modelFromRecord($record) : null;
     }
+
+    /**
+     * Reviews for the CP dashboard, grouped by the current user's relationship:
+     * 'assigned' (I'm a current-round reviewer and it still needs me),
+     * 'submitted' (I opened it), and 'all' (admins only).
+     *
+     * @return array{assigned: Review[], submitted: Review[], all: Review[]}
+     */
+    public function getReviewsForDashboard(User $user): array
+    {
+        $submitted = array_map(
+            fn(ReviewRecord $r) => $this->modelFromRecord($r),
+            ReviewRecord::find()->where(['submittedBy' => $user->id])->orderBy(['dateUpdated' => SORT_DESC])->all(),
+        );
+
+        // Assigned to me: a current-round reviewer row that's still actionable.
+        $assigned = [];
+        $seen = [];
+        /** @var ReviewReviewerRecord[] $rows */
+        $rows = ReviewReviewerRecord::find()->where(['userId' => $user->id])->orderBy(['id' => SORT_DESC])->all();
+        foreach ($rows as $row) {
+            if (isset($seen[$row->reviewId])) {
+                continue;
+            }
+            $review = $this->getById((int)$row->reviewId);
+            if ($review !== null && (int)$row->round === $review->round && $review->isActive()) {
+                $assigned[] = $review;
+                $seen[$row->reviewId] = true;
+            }
+        }
+
+        $all = [];
+        if ($user->admin) {
+            $all = array_map(
+                fn(ReviewRecord $r) => $this->modelFromRecord($r),
+                ReviewRecord::find()->orderBy(['dateUpdated' => SORT_DESC])->limit(200)->all(),
+            );
+        }
+
+        return ['assigned' => $assigned, 'submitted' => $submitted, 'all' => $all];
+    }
+
+    // ---------------------------------------------------------------------
+    // Permissions
+    // ---------------------------------------------------------------------
 
     public function canSubmit(User $user, Entry $draft): bool
     {
@@ -64,35 +138,43 @@ class WorkflowService extends Component
         if ($section === null) {
             return false;
         }
+        /** @var \craft\behaviors\DraftBehavior|null $draftBehavior */
         $draftBehavior = $draft->getBehavior('draft');
         $creatorId = $draftBehavior?->creatorId;
         if ($creatorId !== null && $creatorId !== $user->id && !$user->admin) {
             return false;
         }
-        return $user->can('craftdelta-submitDraft');
+        return $user->can(Delta::PERMISSION_SUBMIT);
     }
 
-    public function canReview(User $user, DraftWorkflow $wf): bool
+    public function canReview(User $user, Review $review): bool
     {
         if ($user->admin) {
             return true;
         }
-        if ($wf->assigneeId !== $user->id) {
+        if (!$user->can(Delta::PERMISSION_REVIEW)) {
             return false;
         }
-        return $user->can('craftdelta-reviewDraft');
+        foreach ($review->reviewers as $reviewer) {
+            if ($reviewer->userId === $user->id) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public function canActAsAuthor(User $user, Review $review): bool
+    {
+        return $user->admin || $review->submittedBy === $user->id;
     }
 
     public function getEligibleAssignees(string $sectionUid, ?int $excludeUserId = null): array
     {
-        // Holders of the general review permission. Section visibility is no
-        // longer encoded in the permission itself, so we additionally keep only
-        // reviewers who can actually reach this section's drafts — otherwise an
-        // assignee could be picked but hit a 403 when opening the draft.
-        // ->can() already returns true for admins, so they are never filtered out.
+        // Holders of the general review permission who can actually reach this
+        // section's drafts. ->can() already returns true for admins.
         $users = User::find()
             ->status(User::STATUS_ACTIVE)
-            ->can('craftdelta-reviewDraft')
+            ->can(Delta::PERMISSION_REVIEW)
             ->orderBy(['fullName' => SORT_ASC])
             ->all();
 
@@ -108,7 +190,20 @@ class WorkflowService extends Component
         return $users;
     }
 
-    public function submit(Entry $draft, int $assigneeId, User $submittedBy): DraftWorkflow
+    // ---------------------------------------------------------------------
+    // Transitions
+    // ---------------------------------------------------------------------
+
+    /**
+     * Open a review on a draft, requesting one or more reviewers.
+     *
+     * A withdrawn (cancelled, never-applied) review does not block: it is
+     * re-opened in place with a new round, so authors can pull a request back,
+     * revise, and resubmit the same draft. Declined stays terminal.
+     *
+     * @param int[] $reviewerIds
+     */
+    public function submit(Entry $draft, array $reviewerIds, User $submittedBy): Review
     {
         $this->assertCanSubmit($submittedBy, $draft);
 
@@ -119,155 +214,432 @@ class WorkflowService extends Component
         if ($section === null) {
             throw new InvalidArgumentException('Draft has no section.');
         }
-
         $existing = $this->getByDraftId($draft->draftId);
-        if ($existing !== null) {
-            throw new InvalidArgumentException('A workflow already exists for this draft.');
+        if ($existing !== null && !($existing->state === Review::STATE_CANCELLED && $existing->appliedAt === null)) {
+            throw new InvalidArgumentException('A review already exists for this draft.');
         }
 
-        // Validate the assignee server-side — the dropdown is only a hint. This
-        // rejects self-assignment (the submitter is excluded) and any reviewer
-        // who can't actually review this section's drafts, preventing both a
-        // separation-of-duties bypass and workflows stranded on an ineligible
-        // assignee who can never pass canReview().
+        // Validate reviewers server-side — the picker is only a hint. Rejects the
+        // author (excluded from eligible) and anyone who can't reach the section.
         $eligibleIds = array_map(
             static fn(User $u) => (int)$u->id,
             $this->getEligibleAssignees($section->uid, $submittedBy->id),
         );
-        if (!in_array($assigneeId, $eligibleIds, true)) {
-            throw new InvalidArgumentException('The selected reviewer is not eligible to review drafts in this section.');
+        $reviewerIds = array_values(array_unique(array_map('intval', $reviewerIds)));
+        if (count($reviewerIds) === 0) {
+            throw new InvalidArgumentException('Select at least one reviewer.');
+        }
+        foreach ($reviewerIds as $rid) {
+            if (!in_array($rid, $eligibleIds, true)) {
+                throw new InvalidArgumentException('A selected reviewer is not eligible to review drafts in this section.');
+            }
         }
 
-        $record = new DraftWorkflowRecord();
-        $record->draftId = $draft->draftId;
-        $record->canonicalEntryId = $draft->getCanonicalId();
-        $record->sectionUid = $section->uid;
-        $record->state = DraftWorkflow::STATE_PENDING;
-        $record->submittedBy = $submittedBy->id;
-        $record->assigneeId = $assigneeId;
-        if (!$record->save(false)) {
-            throw new InvalidArgumentException('Failed to persist workflow submit state.');
-        }
+        $review = Craft::$app->getDb()->transaction(function() use ($draft, $section, $submittedBy, $reviewerIds, $existing) {
+            if ($existing !== null) {
+                // Re-open the withdrawn review in place (the unique draftId
+                // index forbids a second row). Conditional UPDATE so a
+                // concurrent submit/conclude can't double-reopen.
+                $round = $existing->round + 1;
+                $claimed = ReviewRecord::updateAll(
+                    [
+                        'state' => Review::STATE_OPEN,
+                        'round' => $round,
+                        'submittedBy' => $submittedBy->id,
+                        'decidedBy' => null,
+                        'decisionNote' => null,
+                        'scheduledFor' => null,
+                        'dateUpdated' => Db::prepareDateForDb(new DateTime()),
+                    ],
+                    ['id' => $existing->id, 'state' => Review::STATE_CANCELLED, 'appliedAt' => null],
+                );
+                if ($claimed === 0) {
+                    throw new InvalidArgumentException('A review already exists for this draft.');
+                }
+                foreach ($reviewerIds as $rid) {
+                    $this->insertReviewer($existing->id, $rid, $round);
+                }
+                return $this->loadReview($existing->id);
+            }
 
-        $wf = $this->modelFromRecord($record);
-
-        Delta::getInstance()->email->sendSubmitted($wf, $draft);
-
-        $this->trigger(self::EVENT_AFTER_SUBMIT, new WorkflowEvent(['workflow' => $wf]));
-
-        return $wf;
-    }
-
-    public function approveWholesale(DraftWorkflow $wf, ?DateTime $scheduledFor, User $reviewer): void
-    {
-        $this->assertCanReview($reviewer, $wf);
-        $this->assertTransition($wf->state, DraftWorkflow::STATE_APPROVED);
-
-        $wf = $this->mutateRecord($wf->id, function (DraftWorkflowRecord $record) use ($reviewer, $scheduledFor): void {
-            $record->state = DraftWorkflow::STATE_APPROVED;
-            $record->decidedBy = $reviewer->id;
-            $record->scheduledFor = $scheduledFor ? Db::prepareDateForDb($scheduledFor) : null;
+            $record = new ReviewRecord();
+            $record->draftId = $draft->draftId;
+            $record->canonicalEntryId = $draft->getCanonicalId();
+            $record->sectionUid = $section->uid;
+            $record->state = Review::STATE_OPEN;
+            $record->round = 1;
+            $record->submittedBy = $submittedBy->id;
+            if (!$record->save(false)) {
+                throw new InvalidArgumentException('Failed to persist review.');
+            }
+            foreach ($reviewerIds as $rid) {
+                $this->insertReviewer($record->id, $rid, 1);
+            }
+            return $this->modelFromRecord($record);
         });
 
-        if ($scheduledFor === null) {
-            $this->applyDraftNow($wf);
-        } else {
-            Craft::$app->getQueue()->delay(max(0, $scheduledFor->getTimestamp() - time()))
-                ->push(new ApplyScheduledDraft(['workflowId' => $wf->id]));
+        $draftEntry = $this->getDraftEntry($review->draftId);
+        if ($draftEntry !== null) {
+            foreach ($review->reviewers as $reviewer) {
+                Delta::getInstance()->email->sendSubmitted($review, $draftEntry, $reviewer->userId);
+            }
         }
 
-        $draft = $this->getDraftEntry($wf->draftId);
-        if ($draft) {
-            Delta::getInstance()->email->sendApproved($wf, $draft);
-        }
+        $this->trigger(self::EVENT_AFTER_SUBMIT, new WorkflowEvent(['review' => $review]));
 
-        $this->trigger(self::EVENT_AFTER_APPROVE, new WorkflowEvent(['workflow' => $wf]));
+        return $review;
+    }
+
+    /** A reviewer approves the current round. */
+    public function approve(Review $review, User $reviewer): Review
+    {
+        $this->assertCanReview($reviewer, $review);
+        $this->assertActive($review);
+
+        Craft::$app->getDb()->transaction(function() use ($review, $reviewer) {
+            $this->writeVerdict($review->id, $review->round, $reviewer->id, ReviewReviewer::VERDICT_APPROVED, null);
+            $this->recomputeState($review->id, $review->round);
+        });
+
+        $fresh = $this->loadReview($review->id);
+        $this->trigger(self::EVENT_AFTER_APPROVE, new WorkflowEvent(['review' => $fresh]));
+        return $fresh;
+    }
+
+    /** A reviewer asks for changes (the iterate loop). */
+    public function requestChanges(Review $review, User $reviewer, ?string $note): Review
+    {
+        $this->assertCanReview($reviewer, $review);
+        $this->assertActive($review);
+
+        Craft::$app->getDb()->transaction(function() use ($review, $reviewer, $note) {
+            $this->writeVerdict($review->id, $review->round, $reviewer->id, ReviewReviewer::VERDICT_CHANGES_REQUESTED, $note);
+            $this->recomputeState($review->id, $review->round);
+        });
+
+        $fresh = $this->loadReview($review->id);
+        $this->notifyAuthor($fresh, fn(Entry $draft, User $author) =>
+            Delta::getInstance()->email->sendChangesRequested($fresh, $draft, $author, $note));
+        $this->trigger(self::EVENT_AFTER_CHANGES_REQUESTED, new WorkflowEvent(['review' => $fresh]));
+        return $fresh;
+    }
+
+    /** A reviewer declines outright (terminal hard-no). */
+    public function decline(Review $review, User $reviewer, ?string $note): Review
+    {
+        $this->assertCanReview($reviewer, $review);
+
+        $fresh = $this->transition(
+            $review->id,
+            [Review::STATE_OPEN, Review::STATE_CHANGES_REQUESTED, Review::STATE_APPROVED],
+            Review::STATE_DECLINED,
+            ['decidedBy' => $reviewer->id, 'decisionNote' => $note, 'scheduledFor' => null],
+        );
+
+        $this->notifyAuthor($fresh, fn(Entry $draft, User $author) =>
+            Delta::getInstance()->email->sendDeclined($fresh, $draft, $author, $note));
+        $this->trigger(self::EVENT_AFTER_DECLINE, new WorkflowEvent(['review' => $fresh]));
+        return $fresh;
+    }
+
+    /** The author revised and re-requests review (changes_requested → open, round++). */
+    public function reRequest(Review $review, User $author): Review
+    {
+        $this->assertCanActAsAuthor($author, $review);
+
+        $reopened = Craft::$app->getDb()->transaction(function() use ($review) {
+            $next = $this->transition(
+                $review->id,
+                [Review::STATE_CHANGES_REQUESTED],
+                Review::STATE_OPEN,
+                ['round' => $review->round + 1, 'scheduledFor' => null],
+            );
+
+            // Carry the reviewer set into the new round, reset to pending.
+            /** @var ReviewReviewerRecord[] $previous */
+            $previous = ReviewReviewerRecord::find()
+                ->where(['reviewId' => $review->id, 'round' => $review->round])
+                ->all();
+            foreach ($previous as $row) {
+                $this->insertReviewer($review->id, (int)$row->userId, $next->round);
+            }
+
+            return $next;
+        });
+
+        $fresh = $this->loadReview($reopened->id);
+        $draftEntry = $this->getDraftEntry($fresh->draftId);
+        if ($draftEntry !== null) {
+            foreach ($fresh->reviewers as $reviewer) {
+                Delta::getInstance()->email->sendReRequested($fresh, $draftEntry, $reviewer->userId);
+            }
+        }
+        $this->trigger(self::EVENT_AFTER_REREQUEST, new WorkflowEvent(['review' => $fresh]));
+        return $fresh;
+    }
+
+    /** The author withdraws the request (terminal). */
+    public function withdraw(Review $review, User $user): Review
+    {
+        $this->assertCanActAsAuthor($user, $review);
+
+        $fresh = $this->transition(
+            $review->id,
+            [Review::STATE_OPEN, Review::STATE_CHANGES_REQUESTED, Review::STATE_APPROVED],
+            Review::STATE_CANCELLED,
+            ['decidedBy' => $user->id, 'scheduledFor' => null],
+        );
+
+        $this->trigger(self::EVENT_AFTER_WITHDRAW, new WorkflowEvent(['review' => $fresh]));
+        return $fresh;
     }
 
     /**
-     * Close a pending workflow because the reviewer resolved it through Review
-     * Mode's granular apply. By the time this runs, MergeService has ALREADY
-     * published the accepted atoms to canonical — so, unlike approveWholesale(),
-     * this performs NO publish of its own. It records the decision, stamps
-     * appliedAt, and fires the approve event so notifications and third-party
-     * integrations still run.
-     *
-     * The source draft is left as the caller's "delete source draft" option
-     * dictated: kept (the rejected changes remain in it as a record of what was
-     * declined) or already deleted (which cascade-removes this row, in which
-     * case the caller never reaches this method).
+     * Publish an approved review wholesale, now or scheduled. The caller
+     * (controller) is responsible for the native canSave permission check.
      */
-    public function resolveByReview(DraftWorkflow $wf, User $reviewer): void
+    public function publish(Review $review, ?DateTime $scheduledFor, User $publisher): Review
     {
-        $this->assertCanReview($reviewer, $wf);
-        $this->assertTransition($wf->state, DraftWorkflow::STATE_APPROVED);
-
-        $wf = $this->mutateRecord($wf->id, function (DraftWorkflowRecord $record) use ($reviewer): void {
-            $record->state = DraftWorkflow::STATE_APPROVED;
-            $record->decidedBy = $reviewer->id;
-            $record->appliedAt = Db::prepareDateForDb(new DateTime());
-        });
-
-        $draft = $this->getDraftEntry($wf->draftId);
-        if ($draft) {
-            Delta::getInstance()->email->sendApproved($wf, $draft);
+        if (!$review->isApproved()) {
+            throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::ONLY_APPROVED_REVIEW_CAN_PUBLISH));
         }
 
-        $this->trigger(self::EVENT_AFTER_APPROVE, new WorkflowEvent(['workflow' => $wf]));
-    }
-
-    public function reject(DraftWorkflow $wf, ?string $note, User $reviewer): void
-    {
-        $this->assertCanReview($reviewer, $wf);
-        $this->assertTransition($wf->state, DraftWorkflow::STATE_REJECTED);
-
-        $wf = $this->mutateRecord($wf->id, function (DraftWorkflowRecord $record) use ($reviewer, $note): void {
-            $record->state = DraftWorkflow::STATE_REJECTED;
-            $record->decidedBy = $reviewer->id;
-            $record->rejectNote = $note;
-        });
-
-        $draft = $this->getDraftEntry($wf->draftId);
-        if ($draft) {
-            Delta::getInstance()->email->sendRejected($wf, $draft);
+        if ($scheduledFor === null) {
+            // applyDraftNow() publishes and fires the publish notification + event
+            // on success — don't notify again here.
+            $this->applyDraftNow($review);
+            return $this->loadReview($review->id);
         }
 
-        $this->trigger(self::EVENT_AFTER_REJECT, new WorkflowEvent(['workflow' => $wf]));
+        // Keep state approved (scheduled) and queue the apply.
+        $this->transition(
+            $review->id,
+            [Review::STATE_APPROVED],
+            Review::STATE_APPROVED,
+            ['scheduledFor' => Db::prepareDateForDb($scheduledFor), 'decidedBy' => $publisher->id],
+        );
+        try {
+            Craft::$app->getQueue()->delay(max(0, $scheduledFor->getTimestamp() - time()))
+                ->push(new ApplyScheduledDraft(['reviewId' => $review->id]));
+        } catch (\Throwable $e) {
+            // The schedule is committed but the job push failed; clear it so
+            // the review isn't stranded "scheduled" with nothing to apply it.
+            ReviewRecord::updateAll(
+                ['scheduledFor' => null],
+                ['id' => $review->id, 'state' => Review::STATE_APPROVED, 'appliedAt' => null],
+            );
+            throw $e;
+        }
+
+        // Notify "approved — scheduled" now; the publish notification + event
+        // fire when the queue job runs applyDraftNow().
+        $fresh = $this->loadReview($review->id);
+        $this->notifyAuthor($fresh, fn(Entry $draft, User $author) =>
+            Delta::getInstance()->email->sendPublished($fresh, $draft, $author));
+        return $fresh;
     }
 
-    public function applyDraftNow(DraftWorkflow $wf): void
+    /**
+     * Close a review because the reviewer resolved it through Review Mode's
+     * granular apply. MergeService has ALREADY published the accepted atoms, so
+     * this performs no publish of its own — it just marks the review published.
+     */
+    public function resolveByReview(Review $review, User $reviewer): void
     {
-        // Atomically claim the workflow before publishing: only the writer that
-        // flips appliedAt from NULL proceeds. This serialises concurrent
-        // triggers (e.g. the scheduled queue job firing while an admin also
-        // applies, or a retried queue message) so a draft can never be applied
-        // twice. The conditional UPDATE is the lock.
-        $claimed = DraftWorkflowRecord::updateAll(
-            ['appliedAt' => Db::prepareDateForDb(new DateTime()), 'scheduledFor' => null],
-            ['id' => $wf->id, 'appliedAt' => null],
+        $this->assertCanReview($reviewer, $review);
+
+        $now = Db::prepareDateForDb(new DateTime());
+        $claimed = ReviewRecord::updateAll(
+            [
+                'state' => Review::STATE_PUBLISHED,
+                'appliedAt' => $now,
+                'scheduledFor' => null,
+                'decidedBy' => $reviewer->id,
+                'dateUpdated' => $now,
+            ],
+            ['id' => $review->id, 'appliedAt' => null],
+        );
+        if ($claimed === 0) {
+            return; // already concluded by another process
+        }
+
+        $this->notifyPublished($this->loadReview($review->id));
+    }
+
+    /**
+     * Atomically claim and publish the draft to canonical. Used by publish()
+     * (immediate) and by the scheduled queue job. The conditional UPDATE on
+     * appliedAt is the lock that prevents a double-apply.
+     */
+    public function applyDraftNow(Review $review): void
+    {
+        $originalScheduledFor = $review->scheduledFor;
+
+        $now = Db::prepareDateForDb(new DateTime());
+        $claimed = ReviewRecord::updateAll(
+            ['appliedAt' => $now, 'state' => Review::STATE_PUBLISHED, 'scheduledFor' => null, 'dateUpdated' => $now],
+            ['id' => $review->id, 'appliedAt' => null],
         );
         if ($claimed === 0) {
             return; // already applied by another process
         }
 
-        $draft = $this->getDraftEntry($wf->draftId);
+        $draft = $this->getDraftEntry($review->draftId);
         if ($draft === null) {
-            // Draft is gone (published/deleted elsewhere). The claim above
-            // already marks this workflow applied, so there is nothing to do.
-            return;
+            return; // draft gone; claim already marks it published
         }
 
         try {
             Craft::$app->getDrafts()->applyDraft($draft);
         } catch (\Throwable $e) {
-            // Release the claim so the queue can retry the apply.
-            DraftWorkflowRecord::updateAll(['appliedAt' => null], ['id' => $wf->id]);
+            // Release the claim and restore the schedule so a retry re-applies.
+            ReviewRecord::updateAll(
+                [
+                    'appliedAt' => null,
+                    'state' => Review::STATE_APPROVED,
+                    'scheduledFor' => $originalScheduledFor ? Db::prepareDateForDb($originalScheduledFor) : null,
+                ],
+                ['id' => $review->id],
+            );
             throw $e;
+        }
+
+        // Published — notify the author and fire the event, exactly once per
+        // actual publish (immediate or via the scheduled queue job).
+        $this->notifyPublished($this->loadReview($review->id));
+    }
+
+    /**
+     * Cancel any still-active review when its draft is deleted outside the
+     * workflow (author discards the draft, admin cleanup, …). Must be called
+     * from a BEFORE-delete listener, while reviews.draftId still points at the
+     * draft — after deletion the FK SET NULLs it, stranding the row as a zombie
+     * "open" review in every reviewer's dashboard. Publish-flow deletions are
+     * naturally excluded: they set appliedAt before the draft is removed.
+     */
+    public function cancelForDeletedDraft(int $draftId): void
+    {
+        ReviewRecord::updateAll(
+            [
+                'state' => Review::STATE_CANCELLED,
+                'scheduledFor' => null,
+                'dateUpdated' => Db::prepareDateForDb(new DateTime()),
+            ],
+            ['draftId' => $draftId, 'appliedAt' => null, 'state' => self::DERIVABLE_STATES],
+        );
+    }
+
+    // ---------------------------------------------------------------------
+    // Internals
+    // ---------------------------------------------------------------------
+
+    /**
+     * Atomically move a review from one of `$fromStates` to `$to`, writing the
+     * extra columns in the same conditional UPDATE. The `state IN (...)`
+     * predicate is the lock: a concurrent transition that already moved the row
+     * yields zero affected rows and aborts.
+     *
+     * @param string[] $fromStates
+     * @param array<string, mixed> $attrs
+     */
+    private function transition(int $id, array $fromStates, string $to, array $attrs = []): Review
+    {
+        $attrs['state'] = $to;
+        $attrs['dateUpdated'] = Db::prepareDateForDb(new DateTime());
+
+        $claimed = ReviewRecord::updateAll($attrs, ['id' => $id, 'state' => $fromStates]);
+        if ($claimed === 0) {
+            throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::REVIEW_ALREADY_MOVED_ON));
+        }
+
+        return $this->loadReview($id);
+    }
+
+    /** Recompute and persist the cached state from the current round's verdicts. */
+    private function recomputeState(int $reviewId, int $round): void
+    {
+        $verdicts = ReviewReviewerRecord::find()
+            ->select(['verdict'])
+            ->where(['reviewId' => $reviewId, 'round' => $round])
+            ->column();
+
+        $state = self::deriveState($verdicts);
+        $attrs = ['state' => $state, 'dateUpdated' => Db::prepareDateForDb(new DateTime())];
+        if ($state !== Review::STATE_APPROVED) {
+            // Leaving "approved" rescinds any pending schedule, so a queued
+            // ApplyScheduledDraft job from the old approval can never publish a
+            // draft whose approval was taken back (the job requires a non-null,
+            // due scheduledFor).
+            $attrs['scheduledFor'] = null;
+        }
+
+        ReviewRecord::updateAll($attrs, ['id' => $reviewId, 'state' => self::DERIVABLE_STATES]);
+    }
+
+    /** Upsert a reviewer's verdict for the current round. */
+    private function writeVerdict(int $reviewId, int $round, int $userId, string $verdict, ?string $note): void
+    {
+        $record = ReviewReviewerRecord::findOne(['reviewId' => $reviewId, 'userId' => $userId, 'round' => $round]);
+        if ($record === null) {
+            // An admin acting without being on the requested set joins the round.
+            $record = new ReviewReviewerRecord();
+            $record->reviewId = $reviewId;
+            $record->userId = $userId;
+            $record->round = $round;
+        }
+        $record->verdict = $verdict;
+        $record->note = $note;
+        $record->decidedAt = Db::prepareDateForDb(new DateTime());
+        if (!$record->save(false)) {
+            throw new InvalidArgumentException('Failed to persist reviewer verdict.');
         }
     }
 
-    private function getDraftEntry(int $draftId): ?Entry
+    private function insertReviewer(int $reviewId, int $userId, int $round): void
     {
+        $record = new ReviewReviewerRecord();
+        $record->reviewId = $reviewId;
+        $record->userId = $userId;
+        $record->round = $round;
+        $record->verdict = ReviewReviewer::VERDICT_PENDING;
+        if (!$record->save(false)) {
+            throw new InvalidArgumentException('Failed to persist reviewer.');
+        }
+    }
+
+    /**
+     * Resolve the review's draft entry and submitting author, then run the
+     * callback. Used for author-facing notifications; a no-op if either is gone.
+     *
+     * @param callable(Entry, User): void $callback
+     */
+    private function notifyAuthor(Review $review, callable $callback): void
+    {
+        $draft = $this->getDraftEntry($review->draftId);
+        $author = Craft::$app->getUsers()->getUserById($review->submittedBy);
+        if ($draft !== null && $author !== null) {
+            $callback($draft, $author);
+        }
+    }
+
+    private function notifyPublished(Review $review): void
+    {
+        // After a wholesale publish the draft is gone (applyDraft deletes it),
+        // so fall back to the canonical entry for the notification link/title.
+        $entry = $this->getDraftEntry($review->draftId)
+            ?? Craft::$app->getEntries()->getEntryById($review->canonicalEntryId);
+        $author = Craft::$app->getUsers()->getUserById($review->submittedBy);
+        if ($entry !== null && $author !== null) {
+            Delta::getInstance()->email->sendPublished($review, $entry, $author);
+        }
+        $this->trigger(self::EVENT_AFTER_PUBLISH, new WorkflowEvent(['review' => $review]));
+    }
+
+    private function getDraftEntry(?int $draftId): ?Entry
+    {
+        if ($draftId === null) {
+            return null;
+        }
         return Entry::find()
             ->draftId($draftId)
             ->status(null)
@@ -277,69 +649,99 @@ class WorkflowService extends Component
     private function assertCanSubmit(User $user, Entry $draft): void
     {
         if (!$this->canSubmit($user, $draft)) {
-            throw new ForbiddenHttpException('You do not have permission to submit drafts for this section.');
+            throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NO_PERMISSION_SUBMIT_SECTION));
         }
     }
 
-    private function assertCanReview(User $reviewer, DraftWorkflow $wf): void
+    private function assertCanReview(User $reviewer, Review $review): void
     {
-        if (!$this->canReview($reviewer, $wf)) {
-            throw new ForbiddenHttpException('You are not the assigned reviewer for this draft.');
+        if (!$this->canReview($reviewer, $review)) {
+            throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NOT_REVIEWER_FOR_DRAFT));
         }
     }
 
-    private function assertTransition(string $from, string $to): void
+    private function assertCanActAsAuthor(User $user, Review $review): void
     {
-        if (!self::isTransitionAllowed($from, $to)) {
-            throw new ForbiddenHttpException("Illegal transition: {$from} → {$to}");
+        if (!$this->canActAsAuthor($user, $review)) {
+            throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::ONLY_AUTHOR_CAN_DO_THAT));
         }
     }
 
-    /**
-     * Load a workflow record by id, apply a mutation, persist it, and return the
-     * refreshed model. Centralises the find / null-guard / save / hydrate
-     * boilerplate shared by every state transition.
-     *
-     * @param callable(DraftWorkflowRecord): void $mutator
-     */
-    private function mutateRecord(int $id, callable $mutator): DraftWorkflow
+    private function assertActive(Review $review): void
     {
-        $record = DraftWorkflowRecord::findOne(['id' => $id]);
+        if (!$review->isActive()) {
+            throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::REVIEW_NO_LONGER_OPEN));
+        }
+    }
+
+    private function loadReview(int $id): Review
+    {
+        $record = ReviewRecord::findOne(['id' => $id]);
         if ($record === null) {
-            throw new InvalidArgumentException('Workflow not found.');
-        }
-        $mutator($record);
-        if (!$record->save(false)) {
-            throw new InvalidArgumentException('Failed to persist workflow state.');
+            throw new InvalidArgumentException('Review not found.');
         }
         return $this->modelFromRecord($record);
     }
 
-    private function modelFromRecord(DraftWorkflowRecord $record): DraftWorkflow
+    private function modelFromRecord(ReviewRecord $record): Review
     {
-        return new DraftWorkflow([
+        $review = new Review([
             'id' => $record->id,
             'draftId' => $record->draftId,
             'canonicalEntryId' => $record->canonicalEntryId,
             'sectionUid' => $record->sectionUid,
             'state' => $record->state,
+            'round' => (int)$record->round,
             'submittedBy' => $record->submittedBy,
-            'assigneeId' => $record->assigneeId,
             'decidedBy' => $record->decidedBy,
-            'rejectNote' => $record->rejectNote,
+            'decisionNote' => $record->decisionNote,
             'scheduledFor' => $this->parseDbDate($record->scheduledFor),
             'appliedAt' => $this->parseDbDate($record->appliedAt),
             'dateCreated' => $this->parseDbDate($record->dateCreated),
             'dateUpdated' => $this->parseDbDate($record->dateUpdated),
             'uid' => $record->uid,
         ]);
+        $review->reviewers = $this->loadReviewers((int)$record->id, (int)$record->round);
+        return $review;
     }
 
     /**
-     * Parse a datetime string from the DB into a DateTime. Craft stores
-     * datetimes in UTC; a bare `new DateTime($str)` would misread them in the
-     * server/user timezone (off by the UTC offset, varying with DST), which
-     * then surfaces a wrong time in the approval email. DateTimeHelper pins UTC.
+     * Load the current round's reviewer rows as models, with display names.
+     *
+     * @return ReviewReviewer[]
+     */
+    private function loadReviewers(int $reviewId, int $round): array
+    {
+        /** @var ReviewReviewerRecord[] $records */
+        $records = ReviewReviewerRecord::find()
+            ->where(['reviewId' => $reviewId, 'round' => $round])
+            ->all();
+
+        $models = [];
+        foreach ($records as $record) {
+            $model = new ReviewReviewer([
+                'id' => $record->id,
+                'reviewId' => $record->reviewId,
+                'userId' => $record->userId,
+                'round' => (int)$record->round,
+                'verdict' => $record->verdict,
+                'note' => $record->note,
+                'decidedAt' => $this->parseDbDate($record->decidedAt),
+                'dateCreated' => $this->parseDbDate($record->dateCreated),
+                'dateUpdated' => $this->parseDbDate($record->dateUpdated),
+                'uid' => $record->uid,
+            ]);
+            $user = Craft::$app->getUsers()->getUserById((int)$record->userId);
+            $model->userName = $user ? ($user->fullName ?: $user->username) : null;
+            $models[] = $model;
+        }
+
+        return $models;
+    }
+
+    /**
+     * Parse a UTC datetime string from the DB. A bare `new DateTime($str)` would
+     * misread it in the server/user timezone; DateTimeHelper pins UTC.
      */
     private function parseDbDate(?string $value): ?DateTime
     {

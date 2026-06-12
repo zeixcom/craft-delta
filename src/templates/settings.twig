@@ -2,52 +2,65 @@
 
 {% import '_includes/forms.twig' as forms %}
 
-{{ forms.textField({
-    first: true,
-    label: 'Diff Context Lines'|t('craft-delta'),
-    instructions: 'Number of unchanged lines to show around changes.'|t('craft-delta'),
-    id: 'diffContext',
-    name: 'diffContext',
-    value: settings.diffContext,
-    type: 'number',
-    min: 0,
-    max: 20,
-    size: 5,
-    errors: settings.getErrors('diffContext'),
-}) }}
+<h2 class="first">{{ deltaKeys.generalSettings|t('craft-delta') }}</h2>
 
-{{ forms.textField({
-    label: 'Max Field Length'|t('craft-delta'),
-    instructions: 'Maximum characters before showing a simplified diff. Prevents performance issues on very large fields.'|t('craft-delta'),
-    id: 'maxFieldLength',
-    name: 'maxFieldLength',
-    value: settings.maxFieldLength,
-    type: 'number',
-    min: 1000,
-    size: 10,
-    errors: settings.getErrors('maxFieldLength'),
-}) }}
+<div class="field">
+    {{ forms.lightswitchField({
+        label: deltaKeys.enableReviewWorkflow|t('craft-delta'),
+        instructions: deltaKeys.enableReviewWorkflowInstructions|t('craft-delta'),
+        id: 'enableWorkflow',
+        name: 'enableWorkflow',
+        on: settings.enableWorkflow,
+    }) }}
+</div>
 
+<div class="field">
+    {{ forms.textField({
+        first: true,
+        label: deltaKeys.diffContextLines|t('craft-delta'),
+        instructions: deltaKeys.diffContextLinesInstructions|t('craft-delta'),
+        id: 'diffContext',
+        name: 'diffContext',
+        value: settings.diffContext,
+        type: 'number',
+        min: 0,
+        max: 20,
+        size: 5,
+        errors: settings.getErrors('diffContext'),
+    }) }}
+</div>
+
+<div class="field">
+    {{ forms.textField({
+        label: deltaKeys.maxFieldLength|t('craft-delta'),
+        instructions: deltaKeys.maxFieldLengthInstructions|t('craft-delta'),
+        id: 'maxFieldLength',
+        name: 'maxFieldLength',
+        value: settings.maxFieldLength,
+        type: 'number',
+        min: 1000,
+        size: 10,
+        errors: settings.getErrors('maxFieldLength'),
+    }) }}
+</div>
+
+
+<div class="field">
+    {{ forms.lightswitchField({
+        label: deltaKeys.showUnchangedFields|t('craft-delta'),
+        instructions: deltaKeys.showUnchangedFieldsInstructions|t('craft-delta'),
+        id: 'defaultShowUnchanged',
+        name: 'defaultShowUnchanged',
+        on: settings.defaultShowUnchanged,
+    }) }}
+</div>
+
+<div class="field">
 {{ forms.lightswitchField({
-    label: 'Show Unchanged Fields'|t('craft-delta'),
-    instructions: 'Show unchanged fields by default in the diff view.'|t('craft-delta'),
-    id: 'defaultShowUnchanged',
-    name: 'defaultShowUnchanged',
-    on: settings.defaultShowUnchanged,
-}) }}
-
-{{ forms.lightswitchField({
-    label: 'Enable Review Mode'|t('craft-delta'),
-    instructions: 'Show the "Start Review" button on the diff slideout and allow accepting/rejecting changes into a new draft.'|t('craft-delta'),
-    id: 'enableReviewMode',
-    name: 'enableReviewMode',
-    on: settings.enableReviewMode,
-}) }}
-
-{{ forms.lightswitchField({
-    label: 'Enable Review Workflow'|t('craft-delta'),
-    instructions: 'Show the Submit-for-review / approve / reject workflow. When off, the plugin behaves as a read-only diff tool and the workflow endpoints are disabled.'|t('craft-delta'),
-    id: 'enableWorkflow',
-    name: 'enableWorkflow',
-    on: settings.enableWorkflow,
-}) }}
+        label: deltaKeys.enableReviewMode|t('craft-delta'),
+        instructions: deltaKeys.enableReviewModeInstructions|t('craft-delta'),
+        id: 'enableReviewMode',
+        name: 'enableReviewMode',
+        on: settings.enableReviewMode,
+    }) }}
+</div>

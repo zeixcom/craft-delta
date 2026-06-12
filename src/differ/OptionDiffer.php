@@ -49,6 +49,11 @@ class OptionDiffer implements DifferInterface
             );
         }
 
+        // Same selections in a different order: no membership change to show.
+        if ($lines === []) {
+            return null;
+        }
+
         return implode("\n", $lines);
     }
 

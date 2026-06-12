@@ -7,6 +7,7 @@ namespace zeixcom\craftdelta\services;
 use Craft;
 use craft\base\Component;
 use craft\base\ElementInterface;
+use zeixcom\craftdelta\i18n\TranslationKeys;
 use zeixcom\craftdelta\models\DiffResult;
 use zeixcom\craftdelta\models\FieldDiff;
 
@@ -78,7 +79,7 @@ class DiffService extends Component
                         'fieldType' => get_class($field),
                         'tabName' => $tabName,
                         'hasChanges' => true,
-                        'diffHtml' => '<em class="delta-error">' . htmlspecialchars(Craft::t('craft-delta', 'Unable to diff this field.')) . '</em>',
+                        'diffHtml' => '<em class="delta-error">' . htmlspecialchars(Craft::t('craft-delta', TranslationKeys::UNABLE_TO_DIFF_FIELD)) . '</em>',
                         'stats' => ['additions' => 0, 'deletions' => 0],
                     ]);
                 }

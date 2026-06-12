@@ -1,7 +1,7 @@
 {% autoescape false %}
 {{ deltaKeys.emailHiName|t('craft-delta', { name: reviewer.friendlyName }) }}
 
-{{ deltaKeys.emailAuthorSubmitted|t('craft-delta', { author: author.friendlyName }) }}
+{{ deltaKeys.emailBodyResubmitted|t('craft-delta', { author: author.friendlyName, round: round }) }}
 
   {{ entry.title }}
   {{ url }}

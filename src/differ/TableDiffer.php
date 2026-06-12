@@ -42,6 +42,9 @@ class TableDiffer implements DifferInterface
                     'type' => 'modified',
                     'row' => $i + 1,
                     'cells' => $this->compareCells($oldRow, $newRow),
+                    // Unchanged cells (identical on both sides) for the
+                    // template's fallback rendering of modified rows.
+                    'values' => $newRow,
                 ];
             }
         }
@@ -55,8 +58,8 @@ class TableDiffer implements DifferInterface
 
     public function getStats(mixed $oldValue, mixed $newValue): array
     {
-        $oldRows = is_array($oldValue) ? $oldValue : [];
-        $newRows = is_array($newValue) ? $newValue : [];
+        $oldRows = is_array($oldValue) ? array_values($oldValue) : [];
+        $newRows = is_array($newValue) ? array_values($newValue) : [];
 
         $added = 0;
         $removed = 0;

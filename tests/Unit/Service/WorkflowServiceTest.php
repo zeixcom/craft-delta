@@ -5,52 +5,58 @@ declare(strict_types=1);
 namespace zeixcom\craftdelta\tests\Unit\Service;
 
 use PHPUnit\Framework\TestCase;
-use zeixcom\craftdelta\models\DraftWorkflow;
+use zeixcom\craftdelta\models\Review;
+use zeixcom\craftdelta\models\ReviewReviewer;
 use zeixcom\craftdelta\services\WorkflowService;
 
+/**
+ * The derived-state precedence rule is the heart of the multi-reviewer model,
+ * so it is exercised exhaustively here as a pure function (no kernel needed).
+ */
 class WorkflowServiceTest extends TestCase
 {
-    public function testPendingAllowsApproveAndReject(): void
+    public function testEmptyVerdictsIsOpen(): void
     {
-        $this->assertTrue(WorkflowService::isTransitionAllowed(
-            DraftWorkflow::STATE_PENDING,
-            DraftWorkflow::STATE_APPROVED
-        ));
-        $this->assertTrue(WorkflowService::isTransitionAllowed(
-            DraftWorkflow::STATE_PENDING,
-            DraftWorkflow::STATE_REJECTED
-        ));
+        $this->assertSame(Review::STATE_OPEN, WorkflowService::deriveState([]));
     }
 
-    public function testApprovedIsTerminal(): void
+    public function testAllPendingIsOpen(): void
     {
-        $this->assertFalse(WorkflowService::isTransitionAllowed(
-            DraftWorkflow::STATE_APPROVED,
-            DraftWorkflow::STATE_PENDING
-        ));
-        $this->assertFalse(WorkflowService::isTransitionAllowed(
-            DraftWorkflow::STATE_APPROVED,
-            DraftWorkflow::STATE_REJECTED
-        ));
+        $this->assertSame(Review::STATE_OPEN, WorkflowService::deriveState([
+            ReviewReviewer::VERDICT_PENDING,
+            ReviewReviewer::VERDICT_PENDING,
+        ]));
     }
 
-    public function testRejectedIsTerminal(): void
+    public function testAnyApprovalWithoutBlockIsApproved(): void
     {
-        $this->assertFalse(WorkflowService::isTransitionAllowed(
-            DraftWorkflow::STATE_REJECTED,
-            DraftWorkflow::STATE_PENDING
-        ));
-        $this->assertFalse(WorkflowService::isTransitionAllowed(
-            DraftWorkflow::STATE_REJECTED,
-            DraftWorkflow::STATE_APPROVED
-        ));
+        $this->assertSame(Review::STATE_APPROVED, WorkflowService::deriveState([
+            ReviewReviewer::VERDICT_PENDING,
+            ReviewReviewer::VERDICT_APPROVED,
+        ]));
     }
 
-    public function testUnknownStateRejected(): void
+    public function testSingleApprovalIsApproved(): void
     {
-        $this->assertFalse(WorkflowService::isTransitionAllowed(
-            'bogus',
-            DraftWorkflow::STATE_APPROVED
-        ));
+        $this->assertSame(Review::STATE_APPROVED, WorkflowService::deriveState([
+            ReviewReviewer::VERDICT_APPROVED,
+        ]));
+    }
+
+    public function testChangesRequestedBlocksEvenWithApproval(): void
+    {
+        // "Any one approves" is overridden by an unresolved "changes requested".
+        $this->assertSame(Review::STATE_CHANGES_REQUESTED, WorkflowService::deriveState([
+            ReviewReviewer::VERDICT_APPROVED,
+            ReviewReviewer::VERDICT_CHANGES_REQUESTED,
+        ]));
+    }
+
+    public function testChangesRequestedAloneBlocks(): void
+    {
+        $this->assertSame(Review::STATE_CHANGES_REQUESTED, WorkflowService::deriveState([
+            ReviewReviewer::VERDICT_CHANGES_REQUESTED,
+            ReviewReviewer::VERDICT_PENDING,
+        ]));
     }
 }
