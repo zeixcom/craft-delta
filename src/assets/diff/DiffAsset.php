@@ -9,24 +9,13 @@ use craft\web\AssetBundle;
 use craft\web\View;
 use zeixcom\craftdelta\i18n\TranslationKeys;
 
-/**
- * Asset bundle for the diff slideout UI.
- */
 class DiffAsset extends AssetBundle
 {
     public function init(): void
     {
         $this->sourcePath = __DIR__ . '/dist';
-
-        $this->css = [
-            'css/delta.css',
-        ];
-
-        $this->js = [
-            'js/delta.js',
-            'js/workflow.js',
-        ];
-
+        $this->css = ['css/delta.css'];
+        $this->js = ['js/delta.js', 'js/workflow.js'];
         parent::init();
     }
 

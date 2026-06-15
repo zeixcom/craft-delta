@@ -14,45 +14,36 @@ use craft\db\Migration;
  */
 class m260608_000001_review_draftid_setnull extends Migration
 {
+    private const TABLE = '{{%craftdelta_reviews}}';
+
     public function safeUp(): bool
     {
-        $table = '{{%craftdelta_reviews}}';
-
-        // Drop the existing draftId FK (whatever its generated name) before
-        // altering the column / re-adding the constraint.
-        $schema = $this->db->getSchema()->getTableSchema($table, true);
-        foreach ($schema->foreignKeys as $name => $fk) {
-            // $fk is [referencedTable, localCol => foreignCol, ...]
-            if (array_key_exists('draftId', $fk)) {
-                $this->dropForeignKey($name, $table);
-            }
-        }
-
-        $this->alterColumn($table, 'draftId', $this->integer()->null());
-        $this->addForeignKey(null, $table, ['draftId'], '{{%drafts}}', ['id'], 'SET NULL');
-
+        $this->dropDraftIdForeignKey();
+        $this->alterColumn(self::TABLE, 'draftId', $this->integer()->null());
+        $this->addForeignKey(null, self::TABLE, ['draftId'], '{{%drafts}}', ['id'], 'SET NULL');
         return true;
     }
 
     public function safeDown(): bool
     {
-        $table = '{{%craftdelta_reviews}}';
-
-        $schema = $this->db->getSchema()->getTableSchema($table, true);
-        foreach ($schema->foreignKeys as $name => $fk) {
-            if (array_key_exists('draftId', $fk)) {
-                $this->dropForeignKey($name, $table);
-            }
-        }
+        $this->dropDraftIdForeignKey();
 
         // Published reviews have draftId = NULL by design; they cannot exist
         // under the old NOT NULL + CASCADE schema, so drop them before the
         // ALTER (which would otherwise fail on the NULLs).
-        $this->delete($table, ['draftId' => null]);
+        $this->delete(self::TABLE, ['draftId' => null]);
 
-        $this->alterColumn($table, 'draftId', $this->integer()->notNull());
-        $this->addForeignKey(null, $table, ['draftId'], '{{%drafts}}', ['id'], 'CASCADE');
-
+        $this->alterColumn(self::TABLE, 'draftId', $this->integer()->notNull());
+        $this->addForeignKey(null, self::TABLE, ['draftId'], '{{%drafts}}', ['id'], 'CASCADE');
         return true;
+    }
+
+    private function dropDraftIdForeignKey(): void
+    {
+        foreach ($this->db->getSchema()->getTableSchema(self::TABLE, true)->foreignKeys as $name => $fk) {
+            if (array_key_exists('draftId', $fk)) {
+                $this->dropForeignKey($name, self::TABLE);
+            }
+        }
     }
 }

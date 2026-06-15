@@ -160,6 +160,7 @@ return [
     'workflow.colRound' => 'Tour',
     'workflow.commentFailed' => 'Impossible d\'enregistrer votre commentaire.',
     'workflow.generalDiscussion' => 'Discussion générale',
+    'workflow.openReview' => 'Ouvrir la revue',
     'workflow.postComment' => 'Publier le commentaire',
     'workflow.reply' => 'Répondre',
     'workflow.resolve' => 'Résoudre',
@@ -168,6 +169,7 @@ return [
     'workflow.commentPlaceholder' => 'Laisser un commentaire…',
     'workflow.replyPlaceholder' => 'Écrire une réponse…',
     'workflow.comments' => 'Commentaires',
+    'workflow.addComment' => 'Ajouter un commentaire',
     'workflow.noComments' => 'Aucun commentaire pour l\'instant.',
     'workflow.roundLabel' => 'Tour {round}',
 ];

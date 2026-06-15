@@ -10,7 +10,7 @@ use craft\elements\Asset;
 use craft\elements\db\ElementQuery;
 use craft\elements\ElementCollection;
 use zeixcom\craftdelta\enums\DiffChangeType;
-use zeixcom\craftdelta\types\ArrayTypes;
+use zeixcom\craftdelta\helpers\DiffHtml;
 
 /**
  * @phpstan-import-type DiffStats from \zeixcom\craftdelta\types\ArrayTypes
@@ -34,30 +34,21 @@ class RelationDiffer implements DifferInterface
             return null;
         }
 
-        $lines = [];
-
-        foreach ($removed as $element) {
-            $lines[] = $this->renderLine($element, DiffChangeType::Removed->value);
-        }
-
-        foreach ($added as $element) {
-            $lines[] = $this->renderLine($element, DiffChangeType::Added->value);
-        }
-
-        return implode("\n", $lines);
+        return implode("\n", [
+            ...array_map(fn($e) => $this->renderLine($e, DiffChangeType::Removed->value), $removed),
+            ...array_map(fn($e) => $this->renderLine($e, DiffChangeType::Added->value), $added),
+        ]);
     }
 
     private function renderLine(ElementInterface $element, string $changeType): string
     {
-        $cssClass = $changeType === DiffChangeType::Added->value ? 'delta-relation-added' : 'delta-relation-removed';
-        $sign = $changeType === DiffChangeType::Added->value ? '+' : '-';
+        $added = $changeType === DiffChangeType::Added->value;
 
         if ($element instanceof Asset) {
-            return $this->renderAssetLine($element, $cssClass, $sign);
+            return $this->renderAssetLine($element, $added ? 'delta-relation-added' : 'delta-relation-removed', $added ? '+' : '-');
         }
 
-        $title = htmlspecialchars((string)$element, ENT_QUOTES, 'UTF-8');
-        return sprintf('<div class="%s">%s %s</div>', $cssClass, $sign, $title);
+        return DiffHtml::relationLine((string)$element, $added);
     }
 
     private function renderAssetLine(Asset $asset, string $cssClass, string $sign): string
@@ -128,10 +119,6 @@ class RelationDiffer implements DifferInterface
 
         if ($value instanceof ElementCollection) {
             return $value->all();
-        }
-
-        if (!is_array($value)) {
-            return [];
         }
 
         $resolved = [];

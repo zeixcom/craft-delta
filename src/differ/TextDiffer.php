@@ -8,7 +8,7 @@ use Jfcherng\Diff\Differ;
 use Jfcherng\Diff\Factory\RendererFactory;
 
 /**
- * Word-level diff for plain text fields.
+ * @phpstan-import-type DiffStats from \zeixcom\craftdelta\types\ArrayTypes
  */
 class TextDiffer implements DifferInterface
 {
@@ -21,38 +21,28 @@ class TextDiffer implements DifferInterface
     {
         $old = (string)($oldValue ?? '');
         $new = (string)($newValue ?? '');
-
         if ($old === $new) {
             return null;
         }
 
-        $oldLines = explode("\n", $old);
-        $newLines = explode("\n", $new);
-
-        $differ = new Differ($oldLines, $newLines, [
+        $differ = new Differ(explode("\n", $old), explode("\n", $new), [
             'context' => $this->context,
             'ignoreWhitespace' => false,
             'ignoreCase' => false,
         ]);
 
-        $renderer = RendererFactory::make('SideBySide', [
+        return RendererFactory::make('SideBySide', [
             'detailLevel' => 'word',
             'showHeader' => false,
             'spacesToNbsp' => false,
-        ]);
-
-        return $renderer->render($differ);
+        ])->render($differ);
     }
 
-    /** @return array{additions: int, deletions: int} */
+    /** @return DiffStats */
     public function getStats(mixed $oldValue, mixed $newValue): array
     {
         $old = str_word_count((string)($oldValue ?? ''));
         $new = str_word_count((string)($newValue ?? ''));
-
-        return [
-            'additions' => max(0, $new - $old),
-            'deletions' => max(0, $old - $new),
-        ];
+        return ['additions' => max(0, $new - $old), 'deletions' => max(0, $old - $new)];
     }
 }

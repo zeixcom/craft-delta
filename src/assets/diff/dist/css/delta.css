@@ -1216,3 +1216,104 @@ button.delta-field-header {
 .delta-block .delta-comment-trigger {
     flex-shrink: 0;
 }
+
+/* ─── Dedicated review page (delta-review) ─── */
+.delta-review-header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--delta-review-bar-bg);
+    border: 1px solid var(--delta-review-bar-border);
+    border-radius: var(--large-border-radius, 8px);
+    padding: 12px 16px;
+    margin-bottom: 20px;
+}
+
+.delta-review-header-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+/* Inside the header the toolbar drops its own bar chrome — the header card
+   already provides the background and border. */
+.delta-review-header .delta-workflow-toolbar {
+    padding: 0;
+    background: none;
+    border-bottom: 0;
+    margin-top: 10px;
+}
+
+.delta-review-header .delta-review-roster {
+    margin-bottom: 0;
+}
+
+.delta-review-header .delta-workflow-actions {
+    margin-top: 0;
+}
+
+/* Discussion is a full-width section under the diff, not a toolbar footnote. */
+.delta-review-comments--page {
+    margin-top: 28px;
+    padding-top: 20px;
+}
+
+.delta-review-comments--page .delta-comments-heading {
+    font-size: 16px;
+}
+
+/* Inline anchored comment threads on the review page (GitHub-style). */
+.delta-comment-inline {
+    margin: 0 0 14px 18px;
+    padding: 8px 12px;
+    border-left: 2px solid var(--delta-review-bar-border);
+    background: var(--delta-review-bar-bg);
+    border-radius: 0 4px 4px 0;
+}
+
+.delta-comment-inline .delta-comment-list {
+    margin-top: 0;
+}
+
+.delta-comment-add {
+    margin-top: 6px;
+}
+
+.delta-comment-add .delta-comment-compose {
+    margin-top: 8px;
+}
+
+/* Slideout/compare "in review" banner → link to the dedicated review page. */
+.delta-review-link-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    background: var(--delta-review-bar-bg);
+    border: 1px solid var(--delta-review-bar-border);
+    border-radius: var(--large-border-radius, 6px);
+    font-size: 13px;
+}
+
+.delta-review-link-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.delta-review-link-meta {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    color: var(--gray-500, #7b8794);
+}
+
+.delta-review-link-open {
+    margin-left: auto;
+}

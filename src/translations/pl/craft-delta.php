@@ -160,6 +160,7 @@ return [
     'workflow.colRound' => 'Runda',
     'workflow.commentFailed' => 'Nie udało się zapisać Twojego komentarza.',
     'workflow.generalDiscussion' => 'Ogólna dyskusja',
+    'workflow.openReview' => 'Otwórz recenzję',
     'workflow.postComment' => 'Opublikuj komentarz',
     'workflow.reply' => 'Odpowiedz',
     'workflow.resolve' => 'Rozwiąż',
@@ -168,6 +169,7 @@ return [
     'workflow.commentPlaceholder' => 'Zostaw komentarz…',
     'workflow.replyPlaceholder' => 'Napisz odpowiedź…',
     'workflow.comments' => 'Komentarze',
+    'workflow.addComment' => 'Dodaj komentarz',
     'workflow.noComments' => 'Brak komentarzy.',
     'workflow.roundLabel' => 'Runda {round}',
 ];

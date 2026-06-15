@@ -1,0 +1,85 @@
+{% extends '_layouts/cp.twig' %}
+
+{% do view.registerAssetBundle('zeixcom\\craftdelta\\assets\\diff\\DiffAsset') %}
+
+{% set fullPageForm = false %}
+{% set selectedSubnavItem = null %}
+
+{% set crumbs = [
+    { label: deltaKeys.workflowReviewsTitle|t('craft-delta'), url: cpUrl('delta-reviews') },
+] %}
+
+{% block content %}
+    {% if result is null %}
+        {# Closed/published review — the draft is gone, nothing to diff. #}
+        <p class="zilch">{{ workflow.statusLabel() }}</p>
+    {% else %}
+        {# Everything lives inside .delta-review-page so workflow.js resolves its
+           root (toolbar, atom triggers, comments) against one container. #}
+        <div class="delta-review-page" id="delta-review-root">
+            {% include 'craft-delta/_review-header' with {
+                result: result,
+                reviewMode: reviewMode,
+                workflow: workflow,
+                isReviewer: isReviewer,
+                entryId: entryId,
+                siteId: siteId,
+                sourceRef: sourceRef,
+                canonicalUpdatedAt: canonicalUpdatedAt,
+                sourceUpdatedAt: sourceUpdatedAt,
+            } %}
+
+            <div class="delta-review-body">
+                {% include 'craft-delta/_diff-fields' with { result: result, reviewMode: reviewMode } %}
+            </div>
+
+            {% include 'craft-delta/_review-discussion' with { workflow: workflow } %}
+        </div>
+
+        {% js %}
+            (function () {
+                // DiffAsset injects Craft.Delta._keys (the i18n map) at POS_END.
+                // This block is server-rendered and can run before that inline
+                // script executes, so wait for _keys — enter()/comment rendering
+                // dereference it synchronously and would otherwise throw.
+                function wire() {
+                    if (typeof Craft === 'undefined' || !Craft.Delta || !Craft.Delta._keys) {
+                        window.setTimeout(wire, 30);
+                        return;
+                    }
+                    mountReview();
+                }
+
+                function mountReview() {
+                var root = document.getElementById('delta-review-root');
+                if (!root) { return; }
+
+                // Replicate the wiring delta.js runs after an AJAX diff load, since
+                // here the diff is server-rendered into the page rather than fetched.
+                Craft.Delta.mode = 'fullpage';
+                if (Craft.Delta.bindFieldToggles) { Craft.Delta.bindFieldToggles(root); }
+                if (Craft.Delta.bindTabNav) { Craft.Delta.bindTabNav(root); }
+
+                var wfToolbar = root.querySelector('.delta-workflow-toolbar');
+                if (wfToolbar && Craft.Delta.mountWorkflowToolbar) {
+                    Craft.Delta.mountWorkflowToolbar($(wfToolbar));
+                }
+
+                var reviewToolbar = root.querySelector('[data-review-toolbar]');
+                if (reviewToolbar && Craft.Delta.reviewMode) {
+                    if (reviewToolbar.dataset.autoReview === '1' && Craft.Delta.reviewMode.enter) {
+                        // Always-on accept/reject for reviewers who can apply. enter()
+                        // calls loadFromStorage(), so prior decisions resume here too —
+                        // no separate checkForPriorState() banner needed.
+                        Craft.Delta.reviewMode.enter(reviewToolbar);
+                    } else if (Craft.Delta.reviewMode.checkForPriorState) {
+                        Craft.Delta.reviewMode.checkForPriorState(reviewToolbar);
+                    }
+                }
+                }
+
+                wire();
+            })();
+        {% endjs %}
+    {% endif %}
+{% endblock %}

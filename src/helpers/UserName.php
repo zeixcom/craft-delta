@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace zeixcom\craftdelta\helpers;
 
+use Craft;
 use craft\elements\User;
 
-/**
- * Consistent display names for CP payloads and models.
- */
 final class UserName
 {
     public static function of(?User $user): ?string
     {
-        if ($user === null) {
-            return null;
-        }
-        return $user->fullName ?: $user->username;
+        return $user === null ? null : ($user->fullName ?: $user->username);
+    }
+
+    public static function byId(?int $id): ?string
+    {
+        return $id === null ? null : self::of(Craft::$app->getUsers()->getUserById($id));
     }
 }

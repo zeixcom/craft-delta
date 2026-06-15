@@ -160,6 +160,7 @@ return [
     'workflow.colRound' => 'Round',
     'workflow.commentFailed' => 'Could not save your comment.',
     'workflow.generalDiscussion' => 'General discussion',
+    'workflow.openReview' => 'Open review',
     'workflow.postComment' => 'Post comment',
     'workflow.reply' => 'Reply',
     'workflow.resolve' => 'Resolve',
@@ -168,6 +169,7 @@ return [
     'workflow.commentPlaceholder' => 'Leave a comment…',
     'workflow.replyPlaceholder' => 'Write a reply…',
     'workflow.comments' => 'Comments',
+    'workflow.addComment' => 'Add comment',
     'workflow.noComments' => 'No comments yet.',
     'workflow.roundLabel' => 'Round {round}',
 ];

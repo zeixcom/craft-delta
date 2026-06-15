@@ -22,8 +22,6 @@
     $newer: null,
     $statsSlot: null,
 
-    // ─── Init ───
-
     init: function (entryId, options) {
       this.entryId = entryId;
       this.options = options || {};
@@ -55,8 +53,6 @@
       btn.addEventListener('click', this._boundOpenSlideout);
     },
 
-    // ─── Slideout Mode ───
-
     openSlideout: function () {
       this.mode = 'slideout';
       var self = this;
@@ -73,8 +69,6 @@
 
       this.fetchRevisionsAndBuild(slideout.$container);
     },
-
-    // ─── Modal Mode ───
 
     openModal: function () {
       this.mode = 'modal';
@@ -145,8 +139,6 @@
       }
     },
 
-    // ─── Full Page Mode ───
-
     openFullPage: function () {
       this.closeModal();
       // 'delta-compare', not 'craft-delta/compare': handle-prefixed CP URLs
@@ -155,8 +147,6 @@
       var url = Craft.getCpUrl('delta-compare', { entryId: this.entryId, siteId: this.options.siteId });
       window.location.href = url;
     },
-
-    // ─── Shared build logic ───
 
     fetchRevisionsAndBuild: function ($container) {
       var self = this;
@@ -206,7 +196,6 @@
         }
       }
 
-      // ─── Build toolbar ───
       var $toolbar = $('<div class="delta-toolbar"></div>');
 
       // Top row: title + actions
@@ -340,11 +329,9 @@
 
       $toolbar.append($bottomRow);
 
-      // ─── Result container ───
       var $result = $('<div class="delta-result"></div>');
       this.$resultContainer = $result;
 
-      // ─── Assemble ───
       var wrapperClass = 'delta-slideout';
       if (changedOnly) { wrapperClass += ' delta-changed-only'; }
       var $wrapper = $('<div class="' + wrapperClass + '"></div>');
@@ -369,7 +356,6 @@
       this.loadDiff($older.val(), $newer.val());
     },
 
-    // ─── Load Diff ───
 
     _collapsedFields: {},
     _debounceTimer: null,
@@ -434,10 +420,10 @@
           }
 
           if (!response.data.success) {
-            $result.html(
-              '<div class="delta-empty"><p>' +
-              (response.data.error || Craft.t('craft-delta', Craft.Delta._keys.failedLoadDiff)) +
-              '</p></div>'
+            $result.empty().append(
+              $('<div class="delta-empty"></div>').append(
+                $('<p></p>').text(response.data.error || Craft.t('craft-delta', Craft.Delta._keys.failedLoadDiff))
+              )
             );
             return;
           }
@@ -460,7 +446,6 @@
             Craft.Delta.reviewMode.checkForPriorState(toolbar);
           }
 
-          // Hook for the workflow toolbar (Craft Delta v2.0).
           var $wfToolbar = $result.find('.delta-workflow-toolbar');
           if ($wfToolbar.length && Craft.Delta.mountWorkflowToolbar) {
             Craft.Delta.mountWorkflowToolbar($wfToolbar);
@@ -469,15 +454,13 @@
         .catch(function () {
           if (requestId !== self._loadId) { return; }
 
-          $result.html(
-            '<div class="delta-empty"><p>' +
-            Craft.t('craft-delta', Craft.Delta._keys.failedLoadDiff) +
-            '</p></div>'
+          $result.empty().append(
+            $('<div class="delta-empty"></div>').append(
+              $('<p></p>').text(Craft.t('craft-delta', Craft.Delta._keys.failedLoadDiff))
+            )
           );
         });
     },
-
-    // ─── Field Interactions ───
 
     applyFilter: function () {
       if (!this.$wrapper || !this.$filterCheckbox) { return; }

@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace zeixcom\craftdelta\services;
 
-use Craft;
 use craft\base\Component;
 use craft\elements\User;
 use yii\base\InvalidArgumentException;
-use zeixcom\craftdelta\helpers\DbDate;
-use zeixcom\craftdelta\helpers\UserName;
 use zeixcom\craftdelta\enums\AtomKind;
+use zeixcom\craftdelta\helpers\DbDate;
+use zeixcom\craftdelta\helpers\Limits;
+use zeixcom\craftdelta\helpers\PlainText;
+use zeixcom\craftdelta\helpers\UserName;
 use zeixcom\craftdelta\models\Review;
 use zeixcom\craftdelta\models\ReviewComment;
 use zeixcom\craftdelta\records\ReviewCommentRecord;
@@ -39,7 +40,6 @@ class ReviewCommentService extends Component
         }
 
         $parsed = AtomKey::parse($atomId);
-
         return match ($parsed['kind']) {
             AtomKind::Field->value => ['anchorType' => ReviewComment::ANCHOR_FIELD, 'fieldHandle' => $parsed['handle'], 'blockUid' => null, 'atomId' => $atomId],
             AtomKind::MatrixBlock->value => ['anchorType' => ReviewComment::ANCHOR_ATOM, 'fieldHandle' => $parsed['fieldHandle'], 'blockUid' => $parsed['blockUid'], 'atomId' => $atomId],
@@ -47,29 +47,35 @@ class ReviewCommentService extends Component
         };
     }
 
-    /**
-     * A comment is outdated when its anchor no longer resolves to a live atom.
-     * General comments are never outdated. Pure so it can be unit-tested.
-     *
-     * @param string[] $liveAtomKeys
-     */
+    /** @param string[] $liveAtomKeys */
     public static function isOutdated(string $anchorType, ?string $atomId, array $liveAtomKeys): bool
     {
-        if ($anchorType === ReviewComment::ANCHOR_GENERAL || $atomId === null) {
-            return false;
-        }
-        return !in_array($atomId, $liveAtomKeys, true);
+        return $anchorType !== ReviewComment::ANCHOR_GENERAL
+            && $atomId !== null
+            && !in_array($atomId, $liveAtomKeys, true);
     }
 
     public function addComment(Review $review, User $author, string $body, ?string $atomId = null, ?int $parentId = null): ReviewComment
     {
-        $body = trim($body);
+        $body = PlainText::normalize(trim($body)) ?? '';
         if ($body === '') {
             throw new InvalidArgumentException('Comment body is required.');
         }
+        if (mb_strlen($body) > Limits::COMMENT_BODY_MAX) {
+            throw new InvalidArgumentException('Comment body is too long.');
+        }
+
+        if ($parentId !== null) {
+            $parent = ReviewCommentRecord::findOne(['id' => $parentId, 'reviewId' => $review->id]);
+            if ($parent === null) {
+                throw new InvalidArgumentException('Invalid parent comment.');
+            }
+            if ($parent->parentId !== null) {
+                throw new InvalidArgumentException('Only one level of replies is supported.');
+            }
+        }
 
         $anchor = self::anchorFromAtomId($atomId);
-
         $record = new ReviewCommentRecord();
         $record->reviewId = $review->id;
         $record->round = $review->round;
@@ -89,10 +95,8 @@ class ReviewCommentService extends Component
 
     public function resolveComment(int $commentId, bool $resolved): ReviewComment
     {
-        $record = ReviewCommentRecord::findOne(['id' => $commentId]);
-        if ($record === null) {
-            throw new InvalidArgumentException('Comment not found.');
-        }
+        $record = ReviewCommentRecord::findOne(['id' => $commentId])
+            ?? throw new InvalidArgumentException('Comment not found.');
         $record->resolved = $resolved;
         if (!$record->save(false)) {
             throw new InvalidArgumentException('Failed to update comment.');
@@ -106,25 +110,12 @@ class ReviewCommentService extends Component
         return $record ? $this->modelFromRecord($record, null) : null;
     }
 
-    /**
-     * All comments for a review as a thread tree (top-level + replies), ordered
-     * oldest-first. When $liveAtomKeys is provided, each anchored comment's
-     * `outdated` flag is computed against it.
-     *
-     * @param string[]|null $liveAtomKeys
-     * @return ReviewComment[] top-level comments, each with ->replies
-     */
+    /** @param string[]|null $liveAtomKeys @return ReviewComment[] */
     public function commentsForReview(int $reviewId, ?array $liveAtomKeys = null): array
     {
-        $records = ReviewCommentRecord::find()
-            ->where(['reviewId' => $reviewId])
-            ->orderBy(['dateCreated' => SORT_ASC, 'id' => SORT_ASC])
-            ->all();
-
         $byId = [];
-        foreach ($records as $record) {
-            $model = $this->modelFromRecord($record, $liveAtomKeys);
-            $byId[$model->id] = $model;
+        foreach (ReviewCommentRecord::find()->where(['reviewId' => $reviewId])->orderBy(['dateCreated' => SORT_ASC, 'id' => SORT_ASC])->all() as $record) {
+            $byId[($model = $this->modelFromRecord($record, $liveAtomKeys))->id] = $model;
         }
 
         $top = [];
@@ -135,13 +126,10 @@ class ReviewCommentService extends Component
                 $top[] = $model;
             }
         }
-
         return $top;
     }
 
-    /**
-     * @param string[]|null $liveAtomKeys
-     */
+    /** @param string[]|null $liveAtomKeys */
     private function modelFromRecord(ReviewCommentRecord $record, ?array $liveAtomKeys): ReviewComment
     {
         $model = new ReviewComment([
@@ -160,14 +148,10 @@ class ReviewCommentService extends Component
             'dateUpdated' => DbDate::parse($record->dateUpdated),
             'uid' => $record->uid,
         ]);
-
-        $author = Craft::$app->getUsers()->getUserById((int)$record->authorId);
-        $model->authorName = UserName::of($author);
-
+        $model->authorName = UserName::byId((int)$record->authorId);
         if ($liveAtomKeys !== null) {
             $model->outdated = self::isOutdated($model->anchorType, $model->atomId, $liveAtomKeys);
         }
-
         return $model;
     }
 }

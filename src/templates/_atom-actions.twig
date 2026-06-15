@@ -1,0 +1,11 @@
+{# Accept / reject controls for one applicable atom (Review Mode). The host
+   element carries the data-atom-id; the JS keys on data-atom-actions and the
+   accept/reject action classes.
+   Params:
+     labelled — show text labels beside the icons (field header) vs icon-only (Matrix blocks).
+#}
+{% set labelled = labelled ?? false %}
+<span class="delta-atom-actions" hidden data-atom-actions>
+    <button type="button" class="btn small delta-atom-accept" data-action="accept">✓{% if labelled %} {{ deltaKeys.accept|t('craft-delta') }}{% endif %}</button>
+    <button type="button" class="btn small delta-atom-reject" data-action="reject">✗{% if labelled %} {{ deltaKeys.reject|t('craft-delta') }}{% endif %}</button>
+</span>

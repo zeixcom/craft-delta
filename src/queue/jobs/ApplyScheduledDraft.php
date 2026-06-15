@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace zeixcom\craftdelta\queue\jobs;
 
+use Craft;
 use craft\helpers\DateTimeHelper;
 use craft\queue\BaseJob;
+use DateTime;
 use zeixcom\craftdelta\Delta;
 use zeixcom\craftdelta\models\Review;
 use zeixcom\craftdelta\records\ReviewRecord;
@@ -27,36 +29,30 @@ class ApplyScheduledDraft extends BaseJob
     public function execute($queue): void
     {
         $record = ReviewRecord::findOne(['id' => $this->reviewId]);
-        if ($record === null) {
-            return;
-        }
-        if ($record->state !== Review::STATE_APPROVED) {
-            return;
-        }
-        if ($record->appliedAt !== null) {
+        if ($record === null
+            || $record->state !== Review::STATE_APPROVED
+            || $record->appliedAt !== null
+            || $record->scheduledFor === null
+        ) {
             return;
         }
 
-        // Any blocking transition (changes requested, decline, withdraw,
-        // re-request) clears scheduledFor, and rescheduling moves it. A null or
-        // not-yet-due schedule means THIS message is stale — the approval it was
-        // queued for was rescinded or superseded, so it must not publish even
-        // though the review may be "approved" again in a later round.
-        if ($record->scheduledFor === null) {
-            return;
-        }
+        // Any blocking transition clears scheduledFor; null or not-yet-due means
+        // this message is stale and must not publish.
         $due = DateTimeHelper::toDateTime($record->scheduledFor);
-        if (!$due instanceof \DateTime || $due->getTimestamp() > time() + 30) {
+        if (!$due instanceof DateTime || $due->getTimestamp() > time() + 30) {
             return;
         }
 
-        $plugin = Delta::getInstance();
+        $plugin = Craft::$app->getPlugins()->getPlugin('craft-delta');
+        if (!$plugin instanceof Delta) {
+            return;
+        }
+
         $review = $plugin->workflow->getById($this->reviewId);
-        if ($review === null) {
-            return;
+        if ($review !== null) {
+            $plugin->workflow->applyDraftNow($review);
         }
-
-        $plugin->workflow->applyDraftNow($review);
     }
 
     protected function defaultDescription(): ?string

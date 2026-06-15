@@ -1,5 +1,3 @@
-{# Individual field diff section #}
-
 <div class="delta-field{{ not diff.hasChanges ? ' delta-field-unchanged' : '' }}"
      data-field-handle="{{ diff.fieldHandle }}"
      {% if diff.hasChanges and not (diff.fieldType ends with '\\Matrix') %}data-atom-id="field:{{ diff.fieldHandle }}"{% endif %}>
@@ -8,23 +6,14 @@
                 type="button"
                 aria-expanded="true"
                 aria-controls="delta-field-{{ diff.fieldHandle }}">
-            <svg class="delta-field-chevron" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M4.427 7.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 7H4.604a.25.25 0 00-.177.427z"/>
-            </svg>
+            {% include 'craft-delta/_chevron' with { class: 'delta-field-chevron' } only %}
             <span class="delta-field-label">{{ diff.fieldLabel }}</span>
             {% if diff.fieldType != 'attribute' %}
                 <span class="delta-field-type">{{ diff.fieldType|split('\\')|last }}</span>
             {% endif %}
         </button>
         {% if diff.hasChanges and not (diff.fieldType ends with '\\Matrix') and reviewMode is defined and reviewMode %}
-            <span class="delta-atom-actions" hidden data-atom-actions>
-                <button type="button" class="btn small delta-atom-accept" data-action="accept">
-                    ✓ {{ deltaKeys.accept|t('craft-delta') }}
-                </button>
-                <button type="button" class="btn small delta-atom-reject" data-action="reject">
-                    ✗ {{ deltaKeys.reject|t('craft-delta') }}
-                </button>
-            </span>
+            {% include 'craft-delta/_atom-actions' with { labelled: true } only %}
         {% endif %}
     </div>
     <div class="delta-field-body" id="delta-field-{{ diff.fieldHandle }}">

@@ -1,0 +1,30 @@
+{# General discussion + outdated comments, rendered below the diff on the review
+   page. workflow.js (reviewComments) populates these lists; it resolves
+   [data-review-comments] via the page root, so this can live outside the
+   .delta-workflow-toolbar. Starts hidden; the JS reveals it on mount. #}
+
+{% if workflow is defined and workflow %}
+    <div class="delta-review-comments delta-review-comments--page" data-review-comments
+         data-review-active="{{ workflow.isActive() ? '1' : '0' }}" hidden>
+        <details class="delta-comments-outdated" data-outdated-comments hidden>
+            <summary data-outdated-summary></summary>
+            <div class="delta-comment-list" data-outdated-comment-list></div>
+        </details>
+
+        <div class="delta-comments-general">
+            <h2 class="delta-comments-heading">{{ deltaKeys.workflowGeneralDiscussion|t('craft-delta') }}</h2>
+            <div class="delta-comment-list" data-general-comment-list></div>
+            {# No composer on a closed review — the backend rejects posts on an
+               inactive review, so don't offer a dead-end affordance. #}
+            {% if workflow.isActive() %}
+                <div class="delta-comment-compose" data-general-compose>
+                    <textarea class="text fullwidth" rows="3" data-general-comment-input maxlength="10000"
+                              placeholder="{{ deltaKeys.workflowCommentPlaceholder|t('craft-delta') }}"></textarea>
+                    <button type="button" class="btn submit" data-general-comment-post>
+                        {{ deltaKeys.workflowPostComment|t('craft-delta') }}
+                    </button>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endif %}

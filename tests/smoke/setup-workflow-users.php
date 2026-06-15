@@ -34,7 +34,7 @@ function bail(string $message): never
     exit(1);
 }
 
-// ── Config ────────────────────────────────────────────────────────────────
+// Config
 // Sections both users should be able to work in. Add handles here (e.g.
 // 'blogposts') to widen the test surface — both users always get identical
 // section access, so the workflow permission stays the only differentiator.
@@ -43,7 +43,7 @@ const TEST_SECTION_HANDLES = ['deltaTest'];
 // Known dev password so you can log in as either user. Dev fixtures only.
 const TEST_PASSWORD = 'DeltaTest!2026';
 
-// ── Resolve target sections ─────────────────────────────────────────────────
+// Resolve target sections
 $entries = Craft::$app->getEntries();
 $sectionUids = [];
 foreach (TEST_SECTION_HANDLES as $handle) {
@@ -80,7 +80,7 @@ $basePermissions = array_merge(
     $sectionAccess,
 );
 
-// ── Users: identical base, role-specific workflow permission ────────────────
+// Users: identical base, role-specific workflow permission
 $plan = [
     'delta.author' => [
         'email' => 'delta.author@example.com',

@@ -1,5 +1,7 @@
 {% extends "_layouts/cp" %}
 
+{% do view.registerAssetBundle('zeixcom\\craftdelta\\assets\\diff\\DiffAsset') %}
+
 {% set title = deltaKeys.workflowReviewsTitle|t('craft-delta') %}
 
 {% block content %}
@@ -35,13 +37,9 @@
                         {% set r = row.review %}
                         <tr>
                             <td>
-                                {% if row.url %}
-                                    <a href="{{ row.url }}">{{ row.title }}</a>
-                                {% else %}
-                                    {{ row.title }}
-                                {% endif %}
+                                <a href="{{ cpUrl('delta-review', { reviewId: r.id }) }}">{{ row.title }}</a>
                             </td>
-                            <td><span class="status {{ r.state }}"></span>{{ r.statusLabel() }}</td>
+                            <td><span class="status {{ r.statusColor() }}"></span>{{ r.statusLabel() }}</td>
                             <td>{{ r.round }}</td>
                             <td>
                                 {% for rv in r.reviewers %}

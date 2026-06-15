@@ -26,12 +26,10 @@
                      {% if not isNested %}data-atom-id="matrix-block:{{ fieldHandle }}:{{ change.blockUid }}:{{ change.type }}"{% endif %}>
                     {% if change.fieldChanges is defined and change.fieldChanges is iterable %}
                         <button type="button" class="delta-block-toggle" aria-expanded="true">
-                            <svg class="delta-block-chevron" viewBox="0 0 16 16" fill="currentColor">
-                                <path d="M4.427 7.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 7H4.604a.25.25 0 00-.177.427z"/>
-                            </svg>
+                            {% include 'craft-delta/_chevron' with { class: 'delta-block-chevron' } only %}
                             <span class="delta-block-icon">{{ blockIcon[change.type]|raw }}</span>
                             <span class="delta-block-type">{{ change.blockType ?? deltaKeys.block|t('craft-delta') }}</span>
-                            <span class="delta-block-summary">{{ change.summary ?? '' }}</span>
+                            <span class="delta-block-summary">{{ change.summary|default('')|e }}</span>
                         </button>
                         <div class="delta-block-subfields">
                             {% for fc in change.fieldChanges %}
@@ -52,13 +50,10 @@
                     {% else %}
                         <span class="delta-block-icon">{{ blockIcon[change.type]|raw }}</span>
                         <span class="delta-block-type">{{ change.blockType ?? deltaKeys.block|t('craft-delta') }}</span>
-                        <span class="delta-block-summary">{{ change.summary ?? '' }}</span>
+                        <span class="delta-block-summary">{{ change.summary|default('')|e }}</span>
                     {% endif %}
                     {% if atomsEnabled %}
-                        <span class="delta-atom-actions" hidden data-atom-actions>
-                            <button type="button" class="btn small delta-atom-accept" data-action="accept">✓</button>
-                            <button type="button" class="btn small delta-atom-reject" data-action="reject">✗</button>
-                        </span>
+                        {% include 'craft-delta/_atom-actions' only %}
                     {% endif %}
                 </div>
             {% elseif change.type == 'reordered' %}
@@ -66,10 +61,7 @@
                     <span class="delta-block-icon">&harr;</span>
                     <span>{{ deltaKeys.blocksReordered|t('craft-delta') }}</span>
                     {% if atomsEnabled %}
-                        <span class="delta-atom-actions" hidden data-atom-actions>
-                            <button type="button" class="btn small delta-atom-accept" data-action="accept">✓</button>
-                            <button type="button" class="btn small delta-atom-reject" data-action="reject">✗</button>
-                        </span>
+                        {% include 'craft-delta/_atom-actions' only %}
                     {% endif %}
                 </div>
             {% endif %}
@@ -154,10 +146,10 @@
     {% endif %}
 
 {% elseif diffHtml starts with '<table' %}
-    {{ diffHtml|raw }}
+    {{ diffHtml|delta_purify_diff }}
 
 {% else %}
     <div class="delta-field-body-padded">
-        {{ diffHtml|raw }}
+        {{ diffHtml|delta_purify_diff }}
     </div>
 {% endif %}

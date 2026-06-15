@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace zeixcom\craftdelta\console\controllers;
 
+use Craft;
 use craft\console\Controller;
 use yii\console\ExitCode;
 
@@ -16,6 +17,20 @@ use yii\console\ExitCode;
  */
 class SmokeController extends Controller
 {
+    private const SMOKE_DIR = __DIR__ . '/../../../tests/smoke';
+
+    public function beforeAction($action): bool
+    {
+        if (!parent::beforeAction($action)) {
+            return false;
+        }
+        if (!Craft::$app->getConfig()->general->devMode) {
+            $this->stderr("Smoke commands are only available when devMode is enabled.\n");
+            return false;
+        }
+        return true;
+    }
+
     public function actionMatrixApply(): int
     {
         return $this->runScript('matrix-apply-smoke.php');
@@ -51,7 +66,6 @@ class SmokeController extends Controller
         return $this->runScript('review-comments-setup-smoke.php');
     }
 
-    /** Verifies atom + general comments exist for the smoke review fixture. */
     public function actionReviewCommentsVerify(): int
     {
         return $this->runScript('review-comments-verify-smoke.php');
@@ -59,7 +73,7 @@ class SmokeController extends Controller
 
     private function runScript(string $name): int
     {
-        $script = dirname(__DIR__, 3) . '/tests/smoke/' . $name;
+        $script = self::SMOKE_DIR . '/' . $name;
         if (!is_file($script)) {
             $this->stderr("Script not found: $script\n");
             return ExitCode::IOERR;

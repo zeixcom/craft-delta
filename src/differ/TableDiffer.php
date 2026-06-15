@@ -7,38 +7,31 @@ namespace zeixcom\craftdelta\differ;
 use zeixcom\craftdelta\enums\DiffChangeType;
 
 /**
- * Diff for Table fields.
+ * @phpstan-import-type DiffStats from \zeixcom\craftdelta\types\ArrayTypes
+ * @phpstan-import-type TableCellDiff from \zeixcom\craftdelta\types\ArrayTypes
+ * @phpstan-import-type TableRow from \zeixcom\craftdelta\types\ArrayTypes
+ * @phpstan-import-type TableRowChange from \zeixcom\craftdelta\types\ArrayTypes
  */
 class TableDiffer implements DifferInterface
 {
     public function diff(mixed $oldValue, mixed $newValue): ?string
     {
-        $oldRows = is_array($oldValue) ? array_values($oldValue) : [];
-        $newRows = is_array($newValue) ? array_values($newValue) : [];
-
+        $oldRows = $this->rows($oldValue);
+        $newRows = $this->rows($newValue);
         if ($oldRows === $newRows) {
             return null;
         }
 
+        /** @var list<TableRowChange> $changes */
         $changes = [];
         $maxRows = max(count($oldRows), count($newRows));
-
         for ($i = 0; $i < $maxRows; $i++) {
             $oldRow = $oldRows[$i] ?? null;
             $newRow = $newRows[$i] ?? null;
-
             if ($oldRow === null && $newRow !== null) {
-                $changes[] = [
-                    'type' => DiffChangeType::Added->value,
-                    'row' => $i + 1,
-                    'values' => $newRow,
-                ];
+                $changes[] = ['type' => DiffChangeType::Added->value, 'row' => $i + 1, 'values' => $newRow];
             } elseif ($newRow === null && $oldRow !== null) {
-                $changes[] = [
-                    'type' => DiffChangeType::Removed->value,
-                    'row' => $i + 1,
-                    'values' => $oldRow,
-                ];
+                $changes[] = ['type' => DiffChangeType::Removed->value, 'row' => $i + 1, 'values' => $oldRow];
             } elseif ($oldRow !== null && $newRow !== null && $oldRow !== $newRow) {
                 $changes[] = [
                     'type' => DiffChangeType::Modified->value,
@@ -51,66 +44,46 @@ class TableDiffer implements DifferInterface
             }
         }
 
-        if (empty($changes)) {
-            return null;
-        }
-
-        return json_encode($changes, JSON_THROW_ON_ERROR);
+        return $changes === [] ? null : json_encode($changes, JSON_THROW_ON_ERROR);
     }
 
-    /** @return array{additions: int, deletions: int} */
+    /** @return DiffStats */
     public function getStats(mixed $oldValue, mixed $newValue): array
     {
-        $oldRows = is_array($oldValue) ? array_values($oldValue) : [];
-        $newRows = is_array($newValue) ? array_values($newValue) : [];
-
-        $added = 0;
-        $removed = 0;
-        $maxRows = max(count($oldRows), count($newRows));
-
-        for ($i = 0; $i < $maxRows; $i++) {
+        $oldRows = $this->rows($oldValue);
+        $newRows = $this->rows($newValue);
+        $added = $removed = 0;
+        for ($i = 0, $max = max(count($oldRows), count($newRows)); $i < $max; $i++) {
             if (!isset($oldRows[$i])) {
                 $added++;
             } elseif (!isset($newRows[$i])) {
                 $removed++;
             }
         }
+        return ['additions' => $added, 'deletions' => $removed];
+    }
 
-        return [
-            'additions' => $added,
-            'deletions' => $removed,
-        ];
+    /** @return list<TableRow> */
+    private function rows(mixed $value): array
+    {
+        return is_array($value) ? array_values($value) : [];
     }
 
     /**
-     * Compare cells within a row and return per-cell diffs.
-     *
-     * @param array<string, mixed> $oldRow
-     * @param array<string, mixed> $newRow
-     * @return array<int, array{col: string, old: string, new: string}>
+     * @param TableRow $oldRow
+     * @param TableRow $newRow
+     * @return list<TableCellDiff>
      */
     private function compareCells(array $oldRow, array $newRow): array
     {
-        $allColumns = array_unique(array_merge(
-            array_keys($oldRow),
-            array_keys($newRow),
-        ));
-
-        $cellDiffs = [];
-
-        foreach ($allColumns as $col) {
+        $diffs = [];
+        foreach (array_unique([...array_keys($oldRow), ...array_keys($newRow)]) as $col) {
             $oldVal = (string)($oldRow[$col] ?? '');
             $newVal = (string)($newRow[$col] ?? '');
-
             if ($oldVal !== $newVal) {
-                $cellDiffs[] = [
-                    'col' => $col,
-                    'old' => $oldVal,
-                    'new' => $newVal,
-                ];
+                $diffs[] = ['col' => $col, 'old' => $oldVal, 'new' => $newVal];
             }
         }
-
-        return $cellDiffs;
+        return $diffs;
     }
 }

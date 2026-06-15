@@ -160,6 +160,7 @@ return [
     'workflow.colRound' => 'Turno',
     'workflow.commentFailed' => 'Impossibile salvare il tuo commento.',
     'workflow.generalDiscussion' => 'Discussione generale',
+    'workflow.openReview' => 'Apri revisione',
     'workflow.postComment' => 'Pubblica commento',
     'workflow.reply' => 'Rispondi',
     'workflow.resolve' => 'Risolvi',
@@ -168,6 +169,7 @@ return [
     'workflow.commentPlaceholder' => 'Lascia un commento…',
     'workflow.replyPlaceholder' => 'Scrivi una risposta…',
     'workflow.comments' => 'Commentari',
+    'workflow.addComment' => 'Aggiungi commento',
     'workflow.noComments' => 'Nessun commento ancora.',
     'workflow.roundLabel' => 'Round {round}',
 ];

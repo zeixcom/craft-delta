@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace zeixcom\craftdelta\models;
 
+use craft\base\FieldInterface;
 use craft\base\Model;
 
 /**
@@ -23,12 +24,20 @@ class FieldDiff extends Model
     public array $stats = ['additions' => 0, 'deletions' => 0];
 
     /**
-     * Whether a field type class string refers to Craft's Matrix field.
-     * Must match the templates' Matrix test (_field-diff.twig and
-     * _diff-content.twig both key on the class ending in "\Matrix").
+     * Single place that knows how to build a FieldDiff from a Craft field.
+     *
+     * @param DiffStats $stats
      */
-    public static function isMatrixFieldType(string $fieldType): bool
+    public static function make(FieldInterface $field, bool $hasChanges, string $diffHtml, array $stats, string $tabName = ''): self
     {
-        return str_ends_with($fieldType, '\\Matrix');
+        return new self([
+            'fieldHandle' => $field->handle,
+            'fieldLabel' => $field->name,
+            'fieldType' => $field::class,
+            'tabName' => $tabName,
+            'hasChanges' => $hasChanges,
+            'diffHtml' => $diffHtml,
+            'stats' => $stats,
+        ]);
     }
 }

@@ -1,0 +1,50 @@
+{# The field-diff body: tab nav + grouped field diffs. Shared by the diff
+   slideout and the dedicated review page. Params: result, reviewMode. #}
+
+{% if result.hasChanges() %}
+    {% set grouped = result.fieldDiffs|group('tabName') %}
+
+    {% set namedTabs = [] %}
+    {% for tabName, diffs in grouped %}
+        {% if tabName != '' %}
+            {% set namedTabs = namedTabs|merge([{ name: tabName, diffs: diffs, index: loop.index0 }]) %}
+        {% endif %}
+    {% endfor %}
+
+    {% if namedTabs|length > 1 %}
+        <nav class="delta-tabnav" aria-label="{{ deltaKeys.jumpToSection|t('craft-delta') }}">
+            {% for tab in namedTabs %}
+                {% set changedCount = tab.diffs|filter(d => d.hasChanges)|length %}
+                <a href="#delta-tab-{{ tab.index }}"
+                   class="delta-tabnav-item{{ changedCount > 0 ? ' delta-tabnav-item-changed' : '' }}"
+                   data-tab-target="delta-tab-{{ tab.index }}">
+                    <span class="delta-tabnav-prefix">{{ deltaKeys.tab|t('craft-delta') }}:</span>
+                    {{ tab.name }}
+                    {% if changedCount > 0 %}<span class="delta-tabnav-count">{{ changedCount }}</span>{% endif %}
+                </a>
+            {% endfor %}
+        </nav>
+    {% endif %}
+
+    {% if grouped[''] is defined %}
+        {% for diff in grouped[''] %}
+            {% include 'craft-delta/_field-diff' with { diff: diff, reviewMode: reviewMode ?? false } %}
+        {% endfor %}
+    {% endif %}
+
+    {% for tab in namedTabs %}
+        <div class="delta-tab-group" id="delta-tab-{{ tab.index }}" data-tab="{{ tab.name }}">
+            <div class="delta-tab-header">
+                <span class="delta-tab-header-prefix">{{ deltaKeys.tab|t('craft-delta') }}:</span>
+                {{ tab.name }}
+            </div>
+            {% for diff in tab.diffs %}
+                {% include 'craft-delta/_field-diff' with { diff: diff, reviewMode: reviewMode ?? false } %}
+            {% endfor %}
+        </div>
+    {% endfor %}
+{% else %}
+    <div class="delta-empty">
+        <p>{{ deltaKeys.noChangesBetweenRevisions|t('craft-delta') }}</p>
+    </div>
+{% endif %}

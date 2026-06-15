@@ -13,13 +13,13 @@ use DateTime;
 use yii\base\InvalidArgumentException;
 use yii\web\ForbiddenHttpException;
 use zeixcom\craftdelta\Delta;
-use zeixcom\craftdelta\enums\ReviewState;
 use zeixcom\craftdelta\events\WorkflowEvent;
 use zeixcom\craftdelta\helpers\DbDate;
 use zeixcom\craftdelta\helpers\UserName;
 use zeixcom\craftdelta\i18n\TranslationKeys;
 use zeixcom\craftdelta\models\Review;
 use zeixcom\craftdelta\models\ReviewReviewer;
+use zeixcom\craftdelta\Permissions;
 use zeixcom\craftdelta\queue\jobs\ApplyScheduledDraft;
 use zeixcom\craftdelta\records\ReviewRecord;
 use zeixcom\craftdelta\records\ReviewReviewerRecord;
@@ -34,6 +34,7 @@ use zeixcom\craftdelta\records\ReviewReviewerRecord;
  * set by an action — never derived.
  *
  * @phpstan-import-type ReviewBuckets from \zeixcom\craftdelta\types\ArrayTypes
+ * @phpstan-import-type ReviewTransitionAttrs from \zeixcom\craftdelta\types\ArrayTypes
  */
 class WorkflowService extends Component
 {
@@ -47,9 +48,16 @@ class WorkflowService extends Component
 
     /** @var list<string> States from which the cached state may still be re-derived from verdicts. */
     private const DERIVABLE_STATES = [
-        ReviewState::Open->value,
-        ReviewState::ChangesRequested->value,
-        ReviewState::Approved->value,
+        Review::STATE_OPEN,
+        Review::STATE_CHANGES_REQUESTED,
+        Review::STATE_APPROVED,
+    ];
+
+    /** @var list<string> */
+    private const ACTIVE_TRANSITION_FROM = [
+        Review::STATE_OPEN,
+        Review::STATE_CHANGES_REQUESTED,
+        Review::STATE_APPROVED,
     ];
 
     /**
@@ -63,13 +71,11 @@ class WorkflowService extends Component
      */
     public static function deriveState(array $verdicts): string
     {
-        if (in_array(ReviewReviewer::VERDICT_CHANGES_REQUESTED, $verdicts, true)) {
-            return Review::STATE_CHANGES_REQUESTED;
-        }
-        if (in_array(ReviewReviewer::VERDICT_APPROVED, $verdicts, true)) {
-            return Review::STATE_APPROVED;
-        }
-        return Review::STATE_OPEN;
+        return match (true) {
+            in_array(ReviewReviewer::VERDICT_CHANGES_REQUESTED, $verdicts, true) => Review::STATE_CHANGES_REQUESTED,
+            in_array(ReviewReviewer::VERDICT_APPROVED, $verdicts, true) => Review::STATE_APPROVED,
+            default => Review::STATE_OPEN,
+        };
     }
 
     public function getByDraftId(int $draftId): ?Review
@@ -94,47 +100,43 @@ class WorkflowService extends Component
     public function getReviewsForDashboard(User $user): array
     {
         $submitted = array_map(
-            fn(ReviewRecord $r) => $this->modelFromRecord($r),
+            $this->modelFromRecord(...),
             ReviewRecord::find()->where(['submittedBy' => $user->id])->orderBy(['dateUpdated' => SORT_DESC])->all(),
         );
 
         $assigned = [];
         $seen = [];
-        /** @var ReviewReviewerRecord[] $rows */
-        $rows = ReviewReviewerRecord::find()->where(['userId' => $user->id])->orderBy(['id' => SORT_DESC])->all();
-        foreach ($rows as $row) {
+        /** @var ReviewReviewerRecord $row */
+        foreach (ReviewReviewerRecord::find()->where(['userId' => $user->id])->orderBy(['id' => SORT_DESC])->all() as $row) {
             if (isset($seen[$row->reviewId])) {
                 continue;
             }
             $review = $this->getById((int)$row->reviewId);
-            if ($review !== null && (int)$row->round === $review->round && $review->isActive()) {
+            if ($review !== null && $this->isCurrentActiveRound($row, $review)) {
                 $assigned[] = $review;
                 $seen[$row->reviewId] = true;
             }
         }
 
-        $all = [];
-        if ($user->admin) {
-            $all = array_map(
-                fn(ReviewRecord $r) => $this->modelFromRecord($r),
-                ReviewRecord::find()->orderBy(['dateUpdated' => SORT_DESC])->limit(200)->all(),
-            );
-        }
-
-        return ['assigned' => $assigned, 'submitted' => $submitted, 'all' => $all];
+        return [
+            'assigned' => $assigned,
+            'submitted' => $submitted,
+            'all' => $user->admin
+                ? array_map(
+                    $this->modelFromRecord(...),
+                    ReviewRecord::find()->orderBy(['dateUpdated' => SORT_DESC])->limit(200)->all(),
+                )
+                : [],
+        ];
     }
 
-    /** Active reviews where the user is a current-round reviewer still pending. */
     public function countAwaitingVerdict(User $user): int
     {
         $count = 0;
-        /** @var ReviewReviewerRecord[] $rows */
-        $rows = ReviewReviewerRecord::find()
-            ->where(['userId' => $user->id, 'verdict' => ReviewReviewer::VERDICT_PENDING])
-            ->all();
-        foreach ($rows as $row) {
+        /** @var ReviewReviewerRecord $row */
+        foreach (ReviewReviewerRecord::find()->where(['userId' => $user->id, 'verdict' => ReviewReviewer::VERDICT_PENDING])->all() as $row) {
             $review = $this->getById((int)$row->reviewId);
-            if ($review !== null && (int)$row->round === $review->round && $review->isActive()) {
+            if ($review !== null && $this->isCurrentActiveRound($row, $review)) {
                 $count++;
             }
         }
@@ -150,22 +152,23 @@ class WorkflowService extends Component
         if ($section === null) {
             return false;
         }
-        /** @var \craft\behaviors\DraftBehavior|null $draftBehavior */
-        $draftBehavior = $draft->getBehavior('draft');
-        $creatorId = $draftBehavior?->creatorId;
+        /** @var \craft\behaviors\DraftBehavior|null $behavior */
+        $behavior = $draft->getBehavior('draft');
+        $creatorId = $behavior?->creatorId;
         if ($creatorId !== null && $creatorId !== $user->id && !$user->admin) {
             return false;
         }
-        return $user->can(Delta::PERMISSION_SUBMIT);
+        return $user->can(Permissions::SUBMIT);
     }
 
+    /**
+     * CP admins may act on any review without being pre-assigned (operational
+     * recovery for stuck workflows). Everyone else must be on the reviewer list.
+     */
     public function canReview(User $user, Review $review): bool
     {
-        if ($user->admin) {
-            return true;
-        }
-        if (!$user->can(Delta::PERMISSION_REVIEW)) {
-            return false;
+        if ($user->admin || !$user->can(Permissions::REVIEW)) {
+            return $user->admin;
         }
         foreach ($review->reviewers as $reviewer) {
             if ($reviewer->userId === $user->id) {
@@ -180,29 +183,15 @@ class WorkflowService extends Component
         return $user->admin || $review->submittedBy === $user->id;
     }
 
-    /**
-     * @return list<User>
-     */
+    /** @return list<User> */
     public function getEligibleAssignees(string $sectionUid, ?int $excludeUserId = null): array
     {
         // Holders of the general review permission who can actually reach this
         // section's drafts. ->can() already returns true for admins.
-        $users = User::find()
-            ->status(User::STATUS_ACTIVE)
-            ->can(Delta::PERMISSION_REVIEW)
-            ->orderBy(['fullName' => SORT_ASC])
-            ->all();
-
-        $users = array_values(array_filter(
-            $users,
-            fn($u) => $u->can("viewPeerEntryDrafts:{$sectionUid}")
+        return array_values(array_filter(
+            User::find()->status(User::STATUS_ACTIVE)->can(Permissions::REVIEW)->orderBy(['fullName' => SORT_ASC])->all(),
+            fn(User $u) => $u->can("viewPeerEntryDrafts:{$sectionUid}") && ($excludeUserId === null || $u->id !== $excludeUserId),
         ));
-
-        if ($excludeUserId !== null) {
-            $users = array_values(array_filter($users, fn($u) => $u->id !== $excludeUserId));
-        }
-
-        return $users;
     }
 
     /**
@@ -221,10 +210,8 @@ class WorkflowService extends Component
         if (!$draft->getIsDraft()) {
             throw new InvalidArgumentException('Submit requires a draft entry.');
         }
-        $section = $draft->getSection();
-        if ($section === null) {
-            throw new InvalidArgumentException('Draft has no section.');
-        }
+        $section = $draft->getSection() ?? throw new InvalidArgumentException('Draft has no section.');
+
         $existing = $this->getByDraftId($draft->draftId);
         if ($existing !== null && !($existing->state === Review::STATE_CANCELLED && $existing->appliedAt === null)) {
             throw new InvalidArgumentException('A review already exists for this draft.');
@@ -237,7 +224,7 @@ class WorkflowService extends Component
             $this->getEligibleAssignees($section->uid, $submittedBy->id),
         );
         $reviewerIds = array_values(array_unique(array_map('intval', $reviewerIds)));
-        if (count($reviewerIds) === 0) {
+        if ($reviewerIds === []) {
             throw new InvalidArgumentException('Select at least one reviewer.');
         }
         foreach ($reviewerIds as $rid) {
@@ -252,7 +239,7 @@ class WorkflowService extends Component
                 // index forbids a second row). Conditional UPDATE so a
                 // concurrent submit/conclude can't double-reopen.
                 $round = $existing->round + 1;
-                $claimed = ReviewRecord::updateAll(
+                if (ReviewRecord::updateAll(
                     [
                         'state' => Review::STATE_OPEN,
                         'round' => $round,
@@ -260,11 +247,10 @@ class WorkflowService extends Component
                         'decidedBy' => null,
                         'decisionNote' => null,
                         'scheduledFor' => null,
-                        'dateUpdated' => Db::prepareDateForDb(new DateTime()),
+                        'dateUpdated' => $this->now(),
                     ],
                     ['id' => $existing->id, 'state' => Review::STATE_CANCELLED, 'appliedAt' => null],
-                );
-                if ($claimed === 0) {
+                ) === 0) {
                     throw new InvalidArgumentException('A review already exists for this draft.');
                 }
                 foreach ($reviewerIds as $rid) {
@@ -289,15 +275,11 @@ class WorkflowService extends Component
             return $this->modelFromRecord($record);
         });
 
-        $this->notifyReviewers($review, fn(Review $r, Entry $draft, int $reviewerUserId) =>
-            Delta::getInstance()->email->sendSubmitted($r, $draft, $reviewerUserId));
-
+        $this->notifyReviewers($review, fn(Review $r, Entry $d, int $uid) => $this->delta()->email->sendSubmitted($r, $d, $uid));
         $this->trigger(self::EVENT_AFTER_SUBMIT, new WorkflowEvent(['review' => $review]));
-
         return $review;
     }
 
-    /** A reviewer approves the current round. */
     public function approve(Review $review, User $reviewer): Review
     {
         $fresh = $this->recordVerdict($review, $reviewer, ReviewReviewer::VERDICT_APPROVED, null);
@@ -305,35 +287,28 @@ class WorkflowService extends Component
         return $fresh;
     }
 
-    /** A reviewer asks for changes (the iterate loop). */
     public function requestChanges(Review $review, User $reviewer, ?string $note): Review
     {
         $fresh = $this->recordVerdict($review, $reviewer, ReviewReviewer::VERDICT_CHANGES_REQUESTED, $note);
-        $this->notifyAuthor($fresh, fn(Entry $draft, User $author) =>
-            Delta::getInstance()->email->sendChangesRequested($fresh, $draft, $author, $note));
+        $this->notifyAuthor($fresh, fn(Entry $draft, User $author) => $this->delta()->email->sendChangesRequested($fresh, $draft, $author, $note));
         $this->trigger(self::EVENT_AFTER_CHANGES_REQUESTED, new WorkflowEvent(['review' => $fresh]));
         return $fresh;
     }
 
-    /** A reviewer declines outright (terminal hard-no). */
     public function decline(Review $review, User $reviewer, ?string $note): Review
     {
         $this->assertCanReview($reviewer, $review);
-
         $fresh = $this->transition(
             $review->id,
-            [Review::STATE_OPEN, Review::STATE_CHANGES_REQUESTED, Review::STATE_APPROVED],
+            self::ACTIVE_TRANSITION_FROM,
             Review::STATE_DECLINED,
             ['decidedBy' => $reviewer->id, 'decisionNote' => $note, 'scheduledFor' => null],
         );
-
-        $this->notifyAuthor($fresh, fn(Entry $draft, User $author) =>
-            Delta::getInstance()->email->sendDeclined($fresh, $draft, $author, $note));
+        $this->notifyAuthor($fresh, fn(Entry $draft, User $author) => $this->delta()->email->sendDeclined($fresh, $draft, $author, $note));
         $this->trigger(self::EVENT_AFTER_DECLINE, new WorkflowEvent(['review' => $fresh]));
         return $fresh;
     }
 
-    /** The author revised and re-requests review (changes_requested → open, round++). */
     public function reRequest(Review $review, User $author): Review
     {
         $this->assertCanActAsAuthor($author, $review);
@@ -347,11 +322,8 @@ class WorkflowService extends Component
             );
 
             // Carry the reviewer set into the new round, reset to pending.
-            /** @var ReviewReviewerRecord[] $previous */
-            $previous = ReviewReviewerRecord::find()
-                ->where(['reviewId' => $review->id, 'round' => $review->round])
-                ->all();
-            foreach ($previous as $row) {
+            /** @var ReviewReviewerRecord $row */
+            foreach (ReviewReviewerRecord::find()->where(['reviewId' => $review->id, 'round' => $review->round])->all() as $row) {
                 $this->insertReviewer($review->id, (int)$row->userId, $next->round);
             }
 
@@ -359,24 +331,20 @@ class WorkflowService extends Component
         });
 
         $fresh = $this->loadReview($reopened->id);
-        $this->notifyReviewers($fresh, fn(Review $r, Entry $draft, int $reviewerUserId) =>
-            Delta::getInstance()->email->sendReRequested($r, $draft, $reviewerUserId));
+        $this->notifyReviewers($fresh, fn(Review $r, Entry $d, int $uid) => $this->delta()->email->sendReRequested($r, $d, $uid));
         $this->trigger(self::EVENT_AFTER_REREQUEST, new WorkflowEvent(['review' => $fresh]));
         return $fresh;
     }
 
-    /** The author withdraws the request (terminal). */
     public function withdraw(Review $review, User $user): Review
     {
         $this->assertCanActAsAuthor($user, $review);
-
         $fresh = $this->transition(
             $review->id,
-            [Review::STATE_OPEN, Review::STATE_CHANGES_REQUESTED, Review::STATE_APPROVED],
+            self::ACTIVE_TRANSITION_FROM,
             Review::STATE_CANCELLED,
             ['decidedBy' => $user->id, 'scheduledFor' => null],
         );
-
         $this->trigger(self::EVENT_AFTER_WITHDRAW, new WorkflowEvent(['review' => $fresh]));
         return $fresh;
     }
@@ -421,8 +389,7 @@ class WorkflowService extends Component
         // Notify "approved — scheduled" now; the publish notification + event
         // fire when the queue job runs applyDraftNow().
         $fresh = $this->loadReview($review->id);
-        $this->notifyAuthor($fresh, fn(Entry $draft, User $author) =>
-            Delta::getInstance()->email->sendPublished($fresh, $draft, $author));
+        $this->notifyAuthor($fresh, fn(Entry $draft, User $author) => $this->delta()->email->sendPublished($fresh, $draft, $author));
         return $fresh;
     }
 
@@ -435,8 +402,8 @@ class WorkflowService extends Component
     {
         $this->assertCanReview($reviewer, $review);
 
-        $now = Db::prepareDateForDb(new DateTime());
-        $claimed = ReviewRecord::updateAll(
+        $now = $this->now();
+        if (ReviewRecord::updateAll(
             [
                 'state' => Review::STATE_PUBLISHED,
                 'appliedAt' => $now,
@@ -445,8 +412,7 @@ class WorkflowService extends Component
                 'dateUpdated' => $now,
             ],
             ['id' => $review->id, 'appliedAt' => null],
-        );
-        if ($claimed === 0) {
+        ) === 0) {
             return; // already concluded by another process
         }
 
@@ -461,13 +427,12 @@ class WorkflowService extends Component
     public function applyDraftNow(Review $review): void
     {
         $originalScheduledFor = $review->scheduledFor;
+        $now = $this->now();
 
-        $now = Db::prepareDateForDb(new DateTime());
-        $claimed = ReviewRecord::updateAll(
+        if (ReviewRecord::updateAll(
             ['appliedAt' => $now, 'state' => Review::STATE_PUBLISHED, 'scheduledFor' => null, 'dateUpdated' => $now],
             ['id' => $review->id, 'appliedAt' => null],
-        );
-        if ($claimed === 0) {
+        ) === 0) {
             return; // already applied by another process
         }
 
@@ -510,7 +475,7 @@ class WorkflowService extends Component
             [
                 'state' => Review::STATE_CANCELLED,
                 'scheduledFor' => null,
-                'dateUpdated' => Db::prepareDateForDb(new DateTime()),
+                'dateUpdated' => $this->now(),
             ],
             ['draftId' => $draftId, 'appliedAt' => null, 'state' => self::DERIVABLE_STATES],
         );
@@ -523,31 +488,28 @@ class WorkflowService extends Component
      * yields zero affected rows and aborts.
      *
      * @param string[] $fromStates
-     * @param array<string, mixed> $attrs
+     * @param ReviewTransitionAttrs $attrs
      */
     private function transition(int $id, array $fromStates, string $to, array $attrs = []): Review
     {
         $attrs['state'] = $to;
-        $attrs['dateUpdated'] = Db::prepareDateForDb(new DateTime());
+        $attrs['dateUpdated'] = $this->now();
 
-        $claimed = ReviewRecord::updateAll($attrs, ['id' => $id, 'state' => $fromStates]);
-        if ($claimed === 0) {
+        if (ReviewRecord::updateAll($attrs, ['id' => $id, 'state' => $fromStates]) === 0) {
             throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::REVIEW_ALREADY_MOVED_ON));
         }
 
         return $this->loadReview($id);
     }
 
-    /** Recompute and persist the cached state from the current round's verdicts. */
     private function recomputeState(int $reviewId, int $round): void
     {
-        $verdicts = ReviewReviewerRecord::find()
+        $state = self::deriveState(ReviewReviewerRecord::find()
             ->select(['verdict'])
             ->where(['reviewId' => $reviewId, 'round' => $round])
-            ->column();
+            ->column());
 
-        $state = self::deriveState($verdicts);
-        $attrs = ['state' => $state, 'dateUpdated' => Db::prepareDateForDb(new DateTime())];
+        $attrs = ['state' => $state, 'dateUpdated' => $this->now()];
         if ($state !== Review::STATE_APPROVED) {
             // Leaving "approved" rescinds any pending schedule, so a queued
             // ApplyScheduledDraft job from the old approval can never publish a
@@ -559,7 +521,6 @@ class WorkflowService extends Component
         ReviewRecord::updateAll($attrs, ['id' => $reviewId, 'state' => self::DERIVABLE_STATES]);
     }
 
-    /** Upsert a reviewer's verdict for the current round. */
     private function writeVerdict(int $reviewId, int $round, int $userId, string $verdict, ?string $note): void
     {
         $record = ReviewReviewerRecord::findOne(['reviewId' => $reviewId, 'userId' => $userId, 'round' => $round]);
@@ -570,9 +531,10 @@ class WorkflowService extends Component
             $record->userId = $userId;
             $record->round = $round;
         }
+
         $record->verdict = $verdict;
         $record->note = $note;
-        $record->decidedAt = Db::prepareDateForDb(new DateTime());
+        $record->decidedAt = $this->now();
         if (!$record->save(false)) {
             throw new InvalidArgumentException('Failed to persist reviewer verdict.');
         }
@@ -590,12 +552,7 @@ class WorkflowService extends Component
         }
     }
 
-    /**
-     * Resolve the review's draft entry and submitting author, then run the
-     * callback. Used for author-facing notifications; a no-op if either is gone.
-     *
-     * @param callable(Entry, User): void $callback
-     */
+    /** @param callable(Entry, User): void $callback */
     private function notifyAuthor(Review $review, callable $callback): void
     {
         $draft = $this->getDraftEntry($review->draftId);
@@ -613,22 +570,17 @@ class WorkflowService extends Component
             ?? Craft::$app->getEntries()->getEntryById($review->canonicalEntryId);
         $author = Craft::$app->getUsers()->getUserById($review->submittedBy);
         if ($entry !== null && $author !== null) {
-            Delta::getInstance()->email->sendPublished($review, $entry, $author);
+            $this->delta()->email->sendPublished($review, $entry, $author);
         }
         $this->trigger(self::EVENT_AFTER_PUBLISH, new WorkflowEvent(['review' => $review]));
     }
 
     private function getDraftEntry(?int $draftId): ?Entry
     {
-        if ($draftId === null) {
-            return null;
-        }
-        return Delta::getInstance()->revision->getDraftByDraftId($draftId);
+        return $draftId === null ? null : $this->delta()->revision->getDraftByDraftId($draftId);
     }
 
-    /**
-     * @param callable(Review, Entry, int): void $send
-     */
+    /** @param callable(Review, Entry, int): void $send */
     private function notifyReviewers(Review $review, callable $send): void
     {
         $draftEntry = $this->getDraftEntry($review->draftId);
@@ -683,10 +635,8 @@ class WorkflowService extends Component
 
     private function loadReview(int $id): Review
     {
-        $record = ReviewRecord::findOne(['id' => $id]);
-        if ($record === null) {
-            throw new InvalidArgumentException('Review not found.');
-        }
+        $record = ReviewRecord::findOne(['id' => $id])
+            ?? throw new InvalidArgumentException('Review not found.');
         return $this->modelFromRecord($record);
     }
 
@@ -700,8 +650,6 @@ class WorkflowService extends Component
             'state' => $record->state,
             'round' => (int)$record->round,
             'submittedBy' => $record->submittedBy,
-            'decidedBy' => $record->decidedBy,
-            'decisionNote' => $record->decisionNote,
             'scheduledFor' => DbDate::parse($record->scheduledFor),
             'appliedAt' => DbDate::parse($record->appliedAt),
             'dateCreated' => DbDate::parse($record->dateCreated),
@@ -712,20 +660,10 @@ class WorkflowService extends Component
         return $review;
     }
 
-    /**
-     * Load the current round's reviewer rows as models, with display names.
-     *
-     * @return ReviewReviewer[]
-     */
+    /** @return ReviewReviewer[] */
     private function loadReviewers(int $reviewId, int $round): array
     {
-        /** @var ReviewReviewerRecord[] $records */
-        $records = ReviewReviewerRecord::find()
-            ->where(['reviewId' => $reviewId, 'round' => $round])
-            ->all();
-
-        $models = [];
-        foreach ($records as $record) {
+        return array_map(function(ReviewReviewerRecord $record) {
             $model = new ReviewReviewer([
                 'id' => $record->id,
                 'reviewId' => $record->reviewId,
@@ -738,12 +676,23 @@ class WorkflowService extends Component
                 'dateUpdated' => DbDate::parse($record->dateUpdated),
                 'uid' => $record->uid,
             ]);
-            $user = Craft::$app->getUsers()->getUserById((int)$record->userId);
-            $model->userName = UserName::of($user);
-            $models[] = $model;
-        }
-
-        return $models;
+            $model->userName = UserName::byId((int)$record->userId);
+            return $model;
+        }, ReviewReviewerRecord::find()->where(['reviewId' => $reviewId, 'round' => $round])->all());
     }
 
+    private function isCurrentActiveRound(ReviewReviewerRecord $row, Review $review): bool
+    {
+        return (int)$row->round === $review->round && $review->isActive();
+    }
+
+    private function now(): string
+    {
+        return Db::prepareDateForDb(new DateTime());
+    }
+
+    private function delta(): Delta
+    {
+        return Delta::getInstance();
+    }
 }

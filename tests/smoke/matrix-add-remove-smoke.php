@@ -54,10 +54,7 @@ if (!$matrixField instanceof \craft\fields\Matrix) {
 $blockType = $matrixField->getEntryTypes()[0];
 echo "Block type: {$blockType->handle}\n";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Phase 0: Seed canonical with exactly 3 blocks (A, B, C).
-// ─────────────────────────────────────────────────────────────────────────────
-
 echo "\nPhase 0: seeding canonical with 3 blocks\n";
 
 $canonical->setFieldValue($fieldHandle, [
@@ -94,10 +91,7 @@ $fullBeforeCount = count($fullCanonicalBefore);
 $fullBeforeUids = array_map(fn($b) => $b->canonicalUid, $fullCanonicalBefore);
 echo "  Total canonical block count (incl. leftovers): {$fullBeforeCount}\n\n";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Phase 1: Build a draft with B removed and a new block added.
-// ─────────────────────────────────────────────────────────────────────────────
-
 echo "Phase 1: drafting state — remove B + add new block D\n";
 
 $draft = Craft::$app->getDrafts()->createDraft($canonical, $adminUser->id, 'Matrix add+remove smoke');
@@ -155,10 +149,7 @@ if (count($newBlocksOnDraft) !== 1) {
 $newBlockCanonicalUid = $newBlocksOnDraft[0];
 echo "  New block on draft: canonicalUid={$newBlockCanonicalUid}\n\n";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Phase 2: Verify atoms.
-// ─────────────────────────────────────────────────────────────────────────────
-
 echo "Phase 2: running DiffService\n";
 
 $plugin = \zeixcom\craftdelta\Delta::getInstance();
@@ -184,10 +175,7 @@ if (!empty($missing)) {
 }
 echo "  ✓ Both expected atoms present\n\n";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Phase 3: Apply both atoms.
-// ─────────────────────────────────────────────────────────────────────────────
-
 echo "Phase 3: applying both atoms via MergeService::merge\n";
 
 $beforeRev = (int)Craft::$app->getDb()->createCommand('SELECT COUNT(*) FROM revisions WHERE canonicalId = :id', [':id' => $canonical->id])->queryScalar();
@@ -217,10 +205,7 @@ if ($afterRev === $beforeRev) {
 }
 echo "\n";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Phase 4: Verify canonical state.
-// ─────────────────────────────────────────────────────────────────────────────
-
 echo "Phase 4: verifying canonical post-apply state\n";
 
 $canonicalAfter = Entry::find()->id($canonical->id)->status(null)->one();

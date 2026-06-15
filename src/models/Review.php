@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace zeixcom\craftdelta\models;
 
+use Craft;
 use craft\base\Model;
 use DateTime;
-use zeixcom\craftdelta\enums\ReviewState;
 use zeixcom\craftdelta\i18n\TranslationKeys;
 
 /**
@@ -26,12 +26,15 @@ use zeixcom\craftdelta\i18n\TranslationKeys;
  */
 class Review extends Model
 {
-    public const STATE_OPEN = ReviewState::Open->value;
-    public const STATE_CHANGES_REQUESTED = ReviewState::ChangesRequested->value;
-    public const STATE_APPROVED = ReviewState::Approved->value;
-    public const STATE_DECLINED = ReviewState::Declined->value;
-    public const STATE_CANCELLED = ReviewState::Cancelled->value;
-    public const STATE_PUBLISHED = ReviewState::Published->value;
+    public const STATE_OPEN = 'open';
+    public const STATE_CHANGES_REQUESTED = 'changes_requested';
+    public const STATE_APPROVED = 'approved';
+    public const STATE_DECLINED = 'declined';
+    public const STATE_CANCELLED = 'cancelled';
+    public const STATE_PUBLISHED = 'published';
+
+    private const ACTIVE_STATES = [self::STATE_OPEN, self::STATE_CHANGES_REQUESTED, self::STATE_APPROVED];
+    private const TERMINAL_STATES = [self::STATE_DECLINED, self::STATE_CANCELLED, self::STATE_PUBLISHED];
 
     public ?int $id = null;
     // Null once published: applyDraft() deletes the draft and the FK SET NULLs
@@ -42,8 +45,6 @@ class Review extends Model
     public string $state = self::STATE_OPEN;
     public int $round = 1;
     public int $submittedBy = 0;
-    public ?int $decidedBy = null;
-    public ?string $decisionNote = null;
     public ?DateTime $scheduledFor = null;
     public ?DateTime $appliedAt = null;
     public ?DateTime $dateCreated = null;
@@ -66,20 +67,17 @@ class Review extends Model
     /** Still in flight — not declined, cancelled, or published. */
     public function isActive(): bool
     {
-        return in_array($this->state, [self::STATE_OPEN, self::STATE_CHANGES_REQUESTED, self::STATE_APPROVED], true)
-            && $this->appliedAt === null;
+        return in_array($this->state, self::ACTIVE_STATES, true) && $this->appliedAt === null;
     }
 
     public function isScheduled(): bool
     {
-        return $this->state === self::STATE_APPROVED
-            && $this->scheduledFor !== null
-            && $this->appliedAt === null;
+        return $this->state === self::STATE_APPROVED && $this->scheduledFor !== null && $this->appliedAt === null;
     }
 
     public function isTerminal(): bool
     {
-        return in_array($this->state, [self::STATE_DECLINED, self::STATE_CANCELLED, self::STATE_PUBLISHED], true);
+        return in_array($this->state, self::TERMINAL_STATES, true);
     }
 
     /**
@@ -89,15 +87,32 @@ class Review extends Model
     public function statusLabel(): string
     {
         return match ($this->state) {
-            self::STATE_OPEN => \Craft::t('craft-delta', TranslationKeys::REVIEW_IN_REVIEW),
-            self::STATE_CHANGES_REQUESTED => \Craft::t('craft-delta', TranslationKeys::REVIEW_CHANGES_REQUESTED),
+            self::STATE_OPEN => Craft::t('craft-delta', TranslationKeys::REVIEW_IN_REVIEW),
+            self::STATE_CHANGES_REQUESTED => Craft::t('craft-delta', TranslationKeys::REVIEW_CHANGES_REQUESTED),
             self::STATE_APPROVED => $this->isScheduled()
-                ? \Craft::t('craft-delta', TranslationKeys::APPROVED_SCHEDULED)
-                : \Craft::t('craft-delta', TranslationKeys::APPROVED),
-            self::STATE_DECLINED => \Craft::t('craft-delta', TranslationKeys::REVIEW_DECLINED),
-            self::STATE_CANCELLED => \Craft::t('craft-delta', TranslationKeys::REVIEW_WITHDRAWN),
-            self::STATE_PUBLISHED => \Craft::t('craft-delta', TranslationKeys::REVIEW_PUBLISHED),
+                ? Craft::t('craft-delta', TranslationKeys::APPROVED_SCHEDULED)
+                : Craft::t('craft-delta', TranslationKeys::APPROVED),
+            self::STATE_DECLINED => Craft::t('craft-delta', TranslationKeys::REVIEW_DECLINED),
+            self::STATE_CANCELLED => Craft::t('craft-delta', TranslationKeys::REVIEW_WITHDRAWN),
+            self::STATE_PUBLISHED => Craft::t('craft-delta', TranslationKeys::REVIEW_PUBLISHED),
             default => $this->state,
+        };
+    }
+
+    /**
+     * Craft CP `.status` dot color. Workflow state slugs (e.g. `open`) are not
+     * built-in Craft status classes — map them to the native palette instead.
+     */
+    public function statusColor(): string
+    {
+        return match ($this->state) {
+            self::STATE_OPEN => 'pending',
+            self::STATE_CHANGES_REQUESTED => 'warning',
+            self::STATE_APPROVED => $this->isScheduled() ? 'amber' : 'live',
+            self::STATE_DECLINED => 'expired',
+            self::STATE_CANCELLED => 'disabled',
+            self::STATE_PUBLISHED => 'active',
+            default => 'gray',
         };
     }
 }

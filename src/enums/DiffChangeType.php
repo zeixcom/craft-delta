@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace zeixcom\craftdelta\enums;
 
-/**
- * Change classification emitted by field differs and encoded in atom keys.
- */
+/** Change classification emitted by field differs and encoded in atom keys. */
 enum DiffChangeType: string
 {
     case Added = 'added';
@@ -14,13 +12,9 @@ enum DiffChangeType: string
     case Modified = 'modified';
     case Reordered = 'reordered';
 
-    /** @return list<string> */
+    /** @return list<value-of<self>> */
     public static function atomValues(): array
     {
-        return [
-            self::Added->value,
-            self::Removed->value,
-            self::Modified->value,
-        ];
+        return array_map(static fn(self $c) => $c->value, [self::Added, self::Removed, self::Modified]);
     }
 }

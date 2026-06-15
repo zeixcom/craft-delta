@@ -1,0 +1,142 @@
+{# Dedicated review-page header: stats, reviewer roster + round, verdict actions,
+   and the accept/reject stepper. Carries the data-* hooks workflow.js and
+   reviewMode bind to. The comment threads live in _review-discussion below the
+   diff; the JS resolves [data-review-comments] via the page root, not this block.
+
+   Mirrors the workflow-toolbar markup in _diff-slideout.twig but arranged as a
+   page header instead of stacked above the diff. #}
+
+{% set isReviewerActive = workflow is defined and workflow and isReviewer is defined and isReviewer and workflow.isActive() %}
+{% set isReviewAuthor = workflow is defined and workflow and currentUser and (currentUser.id == workflow.submittedBy or currentUser.admin) %}
+{# When the reviewer can apply, "Granular review" is the entry into accept/reject,
+   so the standalone "Start Review" button is suppressed. #}
+{% set showGranularReview = isReviewerActive and currentUser.can('craftdelta-applyReview') %}
+{% set stats = result.getStats() %}
+
+<div class="delta-review-header">
+    <div class="delta-review-header-top">
+        <div class="delta-stats" data-stats>
+            <span>
+                {%- if stats.fieldsChanged == 1 -%}
+                    {{ deltaKeys.oneFieldChanged|t('craft-delta') }}
+                {%- else -%}
+                    {{ deltaKeys.countFieldsChanged|t('craft-delta', { count: stats.fieldsChanged }) }}
+                {%- endif -%}
+            </span>
+            {% if stats.additions > 0 %}<span class="delta-stat-added">+{{ stats.additions }}</span>{% endif %}
+            {% if stats.deletions > 0 %}<span class="delta-stat-removed">&minus;{{ stats.deletions }}</span>{% endif %}
+        </div>
+
+        {% if workflow is defined and workflow %}
+            <div class="delta-review-roster">
+                <span class="delta-review-roster-label">{{ deltaKeys.workflowReviewers|t('craft-delta') }}:</span>
+                {% for r in workflow.reviewers %}
+                    {% set verdictLabel = r.verdict == 'approved'
+                        ? deltaKeys.approved|t('craft-delta')
+                        : (r.verdict == 'changes_requested'
+                            ? deltaKeys.reviewChangesRequested|t('craft-delta')
+                            : deltaKeys.workflowAwaiting|t('craft-delta')) %}
+                    <span class="delta-reviewer-pill delta-reviewer-pill--{{ r.verdict }}"
+                          title="{{ verdictLabel }}">{{ r.userName ?? ('#' ~ r.userId) }}</span>
+                {% endfor %}
+                <span class="delta-review-round">{{ deltaKeys.workflowRound|t('craft-delta', { round: workflow.round }) }}</span>
+            </div>
+        {% endif %}
+    </div>
+
+    {% if workflow is defined and workflow %}
+        <div class="delta-workflow-toolbar"
+             data-review-id="{{ workflow.id }}"
+             data-section-uid="{{ workflow.sectionUid }}"
+             data-note-prompt="{{ deltaKeys.optionalNoteForAuthor|t('craft-delta') }}"
+             data-rc-prompt="{{ deltaKeys.workflowRequestChangesPrompt|t('craft-delta') }}"
+             data-confirm-decline="{{ deltaKeys.workflowDeclineConfirm|t('craft-delta') }}"
+             data-confirm-withdraw="{{ deltaKeys.workflowWithdrawConfirm|t('craft-delta') }}"
+             data-confirm-rerequest="{{ deltaKeys.workflowReRequestConfirm|t('craft-delta') }}"
+             data-confirm-publish="{{ deltaKeys.workflowPublishConfirm|t('craft-delta') }}"
+             data-publish-at-prompt="{{ deltaKeys.publishAtPrompt|t('craft-delta') }}"
+             data-done-approve="{{ deltaKeys.workflowDoneApproved|t('craft-delta') }}"
+             data-done-request-changes="{{ deltaKeys.workflowDoneChangesRequested|t('craft-delta') }}"
+             data-done-decline="{{ deltaKeys.workflowDoneDeclined|t('craft-delta') }}"
+             data-done-withdraw="{{ deltaKeys.workflowDoneWithdrawn|t('craft-delta') }}"
+             data-done-rerequest="{{ deltaKeys.workflowDoneReRequested|t('craft-delta') }}"
+             data-done-publish="{{ deltaKeys.workflowDonePublished|t('craft-delta') }}"
+             data-action-failed="{{ deltaKeys.workflowActionFailed|t('craft-delta') }}">
+
+            {% if isReviewerActive %}
+                <div class="delta-workflow-actions" data-role="reviewer">
+                    <button type="button" class="btn submit" data-wf-action="approve">{{ deltaKeys.workflowApprove|t('craft-delta') }}</button>
+                    <button type="button" class="btn" data-wf-action="request-changes">{{ deltaKeys.workflowRequestChanges|t('craft-delta') }}</button>
+                    {# No "Granular review" entry button: on the review page accept/reject
+                       is always-on (the wiring JS auto-enters review mode), so a manual
+                       entry button would be redundant and a re-click would wipe decisions. #}
+                    <button type="button" class="btn" data-wf-action="decline">{{ deltaKeys.workflowDecline|t('craft-delta') }}</button>
+                </div>
+            {% endif %}
+
+            {% if workflow.isApproved() and (isReviewerActive or isReviewAuthor) %}
+                <div class="delta-workflow-actions" data-role="publish">
+                    <button type="button" class="btn submit" data-wf-action="publish">{{ deltaKeys.workflowPublish|t('craft-delta') }}</button>
+                    <button type="button" class="btn" data-wf-action="schedule">{{ deltaKeys.scheduleFor|t('craft-delta') }}</button>
+                </div>
+            {% endif %}
+
+            {% if isReviewAuthor and workflow.isActive() %}
+                <div class="delta-workflow-actions" data-role="author">
+                    {% if workflow.isChangesRequested() %}
+                        <button type="button" class="btn submit" data-wf-action="re-request">{{ deltaKeys.workflowReRequest|t('craft-delta') }}</button>
+                    {% endif %}
+                    <button type="button" class="btn" data-wf-action="withdraw">{{ deltaKeys.workflowWithdraw|t('craft-delta') }}</button>
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    {% if reviewMode is defined and reviewMode %}
+        <div class="delta-review-toolbar"
+             data-review-toolbar
+             data-auto-review="{{ showGranularReview ? '1' : '' }}"
+             data-entry-id="{{ entryId }}"
+             data-site-id="{{ siteId }}"
+             data-source-ref="{{ sourceRef }}"
+             data-canonical-updated-at="{{ canonicalUpdatedAt }}"
+             data-source-updated-at="{{ sourceUpdatedAt }}">
+            {# Reviewers who can apply get always-on accept/reject (auto-entered),
+               so no Start button. Reviewers who cannot apply keep the explicit
+               entry point. #}
+            {% if not showGranularReview %}
+                <button type="button" class="btn delta-review-start" data-action="start-review">
+                    {{ deltaKeys.startReview|t('craft-delta') }}
+                </button>
+            {% endif %}
+        </div>
+
+        <div class="delta-review-stepper" data-review-stepper hidden>
+            <span class="delta-review-progress" data-review-progress
+                  title="{{ deltaKeys.reviewKeyboardHint|t('craft-delta') }}">
+                {{ deltaKeys.decidedOfTotal|t('craft-delta', { decided: 0, total: 0 }) }}
+            </span>
+            {% if sourceRef starts with 'draft:' %}
+                <label class="delta-review-cleanup">
+                    <input type="checkbox" data-delete-source-draft>
+                    {{ deltaKeys.alsoDeleteSourceDraft|t('craft-delta') }}
+                </label>
+            {% endif %}
+            <div class="delta-review-actions">
+                <button type="button" class="btn submit" data-action="apply" disabled>
+                    {{ deltaKeys.applyCountAccepted|t('craft-delta', { count: 0 }) }}
+                </button>
+                {# In always-on mode "Cancel" would exit the default state and hide
+                   accept/reject until reload — confusing — so only offer it on the
+                   explicit-start path. #}
+                {% if not showGranularReview %}
+                    <button type="button" class="btn delta-review-cancel" data-action="cancel-review">
+                        {{ deltaKeys.cancelReview|t('craft-delta') }}
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="delta-review-banner" data-review-banner hidden></div>
+    {% endif %}
+</div>

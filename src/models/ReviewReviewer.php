@@ -6,16 +6,15 @@ namespace zeixcom\craftdelta\models;
 
 use craft\base\Model;
 use DateTime;
-use zeixcom\craftdelta\enums\ReviewVerdict;
 
 /**
  * One reviewer's verdict on a review, for a given round.
  */
 class ReviewReviewer extends Model
 {
-    public const VERDICT_PENDING = ReviewVerdict::Pending->value;
-    public const VERDICT_APPROVED = ReviewVerdict::Approved->value;
-    public const VERDICT_CHANGES_REQUESTED = ReviewVerdict::ChangesRequested->value;
+    public const VERDICT_PENDING = 'pending';
+    public const VERDICT_APPROVED = 'approved';
+    public const VERDICT_CHANGES_REQUESTED = 'changes_requested';
 
     public ?int $id = null;
     public int $reviewId = 0;

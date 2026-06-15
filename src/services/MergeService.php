@@ -8,13 +8,14 @@ use craft\base\Component;
 use craft\elements\db\EntryQuery;
 use craft\elements\ElementCollection;
 use craft\elements\Entry;
+use zeixcom\craftdelta\Delta;
 use zeixcom\craftdelta\enums\AtomKind;
 use zeixcom\craftdelta\enums\DiffChangeType;
+use zeixcom\craftdelta\helpers\Limits;
+use zeixcom\craftdelta\helpers\MatrixValue;
 use zeixcom\craftdelta\i18n\TranslationKeys;
 use zeixcom\craftdelta\models\DiffResult;
 use zeixcom\craftdelta\util\AtomKey;
-use zeixcom\craftdelta\models\FieldDiff;
-use zeixcom\craftdelta\types\ArrayTypes;
 
 /**
  * Owns the write side of review mode: validates accepted atoms against a
@@ -23,8 +24,10 @@ use zeixcom\craftdelta\types\ArrayTypes;
  *
  * Pure write-side. Shares no mutable state with DiffService.
  *
- * @phpstan-import-type ParsedAtomKey from \zeixcom\craftdelta\types\ArrayTypes
  * @phpstan-import-type MatrixBlockAtom from \zeixcom\craftdelta\types\ArrayTypes
+ * @phpstan-import-type MatrixCanonicalDraftMap from \zeixcom\craftdelta\types\ArrayTypes
+ * @phpstan-import-type MatrixSetValue from \zeixcom\craftdelta\types\ArrayTypes
+ * @phpstan-import-type OrderedMatrixBlock from \zeixcom\craftdelta\types\ArrayTypes
  * @phpstan-import-type SerializedMatrixBlock from \zeixcom\craftdelta\types\ArrayTypes
  */
 class MergeService extends Component
@@ -32,22 +35,6 @@ class MergeService extends Component
     public ?DiffService $diffService = null;
 
     /**
-     * Parse a stable atom key into a structured array.
-     *
-     * @return ParsedAtomKey
-     * @throws \InvalidArgumentException when the key is malformed
-     * @deprecated Use {@see AtomKey::parse()} instead.
-     */
-    public static function parseAtomKey(string $key): array
-    {
-        return AtomKey::parse($key);
-    }
-
-    /**
-     * Validate that every accepted atom corresponds to a real atom in the
-     * fresh diff. Malformed atoms throw InvalidArgumentException; unknown
-     * atoms throw StaleAtomException.
-     *
      * @param string[] $availableAtoms All atom keys present in the fresh diff
      * @param string[] $acceptedAtoms  The user's accepted atoms
      * @throws \InvalidArgumentException
@@ -55,43 +42,30 @@ class MergeService extends Component
      */
     public static function validateAtoms(array $availableAtoms, array $acceptedAtoms): void
     {
+        if (count($acceptedAtoms) > Limits::ACCEPTED_ATOMS_MAX) {
+            throw new \InvalidArgumentException('Too many accepted atoms.');
+        }
+
         $available = array_flip($availableAtoms);
-
         foreach ($acceptedAtoms as $atom) {
-            AtomKey::parse($atom); // throws on malformed
-
+            AtomKey::parse($atom);
             if (!isset($available[$atom])) {
                 throw new StaleAtomException("Atom '$atom' is not present in the fresh diff");
             }
         }
     }
 
-    /**
-     * Step A of the Matrix merge: build the surviving block set, before
-     * ordering. Each block is an associative array; this method is content-
-     * agnostic — it operates on UIDs.
-     *
-     * @param array<int, array<string, mixed>> $current        Current blocks
-     * @param array<int, array<string, mixed>> $source         Source blocks
-     * @param array<int, MatrixBlockAtom> $atoms Accepted block atoms for this field
-     * @return array<int, array<string, mixed>>                Surviving blocks (order not yet applied)
-     */
+    /** @param list<SerializedMatrixBlock> $current @param list<SerializedMatrixBlock> $source @param array<int, MatrixBlockAtom> $atoms @return list<SerializedMatrixBlock> */
     public static function buildMatrixBlockList(array $current, array $source, array $atoms): array
     {
-        $sourceByUid = [];
-        foreach ($source as $block) {
-            $sourceByUid[$block['uid']] = $block;
-        }
-
-        $working = [];
-        foreach ($current as $block) {
-            $working[$block['uid']] = $block;
-        }
+        $sourceByUid = array_column($source, null, 'uid');
+        $working = array_column($current, null, 'uid');
 
         foreach ($atoms as $atom) {
             $uid = $atom['blockUid'];
             switch ($atom['changeType']) {
                 case DiffChangeType::Added->value:
+                case DiffChangeType::Modified->value:
                     if (isset($sourceByUid[$uid])) {
                         $working[$uid] = $sourceByUid[$uid];
                     }
@@ -99,66 +73,34 @@ class MergeService extends Component
                 case DiffChangeType::Removed->value:
                     unset($working[$uid]);
                     break;
-                case DiffChangeType::Modified->value:
-                    if (isset($sourceByUid[$uid])) {
-                        $working[$uid] = $sourceByUid[$uid];
-                    }
-                    break;
             }
         }
 
         return array_values($working);
     }
 
-    /**
-     * Step B of the Matrix merge: order the surviving blocks per spec §6.2.
-     *
-     * @param array<int, array<string, mixed>> $survivors         Output from buildMatrixBlockList
-     * @param array<int, array<string, mixed>> $current           Original current blocks (for spine)
-     * @param array<int, array<string, mixed>> $source            Original source blocks (for spine)
-     * @param bool $acceptedReorder                               Whether the matrix-reorder atom was accepted
-     * @return array<int, array<string, mixed>>
-     */
+    /** @param list<SerializedMatrixBlock> $survivors @param list<SerializedMatrixBlock> $current @param list<SerializedMatrixBlock> $source @return list<SerializedMatrixBlock> */
     public static function orderMatrixBlocks(array $survivors, array $current, array $source, bool $acceptedReorder): array
     {
-        $survivorsByUid = [];
-        foreach ($survivors as $block) {
-            $survivorsByUid[$block['uid']] = $block;
-        }
-
-        if (!$acceptedReorder) {
-            return self::orderByCurrentSpine($survivorsByUid, $current, $source);
-        }
-
-        return self::orderBySourceSpine($survivorsByUid, $current, $source);
+        $survivorsByUid = array_column($survivors, null, 'uid');
+        return $acceptedReorder
+            ? self::orderBySourceSpine($survivorsByUid, $current, $source)
+            : self::orderByCurrentSpine($survivorsByUid, $current, $source);
     }
 
-    /**
-     * @param array<string, array<string, mixed>> $survivorsByUid
-     * @param array<int, array<string, mixed>> $current
-     * @param array<int, array<string, mixed>> $source
-     * @return array<int, array<string, mixed>>
-     */
+    /** @param array<string, SerializedMatrixBlock> $survivorsByUid @param list<SerializedMatrixBlock> $current @param list<SerializedMatrixBlock> $source @return list<SerializedMatrixBlock> */
     private static function orderByCurrentSpine(array $survivorsByUid, array $current, array $source): array
     {
         $result = [];
-
-        foreach ($current as $block) {
-            $uid = $block['uid'];
-            if (isset($survivorsByUid[$uid])) {
-                $result[] = $survivorsByUid[$uid];
-                unset($survivorsByUid[$uid]);
+        foreach ([$current, $source] as $spine) {
+            foreach ($spine as $block) {
+                $uid = $block['uid'];
+                if (isset($survivorsByUid[$uid])) {
+                    $result[] = $survivorsByUid[$uid];
+                    unset($survivorsByUid[$uid]);
+                }
             }
         }
-
-        foreach ($source as $block) {
-            $uid = $block['uid'];
-            if (isset($survivorsByUid[$uid])) {
-                $result[] = $survivorsByUid[$uid];
-                unset($survivorsByUid[$uid]);
-            }
-        }
-
         return $result;
     }
 
@@ -167,18 +109,14 @@ class MergeService extends Component
      * are inserted immediately after the most-recent both-sides anchor in
      * current's order. Current-only blocks before any anchor go at the front.
      *
-     * @param array<string, array<string, mixed>> $survivorsByUid
-     * @param array<int, array<string, mixed>> $current
-     * @param array<int, array<string, mixed>> $source
-     * @return array<int, array<string, mixed>>
+     * @param array<string, SerializedMatrixBlock> $survivorsByUid
+     * @param list<SerializedMatrixBlock> $current
+     * @param list<SerializedMatrixBlock> $source
+     * @return list<SerializedMatrixBlock>
      */
     private static function orderBySourceSpine(array $survivorsByUid, array $current, array $source): array
     {
-        $sourceUids = [];
-        foreach ($source as $block) {
-            $sourceUids[$block['uid']] = true;
-        }
-
+        $sourceUids = array_fill_keys(array_column($source, 'uid'), true);
         $anchorByCurrentOnly = [];
         $currentOnlyOrder = [];
         $lastAnchor = null;
@@ -186,19 +124,15 @@ class MergeService extends Component
         foreach ($current as $block) {
             $uid = $block['uid'];
             $isSurvivor = isset($survivorsByUid[$uid]);
-            $isInSource = isset($sourceUids[$uid]);
-
-            if ($isSurvivor && $isInSource) {
+            if ($isSurvivor && isset($sourceUids[$uid])) {
                 $lastAnchor = $uid;
-            } elseif ($isSurvivor) { // surviving current-only block
+            } elseif ($isSurvivor) {
                 $anchorByCurrentOnly[$uid] = $lastAnchor;
                 $currentOnlyOrder[] = $uid;
             }
         }
 
         $result = [];
-
-        // Current-only blocks with no both-sides anchor go first.
         foreach ($currentOnlyOrder as $uid) {
             if ($anchorByCurrentOnly[$uid] === null) {
                 $result[] = $survivorsByUid[$uid];
@@ -208,10 +142,9 @@ class MergeService extends Component
         foreach ($source as $block) {
             $uid = $block['uid'];
             if (!isset($survivorsByUid[$uid])) {
-                continue; // source block didn't survive (e.g. a source-only block whose 'added' atom was rejected)
+                continue;
             }
             $result[] = $survivorsByUid[$uid];
-
             foreach ($currentOnlyOrder as $coUid) {
                 if ($anchorByCurrentOnly[$coUid] === $uid) {
                     $result[] = $survivorsByUid[$coUid];
@@ -240,13 +173,13 @@ class MergeService extends Component
      * existing block survives. Display order is unaffected: Craft reads it from
      * `sortOrder`, which we keep in the true ordered sequence.
      *
-     * @param array<int, array{uid: string, draftEntryUid?: string, payload: array<string, mixed>}> $ordered
-     * @param array<string, array{draftEntryUid: string}> $currentByCanonicalUid
-     * @return array{entries: array<string, mixed>, sortOrder: array<int, string>}
+     * @param list<OrderedMatrixBlock> $ordered
+     * @param MatrixCanonicalDraftMap $currentByCanonicalUid
+     * @return MatrixSetValue
      */
     public static function buildMatrixSetValue(array $ordered, array $currentByCanonicalUid): array
     {
-        $plan = [];
+        $entries = [];
         $sortOrder = [];
         $newCount = 0;
 
@@ -254,112 +187,63 @@ class MergeService extends Component
             $existing = $currentByCanonicalUid[$block['uid']] ?? null;
             if ($existing !== null) {
                 $key = 'uid:' . $existing['draftEntryUid'];
-                $sortOrderToken = $existing['draftEntryUid'];
-                $isExisting = true;
+                $sortOrder[] = $existing['draftEntryUid'];
+                $entries[$key] = $block['payload'];
             } else {
-                $newCount++;
-                $key = 'new' . $newCount;
-                $sortOrderToken = $key;
-                $isExisting = false;
-            }
-            $plan[] = ['key' => $key, 'payload' => $block['payload'], 'isExisting' => $isExisting];
-            $sortOrder[] = $sortOrderToken;
-        }
-
-        $entries = [];
-        foreach ($plan as $p) {
-            if ($p['isExisting']) {
-                $entries[$p['key']] = $p['payload'];
-            }
-        }
-        foreach ($plan as $p) {
-            if (!$p['isExisting']) {
-                $entries[$p['key']] = $p['payload'];
+                $key = 'new' . ++$newCount;
+                $sortOrder[] = $key;
+                $entries[$key] = $block['payload'];
             }
         }
 
-        return ['entries' => $entries, 'sortOrder' => $sortOrder];
+        // Re-key so existing uid:… entries precede newN keys (Craft Matrix detection).
+        $existingEntries = [];
+        $newEntries = [];
+        foreach ($entries as $key => $payload) {
+            if (str_starts_with($key, 'uid:')) {
+                $existingEntries[$key] = $payload;
+            } else {
+                $newEntries[$key] = $payload;
+            }
+        }
+
+        return ['entries' => $existingEntries + $newEntries, 'sortOrder' => $sortOrder];
     }
 
     /** @param string[] $fieldAtoms "field:<handle>" atom keys */
     private function applyFieldAtoms(Entry $draft, Entry $source, array $fieldAtoms): void
     {
         foreach ($fieldAtoms as $atom) {
-            $parsed = AtomKey::parse($atom);
-            $handle = $parsed['handle'];
-
-            // Native attributes (matches DiffService::compareAttributes)
+            $handle = AtomKey::parse($atom)['handle'];
             if ($handle === 'title') {
                 $draft->title = $source->title;
-                continue;
-            }
-            if ($handle === 'slug') {
+            } elseif ($handle === 'slug') {
                 $draft->slug = $source->slug;
-                continue;
+            } else {
+                $draft->setFieldValue($handle, $source->getFieldValue($handle));
             }
-
-            // Custom field — let Craft handle serialization across all field types
-            // (CKEditor, Asset, Money, etc. travel cleanly via getFieldValue/setFieldValue).
-            $draft->setFieldValue($handle, $source->getFieldValue($handle));
         }
     }
 
-    /**
-     * Apply matrix-block and matrix-reorder atoms onto a draft for one Matrix field.
-     *
-     * @param array<int, MatrixBlockAtom> $blockAtoms
-     */
-    private function applyMatrixAtoms(
-        Entry $draft,
-        Entry $source,
-        string $fieldHandle,
-        array $blockAtoms,
-        bool $acceptedReorder,
-    ): void {
+    /** @param array<int, MatrixBlockAtom> $blockAtoms */
+    private function applyMatrixAtoms(Entry $draft, Entry $source, string $fieldHandle, array $blockAtoms, bool $acceptedReorder): void
+    {
         $current = $this->serializeMatrixBlocks($draft->getFieldValue($fieldHandle));
         $sourceBlocks = $this->serializeMatrixBlocks($source->getFieldValue($fieldHandle));
-
-        $survivors = self::buildMatrixBlockList($current, $sourceBlocks, $blockAtoms);
-        $ordered = self::orderMatrixBlocks($survivors, $current, $sourceBlocks, $acceptedReorder);
-
-        // Build a lookup so we can map each surviving block back to whether it
-        // already exists on $draft (a clone of canonical) or whether it's new
-        // (came from source via an `added` atom).
-        $currentByCanonicalUid = [];
-        foreach ($current as $b) {
-            $currentByCanonicalUid[$b['uid']] = $b;
-        }
-
-        $draft->setFieldValue($fieldHandle, self::buildMatrixSetValue($ordered, $currentByCanonicalUid));
+        $ordered = self::orderMatrixBlocks(
+            self::buildMatrixBlockList($current, $sourceBlocks, $blockAtoms),
+            $current,
+            $sourceBlocks,
+            $acceptedReorder,
+        );
+        $draft->setFieldValue($fieldHandle, self::buildMatrixSetValue($ordered, array_column($current, null, 'uid')));
     }
 
-    /**
-     * Serialize a Craft Matrix field value into [{uid, draftEntryUid, payload}, …]
-     * form. `uid` is the canonicalUid (used for matching across canonical / draft
-     * / revision via MatrixDiffer's canonical-ID convention). `draftEntryUid`
-     * is THIS specific entry's own uid — needed when emitting back into
-     * setFieldValue so Craft patches the right draft entry rather than creating
-     * a duplicate.
-     *
-     * @param EntryQuery|ElementCollection|list<Entry>|null $matrixValue
-     * @return list<SerializedMatrixBlock>
-     */
+    /** @param EntryQuery|ElementCollection|list<Entry>|null $matrixValue @return list<SerializedMatrixBlock> */
     private function serializeMatrixBlocks(EntryQuery|ElementCollection|array|null $matrixValue): array
     {
-        $blocks = match (true) {
-            $matrixValue === null => [],
-            $matrixValue instanceof EntryQuery => $matrixValue->status(null)->all(),
-            $matrixValue instanceof ElementCollection => $matrixValue->all(),
-            default => $matrixValue,
-        };
-
         $result = [];
-        foreach ($blocks as $block) {
-            if (!$block instanceof Entry) {
-                continue;
-            }
-            // Mirror Craft's MatrixField::serializeValue() shape so block-level
-            // attributes (title, slug, enabled, collapsed) round-trip on apply.
+        foreach (MatrixValue::toEntries($matrixValue) as $block) {
             $result[] = [
                 'uid' => $block->canonicalUid,
                 'draftEntryUid' => $block->uid,
@@ -376,22 +260,11 @@ class MergeService extends Component
         return $result;
     }
 
-    /**
-     * Apply the user's accepted atoms onto a new draft of the canonical entry,
-     * then publish that draft via Craft's standard lifecycle.
-     *
-     * @param string[] $acceptedAtoms     List of stable atom keys (see spec §5.1)
-     * @param bool     $deleteSourceDraft If true and $source is a draft, delete
-     *                                    it after the publish succeeds.
-     * @return Entry The published canonical entry (with a fresh revision)
-     */
+    /** @param string[] $acceptedAtoms @return Entry */
     public function merge(Entry $canonical, Entry $source, array $acceptedAtoms, bool $deleteSourceDraft = false): Entry
     {
-        $diffService = $this->diffService
-            ?? \zeixcom\craftdelta\Delta::getInstance()->diff;
-        $freshDiff = $diffService->compare($canonical, $source);
-        $availableAtoms = self::collectAvailableAtoms($freshDiff);
-        self::validateAtoms($availableAtoms, $acceptedAtoms);
+        $diffService = $this->diffService ?? Delta::getInstance()->diff;
+        self::validateAtoms(self::collectAvailableAtoms($diffService->compare($canonical, $source)), $acceptedAtoms);
 
         $fieldAtoms = [];
         $matrixBlockAtomsByHandle = [];
@@ -399,22 +272,14 @@ class MergeService extends Component
 
         foreach ($acceptedAtoms as $atom) {
             $parsed = AtomKey::parse($atom);
-            switch ($parsed['kind']) {
-                case AtomKind::Field->value:
-                    $fieldAtoms[] = $atom;
-                    break;
-                case AtomKind::MatrixBlock->value:
-                    $h = $parsed['fieldHandle'];
-                    $matrixBlockAtomsByHandle[$h] ??= [];
-                    $matrixBlockAtomsByHandle[$h][] = [
-                        'blockUid' => $parsed['blockUid'],
-                        'changeType' => $parsed['changeType'],
-                    ];
-                    break;
-                case AtomKind::MatrixReorder->value:
-                    $reorderAcceptedHandles[$parsed['fieldHandle']] = true;
-                    break;
-            }
+            match ($parsed['kind']) {
+                AtomKind::Field->value => $fieldAtoms[] = $atom,
+                AtomKind::MatrixBlock->value => $matrixBlockAtomsByHandle[$parsed['fieldHandle']][] = [
+                    'blockUid' => $parsed['blockUid'],
+                    'changeType' => $parsed['changeType'],
+                ],
+                AtomKind::MatrixReorder->value => $reorderAcceptedHandles[$parsed['fieldHandle']] = true,
+            };
         }
 
         $user = \Craft::$app->getUser()->getIdentity();
@@ -426,25 +291,23 @@ class MergeService extends Component
 
         $this->applyFieldAtoms($draft, $source, $fieldAtoms);
 
-        $matrixHandles = array_unique(array_merge(
-            array_keys($matrixBlockAtomsByHandle),
-            array_keys($reorderAcceptedHandles),
-        ));
-        foreach ($matrixHandles as $handle) {
-            $blockAtoms = $matrixBlockAtomsByHandle[$handle] ?? [];
-            $acceptedReorder = isset($reorderAcceptedHandles[$handle]);
-            $this->applyMatrixAtoms($draft, $source, $handle, $blockAtoms, $acceptedReorder);
+        foreach (array_unique([...array_keys($matrixBlockAtomsByHandle), ...array_keys($reorderAcceptedHandles)]) as $handle) {
+            $this->applyMatrixAtoms(
+                $draft,
+                $source,
+                $handle,
+                $matrixBlockAtomsByHandle[$handle] ?? [],
+                isset($reorderAcceptedHandles[$handle]),
+            );
         }
 
         if (!\Craft::$app->getElements()->saveElement($draft)) {
-            $errors = $draft->getErrors();
-            throw new \RuntimeException('Draft validation failed: ' . json_encode($errors));
+            throw new \RuntimeException('Draft validation failed: ' . json_encode($draft->getErrors()));
         }
 
         $published = \Craft::$app->getDrafts()->applyDraft($draft);
         if (!$published instanceof Entry) {
-            $errors = $draft->getErrors();
-            throw new \RuntimeException('Failed to publish: ' . json_encode($errors));
+            throw new \RuntimeException('Failed to publish: ' . json_encode($draft->getErrors()));
         }
 
         if ($deleteSourceDraft && $source->getBehavior('draft') !== null) {
@@ -454,17 +317,10 @@ class MergeService extends Component
         return $published;
     }
 
-    /**
-     * Walk the fresh DiffResult and collect the full set of atom keys it offers.
-     * Mirrors the keys the client emits in data-atom-id. Static + pure so the
-     * stale-atom contract can be unit-tested without a Craft kernel.
-     *
-     * @return string[]
-     */
+    /** @return string[] */
     public static function collectAvailableAtoms(DiffResult $diff): array
     {
         $atoms = [];
-
         foreach ($diff->fieldDiffs as $fd) {
             if (!$fd->hasChanges) {
                 continue;
@@ -475,8 +331,7 @@ class MergeService extends Component
             // broader str_contains() here would classify a field as Matrix that
             // the templates render as a plain field, so the client offers a
             // `field:` atom this set lacks and the whole apply fails as stale.
-            $isMatrix = str_ends_with($fd->fieldType, '\\Matrix');
-            if (!$isMatrix) {
+            if (!str_ends_with($fd->fieldType, '\\Matrix')) {
                 $atoms[] = AtomKind::Field->value . ':' . $fd->fieldHandle;
                 continue;
             }
@@ -491,11 +346,7 @@ class MergeService extends Component
                 $type = $change['type'] ?? null;
                 if ($type === DiffChangeType::Reordered->value) {
                     $hasReorder = true;
-                    continue;
-                }
-                if (in_array($type, DiffChangeType::atomValues(), true)
-                    && !empty($change['blockUid'])
-                ) {
+                } elseif (in_array($type, DiffChangeType::atomValues(), true) && !empty($change['blockUid'])) {
                     $atoms[] = AtomKind::MatrixBlock->value . ':' . $fd->fieldHandle . ':' . $change['blockUid'] . ':' . $type;
                 }
             }
@@ -510,11 +361,9 @@ class MergeService extends Component
 
     private function humanRefForSource(Entry $source): string
     {
-        // revisionNum lives on RevisionBehavior; access via getBehavior to avoid
-        // "Unknown property" when source is canonical or a draft.
         /** @var \craft\behaviors\RevisionBehavior|null $revisionBehavior */
         $revisionBehavior = $source->getBehavior('revision');
-        if ($revisionBehavior !== null && $revisionBehavior->revisionNum !== null) {
+        if ($revisionBehavior?->revisionNum !== null) {
             return \Craft::t('craft-delta', TranslationKeys::REV_NUM, ['num' => $revisionBehavior->revisionNum]);
         }
         /** @var \craft\behaviors\DraftBehavior|null $draftBehavior */

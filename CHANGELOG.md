@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Changed — review UI revamp
+
+- **Reviews now happen on a dedicated full-page workspace** at `/admin/delta-review?reviewId=N` (`craft-delta/workflow/review`) instead of inside the diff slideout. The page has a clean header (reviewer roster + round, verdict actions, and a live "decided" counter), the diff, and the general discussion below it.
+- **The diff slideout (and the `delta-compare` full page) are now diff-only.** When the draft under view has a review, a slim banner links to the dedicated review page ("Open review"). All verdict buttons, comments, and accept/reject controls were removed from the slideout.
+- **Anchored comments render inline** under each changed field/Matrix block (GitHub-style), with an inline "Add comment" affordance — replacing the click-to-open comment panel on the review page.
+- **Accept/reject is always-on** on the review page for reviewers who can apply (auto-enters review mode), with the decided counter and "Apply N accepted" in the header. Verdict (Approve) and Apply remain distinct actions. Honors the **Enable Review Mode** kill-switch — when off, the page shows verdict + comments only, no accept/reject/apply.
+- The **Reviews dashboard** rows and the **email notifications** (submitted, re-requested, changes requested, declined) now link to the dedicated review page.
+
+### Fixed
+
+- A reply no longer shows a "Reply" affordance (the data model supports only one level of replies), which previously dead-ended in a generic "could not be saved" error.
+- Closed/terminal reviews (published, declined, cancelled) now render comments **read-only** — the composer, reply, and add-comment affordances are hidden, since the backend rejects posts on an inactive review.
+
 ## 2.0.0 - 2026-06-12
 
 Major release: adds an inline **Review Mode** and a multi-reviewer **submit-for-review workflow** on top of the v1.x diff viewer.

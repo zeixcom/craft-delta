@@ -169,6 +169,7 @@ final class TranslationKeys
     public const WORKFLOW_COL_ROUND = 'workflow.colRound';
     public const WORKFLOW_COMMENT_FAILED = 'workflow.commentFailed';
     public const WORKFLOW_GENERAL_DISCUSSION = 'workflow.generalDiscussion';
+    public const WORKFLOW_OPEN_REVIEW = 'workflow.openReview';
     public const WORKFLOW_POST_COMMENT = 'workflow.postComment';
     public const WORKFLOW_REPLY = 'workflow.reply';
     public const WORKFLOW_RESOLVE = 'workflow.resolve';
@@ -177,10 +178,15 @@ final class TranslationKeys
     public const WORKFLOW_COMMENT_PLACEHOLDER = 'workflow.commentPlaceholder';
     public const WORKFLOW_REPLY_PLACEHOLDER = 'workflow.replyPlaceholder';
     public const WORKFLOW_COMMENTS = 'workflow.comments';
+    public const WORKFLOW_ADD_COMMENT = 'workflow.addComment';
     public const WORKFLOW_NO_COMMENTS = 'workflow.noComments';
     public const WORKFLOW_ROUND_LABEL = 'workflow.roundLabel';
 
-    /** Keys registered for Craft.t() in the control panel. */
+    /**
+     * Keys registered for Craft.t() in the control panel.
+     *
+     * @return list<string>
+     */
     public static function jsMessageKeys(): array
     {
         return [
@@ -231,13 +237,18 @@ final class TranslationKeys
             self::WORKFLOW_COMMENT_PLACEHOLDER,
             self::WORKFLOW_REPLY_PLACEHOLDER,
             self::WORKFLOW_COMMENTS,
+            self::WORKFLOW_ADD_COMMENT,
             self::WORKFLOW_NO_COMMENTS,
             self::WORKFLOW_ROUND_LABEL,
             self::WORKFLOW_COMMENT_FAILED,
         ];
     }
 
-    /** Property names => keys, injected into Craft.Delta._keys for JS. */
+    /**
+     * Property names => keys, injected into Craft.Delta._keys for JS.
+     *
+     * @return array<string, string>
+     */
     public static function jsPropertyMap(): array
     {
         return [
@@ -288,13 +299,18 @@ final class TranslationKeys
             'commentPlaceholder' => self::WORKFLOW_COMMENT_PLACEHOLDER,
             'replyPlaceholder' => self::WORKFLOW_REPLY_PLACEHOLDER,
             'comments' => self::WORKFLOW_COMMENTS,
+            'addComment' => self::WORKFLOW_ADD_COMMENT,
             'noComments' => self::WORKFLOW_NO_COMMENTS,
             'roundLabel' => self::WORKFLOW_ROUND_LABEL,
             'commentFailed' => self::WORKFLOW_COMMENT_FAILED,
         ];
     }
 
-    /** camelCase property names => keys, for Twig globals and Craft.Delta._keys. */
+    /**
+     * camelCase property names => keys, for Twig globals and Craft.Delta._keys.
+     *
+     * @return array<string, string>
+     */
     public static function propertyMap(): array
     {
         $map = [];

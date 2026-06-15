@@ -6,9 +6,10 @@ namespace zeixcom\craftdelta\differ;
 
 use craft\fields\data\MultiOptionsFieldData;
 use craft\fields\data\SingleOptionFieldData;
+use zeixcom\craftdelta\helpers\DiffHtml;
 
 /**
- * Diff for option fields (Dropdown, Radio, Checkboxes, MultiSelect).
+ * @phpstan-import-type DiffStats from \zeixcom\craftdelta\types\ArrayTypes
  */
 class OptionDiffer implements DifferInterface
 {
@@ -22,42 +23,28 @@ class OptionDiffer implements DifferInterface
         }
 
         if (is_string($oldLabels) && is_string($newLabels)) {
-            return sprintf(
-                '<span class="delta-del">%s</span> → <span class="delta-ins">%s</span>',
-                htmlspecialchars($oldLabels ?: '(none)', ENT_QUOTES, 'UTF-8'),
-                htmlspecialchars($newLabels ?: '(none)', ENT_QUOTES, 'UTF-8'),
-            );
+            return DiffHtml::scalarChange($oldLabels ?: '(none)', $newLabels ?: '(none)');
         }
 
         $oldArr = is_array($oldLabels) ? $oldLabels : [$oldLabels];
         $newArr = is_array($newLabels) ? $newLabels : [$newLabels];
 
-        $added = array_diff($newArr, $oldArr);
-        $removed = array_diff($oldArr, $newArr);
-
-        $lines = [];
-        foreach ($removed as $label) {
-            $lines[] = sprintf(
-                '<div class="delta-relation-removed">- %s</div>',
-                htmlspecialchars($label, ENT_QUOTES, 'UTF-8'),
-            );
-        }
-        foreach ($added as $label) {
-            $lines[] = sprintf(
-                '<div class="delta-relation-added">+ %s</div>',
-                htmlspecialchars($label, ENT_QUOTES, 'UTF-8'),
-            );
-        }
+        $lines = [
+            ...array_map(
+                static fn(string $label) => DiffHtml::relationLine($label, false),
+                array_diff($oldArr, $newArr),
+            ),
+            ...array_map(
+                static fn(string $label) => DiffHtml::relationLine($label, true),
+                array_diff($newArr, $oldArr),
+            ),
+        ];
 
         // Same selections in a different order: no membership change to show.
-        if ($lines === []) {
-            return null;
-        }
-
-        return implode("\n", $lines);
+        return $lines === [] ? null : implode("\n", $lines);
     }
 
-    /** @return array{additions: int, deletions: int} */
+    /** @return DiffStats */
     public function getStats(mixed $oldValue, mixed $newValue): array
     {
         $oldLabels = $this->resolveLabels($oldValue);
@@ -81,12 +68,10 @@ class OptionDiffer implements DifferInterface
     }
 
     /**
-     * Extract display labels from single or multi-option field data.
-     *
      * @param SingleOptionFieldData|MultiOptionsFieldData|list<string>|string|null $value
      * @return string|list<string>
      */
-    private function resolveLabels(mixed $value): string|array
+    private function resolveLabels(SingleOptionFieldData|MultiOptionsFieldData|array|string|null $value): string|array
     {
         if ($value instanceof SingleOptionFieldData) {
             return $value->label ?? (string)$value;

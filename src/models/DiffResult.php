@@ -11,36 +11,22 @@ use craft\base\Model;
  */
 class DiffResult extends Model
 {
-    /**
-     * @var FieldDiff[]
-     */
+    /** @var FieldDiff[] */
     public array $fieldDiffs = [];
-
-    public ?int $olderRevisionId = null;
-    public ?int $newerRevisionId = null;
-    public ?int $olderRevisionNum = null;
-    public ?int $newerRevisionNum = null;
 
     /** @return AggregateDiffStats */
     public function getStats(): array
     {
-        $totalAdded = 0;
-        $totalRemoved = 0;
-        $fieldsChanged = 0;
-
+        $fieldsChanged = $additions = $deletions = 0;
         foreach ($this->fieldDiffs as $diff) {
-            if ($diff->hasChanges) {
-                $fieldsChanged++;
-                $totalAdded += $diff->stats['additions'] ?? 0;
-                $totalRemoved += $diff->stats['deletions'] ?? 0;
+            if (!$diff->hasChanges) {
+                continue;
             }
+            $fieldsChanged++;
+            $additions += $diff->stats['additions'];
+            $deletions += $diff->stats['deletions'];
         }
-
-        return [
-            'fieldsChanged' => $fieldsChanged,
-            'additions' => $totalAdded,
-            'deletions' => $totalRemoved,
-        ];
+        return ['fieldsChanged' => $fieldsChanged, 'additions' => $additions, 'deletions' => $deletions];
     }
 
     public function hasChanges(): bool
@@ -50,7 +36,6 @@ class DiffResult extends Model
                 return true;
             }
         }
-
         return false;
     }
 }

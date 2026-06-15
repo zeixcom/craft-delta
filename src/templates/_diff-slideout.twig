@@ -1,4 +1,7 @@
-{# Diff result — rendered inside the toolbar's result container #}
+{# Diff result — rendered inside the slideout / delta-compare result container.
+   Diff-only: the review workflow (verdict, comments, accept/reject) now lives on
+   the dedicated /admin/delta-review page. When the draft under view has a review,
+   a slim banner links there. #}
 
 {% set stats = result.getStats() %}
 
@@ -18,176 +21,22 @@
     {% endif %}
 </div>
 
-{% set isReviewerActive = workflow is defined and workflow and isReviewer is defined and isReviewer and workflow.isActive() %}
-{% set isReviewAuthor = workflow is defined and workflow and currentUser and (currentUser.id == workflow.submittedBy or currentUser.admin) %}
-{# When the reviewer can apply, the "Granular review" button is the entry point
-   into Review Mode, so the standalone "Start Review" button below is suppressed. #}
-{% set showGranularReview = isReviewerActive and currentUser.can('craftdelta-applyReview') %}
-
 {% if workflow is defined and workflow %}
-    <div class="delta-workflow-toolbar"
-         data-review-id="{{ workflow.id }}"
-         data-section-uid="{{ workflow.sectionUid }}"
-         data-note-prompt="{{ deltaKeys.optionalNoteForAuthor|t('craft-delta') }}"
-         data-rc-prompt="{{ deltaKeys.workflowRequestChangesPrompt|t('craft-delta') }}"
-         data-confirm-decline="{{ deltaKeys.workflowDeclineConfirm|t('craft-delta') }}"
-         data-confirm-withdraw="{{ deltaKeys.workflowWithdrawConfirm|t('craft-delta') }}"
-         data-confirm-rerequest="{{ deltaKeys.workflowReRequestConfirm|t('craft-delta') }}"
-         data-confirm-publish="{{ deltaKeys.workflowPublishConfirm|t('craft-delta') }}"
-         data-publish-at-prompt="{{ deltaKeys.publishAtPrompt|t('craft-delta') }}"
-         data-done-approve="{{ deltaKeys.workflowDoneApproved|t('craft-delta') }}"
-         data-done-request-changes="{{ deltaKeys.workflowDoneChangesRequested|t('craft-delta') }}"
-         data-done-decline="{{ deltaKeys.workflowDoneDeclined|t('craft-delta') }}"
-         data-done-withdraw="{{ deltaKeys.workflowDoneWithdrawn|t('craft-delta') }}"
-         data-done-rerequest="{{ deltaKeys.workflowDoneReRequested|t('craft-delta') }}"
-         data-done-publish="{{ deltaKeys.workflowDonePublished|t('craft-delta') }}"
-         data-action-failed="{{ deltaKeys.workflowActionFailed|t('craft-delta') }}">
-
-        <div class="delta-review-roster">
-            <span class="delta-review-roster-label">{{ deltaKeys.workflowReviewers|t('craft-delta') }}:</span>
-            {% for r in workflow.reviewers %}
-                {% set verdictLabel = r.verdict == 'approved'
-                    ? deltaKeys.approved|t('craft-delta')
-                    : (r.verdict == 'changes_requested'
-                        ? deltaKeys.reviewChangesRequested|t('craft-delta')
-                        : deltaKeys.workflowAwaiting|t('craft-delta')) %}
-                <span class="delta-reviewer-pill delta-reviewer-pill--{{ r.verdict }}"
-                      title="{{ verdictLabel }}">{{ r.userName ?? ('#' ~ r.userId) }}</span>
-            {% endfor %}
-            <span class="delta-review-round">{{ deltaKeys.workflowRound|t('craft-delta', { round: workflow.round }) }}</span>
-        </div>
-
-        {% if isReviewerActive %}
-            <div class="delta-workflow-actions" data-role="reviewer">
-                <button type="button" class="btn submit" data-wf-action="approve">{{ deltaKeys.workflowApprove|t('craft-delta') }}</button>
-                <button type="button" class="btn" data-wf-action="request-changes">{{ deltaKeys.workflowRequestChanges|t('craft-delta') }}</button>
-                {% if showGranularReview %}
-                    <button type="button" class="btn delta-granular-review">{{ deltaKeys.granularReview|t('craft-delta') }}</button>
-                {% endif %}
-                <button type="button" class="btn" data-wf-action="decline">{{ deltaKeys.workflowDecline|t('craft-delta') }}</button>
-            </div>
-        {% endif %}
-
-        {% if workflow.isApproved() and (isReviewerActive or isReviewAuthor) %}
-            <div class="delta-workflow-actions" data-role="publish">
-                <button type="button" class="btn submit" data-wf-action="publish">{{ deltaKeys.workflowPublish|t('craft-delta') }}</button>
-                <button type="button" class="btn" data-wf-action="schedule">{{ deltaKeys.scheduleFor|t('craft-delta') }}</button>
-            </div>
-        {% endif %}
-
-        {% if isReviewAuthor and workflow.isActive() %}
-            <div class="delta-workflow-actions" data-role="author">
-                {% if workflow.isChangesRequested() %}
-                    <button type="button" class="btn submit" data-wf-action="re-request">{{ deltaKeys.workflowReRequest|t('craft-delta') }}</button>
-                {% endif %}
-                <button type="button" class="btn" data-wf-action="withdraw">{{ deltaKeys.workflowWithdraw|t('craft-delta') }}</button>
-            </div>
-        {% endif %}
-
-        <div class="delta-review-comments" data-review-comments hidden>
-            <details class="delta-comments-outdated" data-outdated-comments hidden>
-                <summary data-outdated-summary></summary>
-                <div class="delta-comment-list" data-outdated-comment-list></div>
-            </details>
-
-            <div class="delta-comments-general">
-                <h4 class="delta-comments-heading">{{ deltaKeys.workflowGeneralDiscussion|t('craft-delta') }}</h4>
-                <div class="delta-comment-list" data-general-comment-list></div>
-                <div class="delta-comment-compose" data-general-compose>
-                    <textarea class="text fullwidth" rows="2" data-general-comment-input
-                              placeholder="{{ deltaKeys.workflowCommentPlaceholder|t('craft-delta') }}"></textarea>
-                    <button type="button" class="btn submit" data-general-comment-post>
-                        {{ deltaKeys.workflowPostComment|t('craft-delta') }}
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-{% endif %}
-
-{% if reviewMode is defined and reviewMode %}
-    <div class="delta-review-toolbar"
-         data-review-toolbar
-         data-entry-id="{{ entryId }}"
-         data-site-id="{{ siteId }}"
-         data-source-ref="{{ sourceRef }}"
-         data-canonical-updated-at="{{ canonicalUpdatedAt }}"
-         data-source-updated-at="{{ sourceUpdatedAt }}">
-        {% if not showGranularReview %}
-            <button type="button" class="btn delta-review-start" data-action="start-review">
-                {{ deltaKeys.startReview|t('craft-delta') }}
-            </button>
-        {% endif %}
-    </div>
-
-    <div class="delta-review-stepper" data-review-stepper hidden>
-        <span class="delta-review-progress" data-review-progress
-              title="{{ deltaKeys.reviewKeyboardHint|t('craft-delta') }}">
-            {{ deltaKeys.decidedOfTotal|t('craft-delta', { decided: 0, total: 0 }) }}
+    <div class="delta-review-link-banner">
+        <span class="delta-review-link-status">
+            <span class="status {{ workflow.statusColor() }}"></span>
+            {{ workflow.statusLabel() }}
         </span>
-        {% if sourceRef starts with 'draft:' %}
-            <label class="delta-review-cleanup">
-                <input type="checkbox" data-delete-source-draft>
-                {{ deltaKeys.alsoDeleteSourceDraft|t('craft-delta') }}
-            </label>
-        {% endif %}
-        <div class="delta-review-actions">
-            <button type="button" class="btn submit" data-action="apply" disabled>
-                {{ deltaKeys.applyCountAccepted|t('craft-delta', { count: 0 }) }}
-            </button>
-            <button type="button" class="btn delta-review-cancel" data-action="cancel-review">
-                {{ deltaKeys.cancelReview|t('craft-delta') }}
-            </button>
-        </div>
-    </div>
-
-    <div class="delta-review-banner" data-review-banner hidden></div>
-{% endif %}
-
-{% if result.hasChanges() %}
-    {% set grouped = result.fieldDiffs|group('tabName') %}
-
-    {% set namedTabs = [] %}
-    {% for tabName, diffs in grouped %}
-        {% if tabName != '' %}
-            {% set namedTabs = namedTabs|merge([{ name: tabName, diffs: diffs, index: loop.index0 }]) %}
-        {% endif %}
-    {% endfor %}
-
-    {% if namedTabs|length > 1 %}
-        <nav class="delta-tabnav" aria-label="{{ deltaKeys.jumpToSection|t('craft-delta') }}">
-            {% for tab in namedTabs %}
-                {% set changedCount = tab.diffs|filter(d => d.hasChanges)|length %}
-                <a href="#delta-tab-{{ tab.index }}"
-                   class="delta-tabnav-item{{ changedCount > 0 ? ' delta-tabnav-item-changed' : '' }}"
-                   data-tab-target="delta-tab-{{ tab.index }}">
-                    <span class="delta-tabnav-prefix">{{ deltaKeys.tab|t('craft-delta') }}:</span>
-                    {{ tab.name }}
-                    {% if changedCount > 0 %}<span class="delta-tabnav-count">{{ changedCount }}</span>{% endif %}
-                </a>
+        <span class="delta-review-link-meta">
+            {{ deltaKeys.workflowRound|t('craft-delta', { round: workflow.round }) }}
+            {% for r in workflow.reviewers %}
+                <span class="delta-reviewer-pill delta-reviewer-pill--{{ r.verdict }}">{{ r.userName ?? ('#' ~ r.userId) }}</span>
             {% endfor %}
-        </nav>
-    {% endif %}
-
-    {% if grouped[''] is defined %}
-        {% for diff in grouped[''] %}
-            {% include 'craft-delta/_field-diff' with { diff: diff, reviewMode: reviewMode ?? false } %}
-        {% endfor %}
-    {% endif %}
-
-    {% for tab in namedTabs %}
-        <div class="delta-tab-group" id="delta-tab-{{ tab.index }}" data-tab="{{ tab.name }}">
-            <div class="delta-tab-header">
-                <span class="delta-tab-header-prefix">{{ deltaKeys.tab|t('craft-delta') }}:</span>
-                {{ tab.name }}
-            </div>
-            {% for diff in tab.diffs %}
-                {% include 'craft-delta/_field-diff' with { diff: diff, reviewMode: reviewMode ?? false } %}
-            {% endfor %}
-        </div>
-    {% endfor %}
-{% else %}
-    <div class="delta-empty">
-        <p>{{ deltaKeys.noChangesBetweenRevisions|t('craft-delta') }}</p>
+        </span>
+        <a class="btn small delta-review-link-open" href="{{ cpUrl('delta-review', { reviewId: workflow.id }) }}">
+            {{ deltaKeys.workflowOpenReview|t('craft-delta') }} &nearr;
+        </a>
     </div>
 {% endif %}
+
+{% include 'craft-delta/_diff-fields' with { result: result, reviewMode: false } %}

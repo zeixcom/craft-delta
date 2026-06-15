@@ -69,4 +69,18 @@ class ReviewTest extends TestCase
     {
         $this->assertFalse((new Review(['state' => Review::STATE_OPEN]))->isTerminal());
     }
+
+    public function testStatusColorMapsToCraftPalette(): void
+    {
+        $this->assertSame('pending', (new Review(['state' => Review::STATE_OPEN]))->statusColor());
+        $this->assertSame('warning', (new Review(['state' => Review::STATE_CHANGES_REQUESTED]))->statusColor());
+        $this->assertSame('live', (new Review(['state' => Review::STATE_APPROVED]))->statusColor());
+        $this->assertSame('amber', (new Review([
+            'state' => Review::STATE_APPROVED,
+            'scheduledFor' => new \DateTime('+1 hour'),
+        ]))->statusColor());
+        $this->assertSame('expired', (new Review(['state' => Review::STATE_DECLINED]))->statusColor());
+        $this->assertSame('disabled', (new Review(['state' => Review::STATE_CANCELLED]))->statusColor());
+        $this->assertSame('active', (new Review(['state' => Review::STATE_PUBLISHED]))->statusColor());
+    }
 }

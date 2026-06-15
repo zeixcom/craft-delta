@@ -6,36 +6,31 @@ namespace zeixcom\craftdelta\controllers;
 
 use Craft;
 use craft\elements\Entry;
+use craft\elements\User;
 use craft\web\Controller;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 use zeixcom\craftdelta\Delta;
 use zeixcom\craftdelta\i18n\TranslationKeys;
+use zeixcom\craftdelta\Permissions;
+use zeixcom\craftdelta\services\StaleAtomException;
 
+/**
+ * @phpstan-import-type EntryPair from \zeixcom\craftdelta\types\ArrayTypes
+ */
 class DiffController extends Controller
 {
     private function requireEntryAccess(Entry $entry): void
     {
         $user = Craft::$app->getUser()->getIdentity();
-        if (!$user) {
-            throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NOT_AUTHORIZED));
-        }
-
         $section = $entry->getSection();
-        if ($section === null) {
-            throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NOT_AUTHORIZED));
-        }
-
-        if (!$user->can("viewEntries:{$section->uid}")) {
+        if (!$user || $section === null || !$user->can("viewEntries:{$section->uid}")) {
             throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NOT_AUTHORIZED));
         }
     }
 
-    /**
-     * Accepts "current", "draft:<draftId>", or a numeric revision ID
-     * for both the `older` and `newer` params.
-     */
+    /** Accepts "current", "draft:<draftId>", or a numeric revision ID for both sides. */
     public function actionCompare(): Response
     {
         $this->requireAcceptsJson();
@@ -46,10 +41,9 @@ class DiffController extends Controller
         $entryId = (int)$request->getRequiredBodyParam('entryId');
         $olderRef = $request->getRequiredBodyParam('older');
         $newerRef = $request->getRequiredBodyParam('newer');
-        $siteId = $request->getBodyParam('siteId') ? (int)$request->getBodyParam('siteId') : null;
+        $siteId = $this->siteIdParam($request->getBodyParam('siteId'));
 
         $plugin = Delta::getInstance();
-
         $canonical = $plugin->revision->getCanonical($entryId, $siteId);
         if (!$canonical instanceof Entry) {
             return $this->asFailure(Craft::t('craft-delta', TranslationKeys::ENTRY_NOT_FOUND));
@@ -59,56 +53,41 @@ class DiffController extends Controller
 
         $older = $this->resolveVersion($olderRef, $canonical, $siteId);
         $newer = $this->resolveVersion($newerRef, $canonical, $siteId);
-
         if (!$older || !$newer) {
             return $this->asFailure(Craft::t('craft-delta', TranslationKeys::VERSION_NOT_FOUND));
         }
 
-        // "Source" is whichever side is NOT the canonical entity.
         $olderIsCanonical = $older->id === $canonical->id;
-        $newerIsCanonical = $newer->id === $canonical->id;
         $sourceRef = $olderIsCanonical ? $newerRef : $olderRef;
         $sourceEntry = $olderIsCanonical ? $newer : $older;
 
-        // Review mode is available when one side is canonical AND the setting is on.
         $settings = $plugin->getSettings();
-        $reviewMode = $settings->enableReviewMode
-            && ($olderIsCanonical || $newerIsCanonical);
+        $reviewMode = $settings->enableReviewMode && ($olderIsCanonical || $newer->id === $canonical->id);
 
         try {
             if ($reviewMode) {
-                // Review-mode atom-ids (and the added/removed colors derived
-                // from them) MUST be canonical-relative so they match the fixed
+                // Review-mode atom-ids MUST be canonical-relative so they match
                 // compare(canonical, source) that MergeService::merge() re-runs
-                // at apply time. Diffing chronologically here would invert
-                // matrix added/removed whenever canonical is newer than the
-                // source draft (e.g. after a partial apply leaves a leftover
-                // queue), making every accepted block change fail validation as
-                // "stale". Canonical is the fixed baseline, so this orientation
-                // is also inherently stable across swapped selections.
+                // at apply time. Chronological diffing would invert matrix
+                // added/removed when canonical is newer than the source draft.
                 $result = $plugin->diff->compare($canonical, $sourceEntry);
             } else {
                 // Plain diffing: force chronological order so colors stay stable
                 // across swapped selections.
-                [$older, $newer] = $this->sortChronologically($older, $newer);
-                $result = $plugin->diff->compare($older, $newer);
+                $result = $plugin->diff->compare(...$this->sortChronologically($older, $newer));
             }
 
             $user = Craft::$app->getUser()->getIdentity();
             $workflow = null;
             $isReviewer = false;
-            // The workflow toolbar attaches to a submitted draft. Only surface it
-            // when the workflow feature is enabled and the source is a draft.
             if ($settings->enableWorkflow && $sourceEntry->getIsDraft() && $user) {
                 $workflow = $plugin->workflow->getByDraftId((int)$sourceEntry->draftId);
-                if ($workflow !== null) {
-                    $isReviewer = $plugin->workflow->canReview($user, $workflow);
-                }
+                $isReviewer = $workflow !== null && $plugin->workflow->canReview($user, $workflow);
             }
 
-            $html = Craft::$app->getView()->renderTemplate(
-                'craft-delta/_diff-slideout',
-                [
+            return $this->asJson([
+                'success' => true,
+                'html' => Craft::$app->getView()->renderTemplate('craft-delta/_diff-slideout', [
                     'result' => $result,
                     'reviewMode' => $reviewMode,
                     'sourceRef' => $sourceRef,
@@ -118,17 +97,11 @@ class DiffController extends Controller
                     'sourceUpdatedAt' => $sourceEntry->dateUpdated?->format(\DateTimeInterface::ATOM),
                     'workflow' => $workflow,
                     'isReviewer' => $isReviewer,
-                ],
-            );
-
-            return $this->asJson([
-                'success' => true,
-                'html' => $html,
+                ]),
                 'stats' => $result->getStats(),
             ]);
         } catch (\Throwable $e) {
             Craft::error("Diff comparison failed: {$e->getMessage()}", __METHOD__);
-
             return $this->asJson([
                 'success' => false,
                 'error' => Craft::t('craft-delta', TranslationKeys::FAILED_GENERATE_DIFF),
@@ -136,16 +109,13 @@ class DiffController extends Controller
         }
     }
 
-    /**
-     * Renders the full-page comparison view.
-     */
     public function actionCompareFullPage(): Response
     {
         $this->requireCpRequest();
 
         $request = Craft::$app->getRequest();
         $entryId = (int)$request->getRequiredParam('entryId');
-        $siteId = $request->getParam('siteId') ? (int)$request->getParam('siteId') : null;
+        $siteId = $this->siteIdParam($request->getParam('siteId'));
 
         $plugin = Delta::getInstance();
         $canonical = $plugin->revision->getCanonical($entryId, $siteId);
@@ -154,8 +124,6 @@ class DiffController extends Controller
         }
 
         $this->requireEntryAccess($canonical);
-
-        /** @var \zeixcom\craftdelta\models\Settings $settings */
         $settings = $plugin->getSettings();
 
         return $this->renderTemplate('craft-delta/compare', [
@@ -175,133 +143,26 @@ class DiffController extends Controller
 
         $request = Craft::$app->getRequest();
         $entryId = (int)$request->getRequiredParam('entryId');
-        $siteId = $request->getParam('siteId') ? (int)$request->getParam('siteId') : null;
+        $siteId = $this->siteIdParam($request->getParam('siteId'));
 
         $plugin = Delta::getInstance();
         $canonical = $plugin->revision->getCanonical($entryId, $siteId);
-
         if (!$canonical instanceof Entry) {
             return $this->asJson(['revisions' => [], 'drafts' => [], 'hasCurrent' => false]);
         }
 
         $this->requireEntryAccess($canonical);
-
-        $revisions = $plugin->revision->getRevisions($entryId, 20, $siteId);
-        $drafts = $plugin->revision->getDrafts($entryId, $siteId);
-
-        $revisionOptions = array_map(function(Entry $rev) {
-            /** @var \craft\behaviors\RevisionBehavior|null $behavior */
-            $behavior = $rev->getBehavior('revision');
-            $creator = $behavior?->getCreator()?->friendlyName ?? Craft::t('craft-delta', TranslationKeys::UNKNOWN);
-            $revisionNum = $behavior?->revisionNum ?? 0;
-
-            return [
-                'id' => $rev->id,
-                'num' => $revisionNum,
-                'label' => Craft::t('craft-delta', TranslationKeys::REV_NUM_CREATOR, [
-                    'num' => $revisionNum,
-                    'creator' => $creator,
-                ]),
-                'date' => $rev->dateCreated?->format('M j, Y g:ia') ?? '',
-                'type' => 'revision',
-            ];
-        }, $revisions);
-
-        $draftOptions = [];
         $user = Craft::$app->getUser()->getIdentity();
 
-        foreach ($drafts as $draft) {
-            if (!$this->userCanViewDraft($draft, $canonical, $user)) {
-                continue;
-            }
-
-            /** @var \craft\behaviors\DraftBehavior|null $behavior */
-            $behavior = $draft->getBehavior('draft');
-
-            $draftName = $behavior?->draftName ?? Craft::t('craft-delta', TranslationKeys::DRAFT);
-            $creator = $behavior?->getCreator()?->friendlyName ?? Craft::t('craft-delta', TranslationKeys::UNKNOWN);
-            $draftOptions[] = [
-                'id' => 'draft:' . $draft->draftId,
-                'label' => $draftName . ' — ' . $creator,
-                'date' => $draft->dateUpdated?->format('M j, Y g:ia') ?? '',
-                'type' => 'draft',
-            ];
-        }
-
         return $this->asJson([
-            'revisions' => $revisionOptions,
-            'drafts' => $draftOptions,
-            'hasCurrent' => $canonical !== null,
+            'revisions' => array_map(fn(Entry $rev) => $this->revisionOption($rev), $plugin->revision->getRevisions($entryId, 20, $siteId)),
+            'drafts' => array_values(array_filter(
+                array_map(fn(Entry $draft) => $this->userCanViewDraft($draft, $canonical, $user) ? $this->draftOption($draft) : null, $plugin->revision->getDrafts($entryId, $siteId)),
+            )),
+            'hasCurrent' => true,
         ]);
     }
 
-    private function userCanViewDraft(Entry $draft, Entry $canonical, ?\craft\elements\User $user): bool
-    {
-        /** @var \craft\behaviors\DraftBehavior|null $behavior */
-        $behavior = $draft->getBehavior('draft');
-        $creatorId = $behavior?->creatorId;
-        if ($creatorId && (int)$creatorId !== (int)$user?->id) {
-            $section = $canonical->getSection();
-            if ($section && !$user?->can("viewPeerEntryDrafts:{$section->uid}")) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /** @return array{0: Entry, 1: Entry} */
-    private function sortChronologically(Entry $a, Entry $b): array
-    {
-        $aTime = $a->dateUpdated?->getTimestamp() ?? 0;
-        $bTime = $b->dateUpdated?->getTimestamp() ?? 0;
-
-        if ($aTime !== $bTime) {
-            return $aTime < $bTime ? [$a, $b] : [$b, $a];
-        }
-
-        $aNum = $a->revisionNum ?? PHP_INT_MAX;
-        $bNum = $b->revisionNum ?? PHP_INT_MAX;
-
-        return $aNum <= $bNum ? [$a, $b] : [$b, $a];
-    }
-
-    /**
-     * Resolve a version reference to an Entry instance.
-     *
-     * Supports:
-     * - "current" → canonical entry
-     * - "draft:<draftId>" → specific draft
-     * - numeric string → revision ID
-     */
-    private function resolveVersion(string $ref, Entry $canonical, ?int $siteId = null): ?Entry
-    {
-        $plugin = Delta::getInstance();
-
-        if ($ref === 'current') {
-            return $canonical;
-        }
-
-        if (str_starts_with($ref, 'draft:')) {
-            $draftId = (int)substr($ref, 6);
-            $draft = $plugin->revision->getDraftByDraftId($draftId, $canonical->id, $siteId);
-            if ($draft !== null && !$this->userCanViewDraft($draft, $canonical, Craft::$app->getUser()->getIdentity())) {
-                return null;
-            }
-            return $draft;
-        }
-
-        $revision = $plugin->revision->getRevision((int)$ref, $siteId);
-
-        if ($revision !== null && $revision->getCanonicalId() !== $canonical->id) {
-            return null;
-        }
-
-        return $revision;
-    }
-
-    /**
-     * Apply accepted review-mode atoms to a new draft of the canonical entry.
-     */
     public function actionApply(): Response
     {
         $this->requireAcceptsJson();
@@ -309,65 +170,42 @@ class DiffController extends Controller
         $this->requirePostRequest();
 
         $request = Craft::$app->getRequest();
-        $entryId = (int)$request->getRequiredBodyParam('entryId');
-        $sourceRef = (string)$request->getRequiredBodyParam('sourceRef');
-        $siteId = $request->getBodyParam('siteId') ? (int)$request->getBodyParam('siteId') : null;
         $acceptedAtoms = $request->getBodyParam('acceptedAtoms');
-        $deleteSourceDraft = (bool)$request->getBodyParam('deleteSourceDraft', false);
-
-        if (!is_array($acceptedAtoms) || count($acceptedAtoms) === 0) {
-            return $this->asJson([
-                'success' => false,
-                'errorCode' => 'no-changes',
-                'error' => Craft::t('craft-delta', TranslationKeys::NO_CHANGES_TO_APPLY),
-            ])->setStatusCode(422);
+        if (!is_array($acceptedAtoms) || $acceptedAtoms === []) {
+            return $this->apply422('no-changes', TranslationKeys::NO_CHANGES_TO_APPLY);
         }
 
-        $plugin = Delta::getInstance();
+        $entryId = (int)$request->getRequiredBodyParam('entryId');
+        $sourceRef = (string)$request->getRequiredBodyParam('sourceRef');
+        $siteId = $this->siteIdParam($request->getBodyParam('siteId'));
+        $deleteSourceDraft = (bool)$request->getBodyParam('deleteSourceDraft', false);
 
+        $plugin = Delta::getInstance();
         $canonical = $plugin->revision->getCanonical($entryId, $siteId);
         if (!$canonical instanceof Entry) {
-            return $this->asJson([
-                'success' => false,
-                'errorCode' => 'source-not-found',
-                'error' => Craft::t('craft-delta', TranslationKeys::ENTRY_NOT_FOUND),
-            ])->setStatusCode(422);
+            return $this->apply422('source-not-found', TranslationKeys::ENTRY_NOT_FOUND);
         }
 
         $this->requireEntryAccess($canonical);
 
         $user = Craft::$app->getUser()->getIdentity();
-        if (!$user || !$user->can(Delta::PERMISSION_APPLY)) {
+        if (!$user || !$user->can(Permissions::APPLY)) {
             throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NO_PERMISSION_APPLY_REVIEW));
         }
 
         $source = $this->resolveVersion($sourceRef, $canonical, $siteId);
         if (!$source instanceof Entry) {
-            return $this->asJson([
-                'success' => false,
-                'errorCode' => 'source-not-found',
-                'error' => Craft::t('craft-delta', TranslationKeys::SOURCE_VERSION_NOT_FOUND),
-            ])->setStatusCode(422);
+            return $this->apply422('source-not-found', TranslationKeys::SOURCE_VERSION_NOT_FOUND);
         }
 
-        // Guard against the author editing the draft between diff-load and apply.
-        // The accepted atoms describe the values the reviewer SAW, but merge()
-        // copies the source's CURRENT values — so a change since load means we
-        // would publish content nobody reviewed. Bail down the same stale path
-        // the client already handles.
         $sourceUpdatedAt = $request->getBodyParam('sourceUpdatedAt');
-        if ($sourceUpdatedAt !== null && $sourceUpdatedAt !== '') {
-            $liveSourceUpdatedAt = $source->dateUpdated?->format(\DateTimeInterface::ATOM);
-            if ($liveSourceUpdatedAt !== null && $liveSourceUpdatedAt !== (string)$sourceUpdatedAt) {
+        if (is_string($sourceUpdatedAt) && $sourceUpdatedAt !== '') {
+            $live = $source->dateUpdated?->format(\DateTimeInterface::ATOM);
+            if ($live !== null && $live !== $sourceUpdatedAt) {
                 return $this->staleAtomsResponse();
             }
         }
 
-        // Native Craft gating: applying publishes a new canonical revision and
-        // (optionally) hard-deletes the source draft. craftdelta-applyReview
-        // alone is not enough — require the same save/delete permissions Craft's
-        // own UI would, so a read-only user can neither publish nor destroy a
-        // peer's draft.
         if (!$canonical->canSave($user)) {
             throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NO_PERMISSION_PUBLISH));
         }
@@ -378,36 +216,25 @@ class DiffController extends Controller
             throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NO_PERMISSION_DELETE_SOURCE_DRAFT));
         }
 
-        // A granular apply of a SUBMITTED draft IS the review decision, so only
-        // the assigned reviewer (or an admin) may perform it. This prevents a
-        // non-reviewer publishing a curated merge while leaving the workflow
-        // "pending" for a later wholesale double-apply.
         $workflow = $sourceDraftId !== null ? $plugin->workflow->getByDraftId($sourceDraftId) : null;
         if ($workflow !== null && $workflow->isActive() && !$plugin->workflow->canReview($user, $workflow)) {
             throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::ONLY_ASSIGNED_REVIEWER_MAY_APPLY));
         }
 
         try {
-            // The publish and the workflow resolution must commit together: if
-            // resolveByReview() fails, the transaction rolls the publish back too,
-            // so canonical is never left updated while the workflow stays
-            // "pending" (which would be open to a later wholesale double-apply).
+            // Publish and workflow resolution must commit together; otherwise
+            // canonical updates while the workflow stays "pending".
             $published = Craft::$app->getDb()->transaction(function() use ($plugin, $canonical, $source, $acceptedAtoms, $workflow, $user) {
                 $published = $plugin->merge->merge($canonical, $source, $acceptedAtoms, false);
-
                 if ($workflow !== null && $workflow->isActive()) {
-                    // Reviewer rights were asserted above. Resolve BEFORE the
-                    // source-draft delete below, or the FK ON DELETE CASCADE
-                    // removes the workflow row before we can record the decision.
+                    // Resolve BEFORE source-draft delete, or the FK CASCADE
+                    // removes the workflow row before we record the decision.
                     $plugin->workflow->resolveByReview($workflow, $user);
                 }
-
                 return $published;
             });
 
-            // Best-effort cleanup AFTER the publish is committed: deleting the now
-            // redundant source draft must never report the apply as failed (the
-            // change is already live) or roll the publish back.
+            // Best-effort cleanup AFTER publish is committed.
             if ($deleteSourceDraft) {
                 try {
                     Craft::$app->getElements()->deleteElement($source, true);
@@ -421,20 +248,100 @@ class DiffController extends Controller
                 'entryId' => $published->id,
                 'entryEditUrl' => $published->getCpEditUrl(),
             ]);
-        } catch (\zeixcom\craftdelta\services\StaleAtomException $e) {
+        } catch (StaleAtomException) {
             return $this->staleAtomsResponse();
         } catch (\InvalidArgumentException $e) {
             Craft::warning("Apply rejected malformed atom: {$e->getMessage()}", __METHOD__);
             return $this->staleAtomsResponse();
         } catch (\Throwable $e) {
-            // Log the detail, but never leak internal exception text to the client.
             Craft::error("Apply failed: {$e->getMessage()}", __METHOD__);
-            return $this->asJson([
-                'success' => false,
-                'errorCode' => 'validation-failed',
-                'error' => Craft::t('craft-delta', TranslationKeys::COULD_NOT_APPLY_CHANGES),
-            ])->setStatusCode(422);
+            return $this->apply422('validation-failed', TranslationKeys::COULD_NOT_APPLY_CHANGES);
         }
+    }
+
+    private function siteIdParam(mixed $raw): ?int
+    {
+        return $raw ? (int)$raw : null;
+    }
+
+    private function apply422(string $errorCode, string $messageKey): Response
+    {
+        return $this->asJson([
+            'success' => false,
+            'errorCode' => $errorCode,
+            'error' => Craft::t('craft-delta', $messageKey),
+        ])->setStatusCode(422);
+    }
+
+    /** @return array<string, mixed> */
+    private function revisionOption(Entry $rev): array
+    {
+        /** @var \craft\behaviors\RevisionBehavior|null $behavior */
+        $behavior = $rev->getBehavior('revision');
+        $creator = $behavior?->getCreator()?->friendlyName ?? Craft::t('craft-delta', TranslationKeys::UNKNOWN);
+        $revisionNum = $behavior?->revisionNum ?? 0;
+        return [
+            'id' => $rev->id,
+            'num' => $revisionNum,
+            'label' => Craft::t('craft-delta', TranslationKeys::REV_NUM_CREATOR, ['num' => $revisionNum, 'creator' => $creator]),
+            'date' => $rev->dateCreated?->format('M j, Y g:ia') ?? '',
+            'type' => 'revision',
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function draftOption(Entry $draft): array
+    {
+        /** @var \craft\behaviors\DraftBehavior|null $behavior */
+        $behavior = $draft->getBehavior('draft');
+        return [
+            'id' => 'draft:' . $draft->draftId,
+            'label' => ($behavior?->draftName ?? Craft::t('craft-delta', TranslationKeys::DRAFT))
+                . ' — ' . ($behavior?->getCreator()?->friendlyName ?? Craft::t('craft-delta', TranslationKeys::UNKNOWN)),
+            'date' => $draft->dateUpdated?->format('M j, Y g:ia') ?? '',
+            'type' => 'draft',
+        ];
+    }
+
+    private function userCanViewDraft(Entry $draft, Entry $canonical, ?User $user): bool
+    {
+        /** @var \craft\behaviors\DraftBehavior|null $behavior */
+        $behavior = $draft->getBehavior('draft');
+        $creatorId = $behavior?->creatorId;
+        if ($creatorId && (int)$creatorId !== (int)$user?->id) {
+            $section = $canonical->getSection();
+            return !($section && !$user?->can("viewPeerEntryDrafts:{$section->uid}"));
+        }
+        return true;
+    }
+
+    /** @return EntryPair */
+    private function sortChronologically(Entry $a, Entry $b): array
+    {
+        $aTime = $a->dateUpdated?->getTimestamp() ?? 0;
+        $bTime = $b->dateUpdated?->getTimestamp() ?? 0;
+        if ($aTime !== $bTime) {
+            return $aTime < $bTime ? [$a, $b] : [$b, $a];
+        }
+        $aNum = $a->revisionNum ?? PHP_INT_MAX;
+        $bNum = $b->revisionNum ?? PHP_INT_MAX;
+        return $aNum <= $bNum ? [$a, $b] : [$b, $a];
+    }
+
+    private function resolveVersion(string $ref, Entry $canonical, ?int $siteId = null): ?Entry
+    {
+        if ($ref === 'current') {
+            return $canonical;
+        }
+
+        $plugin = Delta::getInstance();
+        if (str_starts_with($ref, 'draft:')) {
+            $draft = $plugin->revision->getDraftByDraftId((int)substr($ref, 6), $canonical->id, $siteId);
+            return ($draft !== null && $this->userCanViewDraft($draft, $canonical, Craft::$app->getUser()->getIdentity())) ? $draft : null;
+        }
+
+        $revision = $plugin->revision->getRevision((int)$ref, $siteId);
+        return ($revision !== null && $revision->getCanonicalId() === $canonical->id) ? $revision : null;
     }
 
     /**
@@ -445,10 +352,6 @@ class DiffController extends Controller
      */
     private function staleAtomsResponse(): Response
     {
-        return $this->asJson([
-            'success' => false,
-            'errorCode' => 'stale-atoms',
-            'error' => Craft::t('craft-delta', TranslationKeys::ENTRY_CHANGED_SINCE_REVIEW_STARTED),
-        ])->setStatusCode(422);
+        return $this->apply422('stale-atoms', TranslationKeys::ENTRY_CHANGED_SINCE_REVIEW_STARTED);
     }
 }

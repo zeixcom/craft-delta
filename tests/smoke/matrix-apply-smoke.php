@@ -66,10 +66,7 @@ $canonicalBlockCount = count($canonicalBlocks);
 echo "Canonical block count: {$canonicalBlockCount}\n";
 echo "Canonical block canonicalUids: " . implode(', ', $canonicalBlockUids) . "\n\n";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Step 1: Create a fresh draft of the canonical, add ONE new Matrix block.
-// ─────────────────────────────────────────────────────────────────────────────
-
 echo "Step 1: creating draft + adding a new Matrix block\n";
 
 $draft = Craft::$app->getDrafts()->createDraft($canonical, $adminUser->id, 'Matrix runtime smoke test');
@@ -136,10 +133,7 @@ if ($newBlockUid === false) {
 }
 echo "  New block canonicalUid: {$newBlockUid}\n\n";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Step 2: Run DiffService and verify it produces the expected `added` atom.
-// ─────────────────────────────────────────────────────────────────────────────
-
 echo "Step 2: running DiffService — expecting matrix-block:{$matrixFieldHandle}:{$newBlockUid}:added\n";
 
 $plugin = \zeixcom\craftdelta\Delta::getInstance();
@@ -159,10 +153,7 @@ if (!in_array($expectedAtom, $available, true)) {
 }
 echo "  ✓ Atom present\n\n";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Step 3: Apply the atom via MergeService::merge.
-// ─────────────────────────────────────────────────────────────────────────────
-
 echo "Step 3: calling MergeService::merge with the added-atom\n";
 
 $beforeRevisionCount = (int)Craft::$app->getDb()
@@ -198,10 +189,7 @@ if ($afterRevisionCount !== $beforeRevisionCount + 1) {
 }
 echo "  ✓ Exactly one new revision created\n\n";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Step 4: Verify the canonical now has the new block.
-// ─────────────────────────────────────────────────────────────────────────────
-
 echo "Step 4: verifying canonical state after apply\n";
 
 // Re-load canonical fresh from DB.

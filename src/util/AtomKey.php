@@ -6,6 +6,7 @@ namespace zeixcom\craftdelta\util;
 
 use zeixcom\craftdelta\enums\AtomKind;
 use zeixcom\craftdelta\enums\DiffChangeType;
+
 /**
  * Parse and validate stable atom keys shared by merge, review comments, and the
  * client UI. Pure static helpers — no service dependencies.
@@ -25,38 +26,24 @@ final class AtomKey
         }
 
         $parts = explode(':', $key);
-        $kind = $parts[0];
-
-        switch ($kind) {
-            case AtomKind::Field->value:
-                if (count($parts) !== 2 || $parts[1] === '') {
-                    throw new \InvalidArgumentException("Malformed field atom: $key");
-                }
-                return ['kind' => AtomKind::Field->value, 'handle' => $parts[1]];
-
-            case AtomKind::MatrixBlock->value:
-                if (count($parts) !== 4) {
-                    throw new \InvalidArgumentException("Malformed matrix-block atom: $key");
-                }
-                $changeType = $parts[3];
-                if (DiffChangeType::tryFrom($changeType) === null) {
-                    throw new \InvalidArgumentException("Unknown change type: $changeType");
-                }
-                return [
-                    'kind' => AtomKind::MatrixBlock->value,
-                    'fieldHandle' => $parts[1],
-                    'blockUid' => $parts[2],
-                    'changeType' => $changeType,
-                ];
-
-            case AtomKind::MatrixReorder->value:
-                if (count($parts) !== 2 || $parts[1] === '') {
-                    throw new \InvalidArgumentException("Malformed matrix-reorder atom: $key");
-                }
-                return ['kind' => AtomKind::MatrixReorder->value, 'fieldHandle' => $parts[1]];
-
-            default:
-                throw new \InvalidArgumentException("Unknown atom kind: $kind");
-        }
+        return match ($parts[0]) {
+            AtomKind::Field->value => count($parts) !== 2 || $parts[1] === ''
+                ? throw new \InvalidArgumentException("Malformed field atom: $key")
+                : ['kind' => AtomKind::Field->value, 'handle' => $parts[1]],
+            AtomKind::MatrixBlock->value => count($parts) !== 4
+                ? throw new \InvalidArgumentException("Malformed matrix-block atom: $key")
+                : (DiffChangeType::tryFrom($parts[3]) === null
+                    ? throw new \InvalidArgumentException("Unknown change type: {$parts[3]}")
+                    : [
+                        'kind' => AtomKind::MatrixBlock->value,
+                        'fieldHandle' => $parts[1],
+                        'blockUid' => $parts[2],
+                        'changeType' => $parts[3],
+                    ]),
+            AtomKind::MatrixReorder->value => count($parts) !== 2 || $parts[1] === ''
+                ? throw new \InvalidArgumentException("Malformed matrix-reorder atom: $key")
+                : ['kind' => AtomKind::MatrixReorder->value, 'fieldHandle' => $parts[1]],
+            default => throw new \InvalidArgumentException("Unknown atom kind: {$parts[0]}"),
+        };
     }
 }

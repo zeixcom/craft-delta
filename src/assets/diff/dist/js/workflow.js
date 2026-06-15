@@ -195,18 +195,23 @@
 
             this.$toolbar = $toolbar;
             this.reviewId = $toolbar[0].dataset.reviewId;
-            this.$root = $toolbar.closest('.delta-slideout, .delta-modal-body, .delta-fullpage');
+            this.$root = $toolbar.closest('.delta-slideout, .delta-modal-body, .delta-fullpage, .delta-review-page');
             if (!this.$root.length) {
                 this.$root = $toolbar.parent();
             }
 
             this.closePanel();
 
-            var $section = $toolbar.find('[data-review-comments]');
+            // Resolve from the page root, not the toolbar: on the dedicated review
+            // page the discussion section lives below the diff, outside the toolbar.
+            var $section = this.$root.find('[data-review-comments]');
             if (!$section.length) {
                 return;
             }
             $section.prop('hidden', false);
+            // Closed reviews render read-only: the backend rejects posts/replies
+            // on an inactive review ("review no longer open"), so don't offer them.
+            this.isActive = $section[0].dataset.reviewActive !== '0';
 
             var self = this;
             this.bindDelegatedHandlers();
@@ -255,6 +260,20 @@
                 if (resolveBtn) {
                     e.preventDefault();
                     self.resolveComment(parseInt(resolveBtn.dataset.commentResolve, 10), resolveBtn.dataset.resolved !== '1');
+                    return;
+                }
+
+                var addToggle = e.target.closest('[data-comment-add-toggle]');
+                if (addToggle) {
+                    e.preventDefault();
+                    var addWrap = addToggle.closest('.delta-comment-add');
+                    var addForm = addWrap && addWrap.querySelector('[data-comment-add-form]');
+                    if (addForm) {
+                        addForm.hidden = !addForm.hidden;
+                        if (!addForm.hidden) {
+                            addForm.querySelector('textarea').focus();
+                        }
+                    }
                     return;
                 }
 
@@ -340,9 +359,9 @@
 
         render: function() {
             var parts = this.partition();
-            var $section = this.$toolbar.find('[data-review-comments]');
+            var $section = this.$root.find('[data-review-comments]');
 
-            this.renderList($section.find('[data-general-comment-list]'), parts.general, true);
+            this.renderList($section.find('[data-general-comment-list]'), parts.general, this.isActive);
 
             var $outdatedWrap = $section.find('[data-outdated-comments]');
             if (parts.outdated.length) {
@@ -355,7 +374,13 @@
                 $outdatedWrap.prop('hidden', true);
             }
 
-            this.mountAtomTriggers(parts.byAtom);
+            // Review page: anchored threads render inline + always-visible under
+            // each change. Slideout keeps the compact toggle-panel model.
+            if (this.$root.hasClass('delta-review-page')) {
+                this.renderInlineThreads(parts.byAtom, this.isActive);
+            } else {
+                this.mountAtomTriggers(parts.byAtom);
+            }
         },
 
         mountAtomTriggers: function(byAtom) {
@@ -415,6 +440,63 @@
             }
         },
 
+        // GitHub-style inline threads for the dedicated review page: each anchored
+        // atom gets an always-visible thread plus a collapsed "add comment" box,
+        // inserted directly after its diff. Wrapped in [data-comment-panel] so the
+        // existing reply/post handlers inherit the atom id. Re-rendered wholesale
+        // on every render() (post/resolve refetch the thread), so it's idempotent.
+        renderInlineThreads: function(byAtom, interactive) {
+            var self = this;
+            var root = this.$root[0];
+            if (!root) {
+                return;
+            }
+
+            root.querySelectorAll('[data-comment-inline]').forEach(function(b) {
+                b.remove();
+            });
+
+            root.querySelectorAll('[data-atom-id]').forEach(function(el) {
+                var atomId = el.dataset.atomId;
+                var threads = byAtom[atomId] || [];
+
+                // On a closed review with no comments there's nothing to show and
+                // nothing to add — skip the block entirely.
+                if (!threads.length && !interactive) {
+                    return;
+                }
+
+                var block = document.createElement('div');
+                block.className = 'delta-comment-inline';
+                block.dataset.commentInline = atomId;
+                block.dataset.commentPanel = atomId;
+
+                if (threads.length) {
+                    var list = document.createElement('div');
+                    list.className = 'delta-comment-list';
+                    self.renderList($(list), threads, interactive);
+                    block.appendChild(list);
+                }
+
+                if (interactive) {
+                    var add = document.createElement('div');
+                    add.className = 'delta-comment-add';
+                    add.innerHTML =
+                        '<button type="button" class="btn small delta-comment-add-toggle" data-comment-add-toggle>'
+                        + escHtml(deltaT('addComment')) + '</button>'
+                        + '<div class="delta-comment-compose" data-comment-add-form hidden>'
+                        + '<textarea class="text fullwidth" rows="2" data-comment-atom-input maxlength="10000"'
+                        + ' placeholder="' + escAttr(deltaT('commentPlaceholder')) + '"></textarea>'
+                        + '<button type="button" class="btn submit" data-comment-atom-post>'
+                        + escHtml(deltaT('postComment')) + '</button>'
+                        + '</div>';
+                    block.appendChild(add);
+                }
+
+                el.insertAdjacentElement('afterend', block);
+            });
+        },
+
         togglePanel: function(atomId) {
             if (this.openPanelAtomId === atomId) {
                 this.closePanel();
@@ -446,7 +528,7 @@
             var compose = document.createElement('div');
             compose.className = 'delta-comment-compose';
             compose.innerHTML =
-                '<textarea class="text fullwidth" rows="2" data-comment-atom-input'
+                '<textarea class="text fullwidth" rows="2" data-comment-atom-input maxlength="10000"'
                 + ' placeholder="' + escAttr(deltaT('commentPlaceholder')) + '"></textarea>'
                 + '<button type="button" class="btn submit" data-comment-atom-post>'
                 + escHtml(deltaT('postComment')) + '</button>';
@@ -508,11 +590,27 @@
             $item.append($('<div class="delta-comment-body"></div>').text(c.body));
 
             if (interactive) {
+                // The backend allows a single level of nesting: a reply may not
+                // itself be replied to (ReviewCommentService::addComment throws
+                // "Only one level of replies is supported"). So the reply button +
+                // form must only render on top-level comments — otherwise the UI
+                // offers an action the server always rejects.
+                //
+                // TODO(you): define `canReply`. The thread payload carries
+                // `parentId` for every comment (null for top-level), and
+                // postComment() refetches the whole thread before re-rendering, so
+                // `c.parentId` is always fresh here. Alternatively you could thread
+                // a depth/isReply flag through renderComment's recursion — pick
+                // whichever you find clearer. (Resolve stays available on replies.)
+                var canReply = c.parentId == null;
+
                 var actions = $('<div class="delta-comment-actions"></div>');
-                actions.append(
-                    $('<button type="button" class="btn small" data-comment-reply-toggle></button>')
-                        .text(deltaT('reply'))
-                );
+                if (canReply) {
+                    actions.append(
+                        $('<button type="button" class="btn small" data-comment-reply-toggle></button>')
+                            .text(deltaT('reply'))
+                    );
+                }
                 actions.append(
                     $('<button type="button" class="btn small" data-comment-resolve></button>')
                         .attr('data-comment-resolve', c.id)
@@ -521,15 +619,17 @@
                 );
                 $item.append(actions);
 
-                var $replyForm = $(
-                    '<div class="delta-comment-reply-form" data-comment-reply-form hidden>'
-                    + '<textarea class="text fullwidth" rows="2"'
-                    + ' placeholder="' + escAttr(deltaT('replyPlaceholder')) + '"></textarea>'
-                    + '<button type="button" class="btn small" data-comment-reply-post>'
-                    + escHtml(deltaT('reply')) + '</button>'
-                    + '</div>'
-                );
-                $item.append($replyForm);
+                if (canReply) {
+                    var $replyForm = $(
+                        '<div class="delta-comment-reply-form" data-comment-reply-form hidden>'
+                        + '<textarea class="text fullwidth" rows="2" maxlength="10000"'
+                        + ' placeholder="' + escAttr(deltaT('replyPlaceholder')) + '"></textarea>'
+                        + '<button type="button" class="btn small" data-comment-reply-post>'
+                        + escHtml(deltaT('reply')) + '</button>'
+                        + '</div>'
+                    );
+                    $item.append($replyForm);
+                }
             }
 
             if (c.replies && c.replies.length) {

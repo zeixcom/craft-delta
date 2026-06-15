@@ -7,9 +7,7 @@ namespace zeixcom\craftdelta\helpers;
 use craft\helpers\DateTimeHelper;
 use DateTime;
 
-/**
- * Parse UTC datetime strings from the DB without timezone drift.
- */
+/** Parse UTC datetime strings from the DB without timezone drift. */
 final class DbDate
 {
     public static function parse(?string $value): ?DateTime

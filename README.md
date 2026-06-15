@@ -71,14 +71,16 @@ Decisions live in browser `localStorage` until you Apply or Cancel. If the canon
 
 Toggle the whole workflow with **Settings → Plugins → Craft Delta → Enable Workflow** (on by default). With it off, the plugin behaves like v1.1 — diff and Review Mode only.
 
-**Submitting (author).** An author with **Submit drafts for review** sees a **Submit for review** button on a published draft. Clicking it asks them to choose one or more reviewers (only eligible reviewers are listed — see [Permissions & access](#permissions--access)). Each requested reviewer gets an email linking to the entry, and the draft shows an **In review** status.
+**Submitting (author).** An author with **Submit drafts for review** sees a **Submit for review** button on a published draft. Clicking it asks them to choose one or more reviewers (only eligible reviewers are listed — see [Permissions & access](#permissions--access)). Each requested reviewer gets an email linking to the review, and the draft shows an **In review** status.
 
-**Reviewing.** Opening the submitted draft's diff, an assigned reviewer gets a toolbar showing all reviewers' verdicts and the current round, plus:
+**Reviewing.** Reviews happen on a dedicated full-page workspace at `/admin/delta-review?reviewId=N` — reachable from the **Reviews** dashboard, the notification emails, or the **Open review** link in the diff slideout. (The slideout and the `delta-compare` full page are diff-only; the review apparatus lives on this page.) The page shows the reviewers' verdicts and current round, the diff with inline comments, the general discussion, plus:
 
 - **Approve** — records an approval verdict. One approval (with no outstanding change requests) moves the review to **Approved**; a single **Request changes** from any reviewer blocks it.
 - **Request changes** — sends the author a note and moves the review to **Changes requested**.
-- **Granular review** — enters Review Mode so you can accept/reject individual changes, then apply only the accepted ones (requires **Apply review-mode changes**).
+- **Accept / reject per change** — for reviewers with **Apply review-mode changes**, accept/reject controls and a live "decided" counter are shown on each change; **Apply N accepted** publishes only the accepted ones.
 - **Decline** — terminal; the author keeps the draft and receives your optional note by email.
+
+Comments are anchored inline under the change they're about (or posted to the general discussion), with one level of replies and resolve/unresolve.
 
 **Iterating (author).** When changes are requested, the author revises the draft and clicks **Re-request review** — the same reviewers are asked again in a new **round**. The author can also **Withdraw** the request at any time while it's active.
 
@@ -108,7 +110,7 @@ Plugin permissions live under **Settings → Users → User Groups → Permissio
 |---|---|---|
 | Submit drafts for review | `craftdelta-submitDraft` | The **Submit for review** button on the holder's own drafts. |
 | Review submitted drafts | `craftdelta-reviewDraft` | Being assignable as a reviewer, plus the Approve / Request changes / Decline verdicts. |
-| Apply review-mode changes | `craftdelta-applyReview` | Entering Review Mode and publishing accepted changes — both standalone Review Mode and the workflow's **Granular review**. |
+| Apply review-mode changes | `craftdelta-applyReview` | Entering Review Mode and publishing accepted changes — both standalone Review Mode and the per-change accept/reject on the review page. |
 
 Section access is **not** handled by the plugin. Give each role the native Craft section permissions for the sections they work in, for example:
 

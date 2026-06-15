@@ -160,6 +160,7 @@ return [
     'workflow.colRound' => 'Ronde',
     'workflow.commentFailed' => 'Uw opmerking kon niet worden opgeslagen.',
     'workflow.generalDiscussion' => 'Algemene discussie',
+    'workflow.openReview' => 'Review openen',
     'workflow.postComment' => 'Opmerking plaatsen',
     'workflow.reply' => 'Beantwoorden',
     'workflow.resolve' => 'Oplossen',
@@ -168,6 +169,7 @@ return [
     'workflow.commentPlaceholder' => 'Laat een opmerking achter…',
     'workflow.replyPlaceholder' => 'Schrijf een antwoord…',
     'workflow.comments' => 'Opmerkingen',
+    'workflow.addComment' => 'Reactie toevoegen',
     'workflow.noComments' => 'Nog geen opmerkingen.',
     'workflow.roundLabel' => 'Ronde {round}',
 ];
