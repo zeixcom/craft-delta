@@ -82,6 +82,16 @@ class SmokeController extends Controller
         return $this->runScript('workflow-approve-publish-smoke.php');
     }
 
+    /**
+     * Creates two user groups (Delta Authors / Delta Reviewers) modelling
+     * separation of duties — authors create + submit drafts but cannot publish;
+     * reviewers review + publish — and assigns the fixture users to them.
+     */
+    public function actionSetupWorkflowGroups(): int
+    {
+        return $this->runScript('setup-workflow-groups.php');
+    }
+
     private function runScript(string $name): int
     {
         $script = self::SMOKE_DIR . '/' . $name;
