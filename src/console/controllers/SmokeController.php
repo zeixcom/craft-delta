@@ -71,6 +71,17 @@ class SmokeController extends Controller
         return $this->runScript('review-comments-verify-smoke.php');
     }
 
+    /**
+     * Runs the submit → approve → publish workflow end-to-end against a real
+     * Craft kernel, verifying the simplified Approve/Decline flow applies an
+     * approved draft to canonical. Requires the workflow fixture users
+     * (run setup-workflow-users first).
+     */
+    public function actionWorkflowApprovePublish(): int
+    {
+        return $this->runScript('workflow-approve-publish-smoke.php');
+    }
+
     private function runScript(string $name): int
     {
         $script = self::SMOKE_DIR . '/' . $name;

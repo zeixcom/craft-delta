@@ -5,10 +5,32 @@ declare(strict_types=1);
 namespace zeixcom\craftdelta\tests\Unit\Service;
 
 use PHPUnit\Framework\TestCase;
+use zeixcom\craftdelta\enums\ReviewState;
+use zeixcom\craftdelta\enums\ReviewVerdict;
 use zeixcom\craftdelta\models\Review;
 
 class ReviewTest extends TestCase
 {
+    public function testChangesRequestedStateAndVerdictRemoved(): void
+    {
+        // The changes_requested state + verdict were removed from the enums.
+        // tryFrom() returning null guards against accidental re-introduction.
+        $this->assertNull(ReviewState::tryFrom('changes_requested'));
+        $this->assertNull(ReviewVerdict::tryFrom('changes_requested'));
+    }
+
+    public function testLegacyUnknownStateIsNeitherActiveNorTerminal(): void
+    {
+        // A pre-migration 'changes_requested' row hits no known arm: it can't be
+        // acted on (not active) but isn't terminal either, and its dot colour
+        // falls back to the neutral default. The migration reopens such rows;
+        // this documents the graceful behaviour for any that slip through.
+        $review = new Review(['state' => 'changes_requested', 'appliedAt' => null]);
+        $this->assertFalse($review->isActive());
+        $this->assertFalse($review->isTerminal());
+        $this->assertSame('gray', $review->statusColor());
+    }
+
     public function testStateConstants(): void
     {
         $this->assertSame('open', Review::STATE_OPEN);
