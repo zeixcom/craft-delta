@@ -114,6 +114,9 @@ class WorkflowController extends Controller
             // (matches DiffController::actionCompare). With reviewMode false the
             // header stepper, atom actions, and auto-enter all drop out.
             'reviewMode' => $result !== null && $review->isActive() && $plugin->getSettings()->enableReviewMode,
+            // Default the diff to changed-only (honoring the setting) so the page
+            // isn't a wall of "no changes" rows; a toggle reveals unchanged fields.
+            'showUnchanged' => $plugin->getSettings()->defaultShowUnchanged,
             'isReviewer' => $plugin->workflow->canReview($user, $review),
             'entryId' => $review->canonicalEntryId,
             'siteId' => $canonical->siteId,

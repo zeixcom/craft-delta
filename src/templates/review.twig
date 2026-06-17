@@ -29,7 +29,14 @@
                 sourceUpdatedAt: sourceUpdatedAt,
             } %}
 
-            <div class="delta-review-body">
+            {% set startChangedOnly = not (showUnchanged is defined and showUnchanged) %}
+            <div class="delta-review-body{{ startChangedOnly ? ' delta-changed-only' : '' }}" data-review-body>
+                {% if result.hasChanges() %}
+                    <label class="delta-filter-toggle delta-review-filter">
+                        <input type="checkbox" data-review-changed-only{{ startChangedOnly ? ' checked' : '' }}>
+                        {{ deltaKeys.changedOnly|t('craft-delta') }}
+                    </label>
+                {% endif %}
                 {% include 'craft-delta/_diff-fields' with { result: result, reviewMode: reviewMode } %}
             </div>
 
@@ -75,6 +82,15 @@
                     } else if (Craft.Delta.reviewMode.checkForPriorState) {
                         Craft.Delta.reviewMode.checkForPriorState(reviewToolbar);
                     }
+                }
+
+                // "Changed only" toggle: show/hide the unchanged-field rows.
+                var changedOnlyCb = root.querySelector('[data-review-changed-only]');
+                var reviewBody = root.querySelector('[data-review-body]');
+                if (changedOnlyCb && reviewBody) {
+                    changedOnlyCb.addEventListener('change', function () {
+                        reviewBody.classList.toggle('delta-changed-only', changedOnlyCb.checked);
+                    });
                 }
 
                 // Keep the sticky tab section headers flush below the sticky

@@ -1323,6 +1323,13 @@ button.delta-field-header {
     top: var(--delta-review-sticky-top, 0px);
 }
 
+/* "Changed only" toggle above the diff on the review page. */
+.delta-review-filter {
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
 .delta-review-header-top {
     display: flex;
     flex-wrap: wrap;
