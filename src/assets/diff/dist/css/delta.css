@@ -1330,6 +1330,52 @@ button.delta-field-header {
     margin-bottom: 12px;
 }
 
+/* Closed-review status banner — makes a published / declined / withdrawn review
+   unmistakable instead of a misleading empty diff. */
+.delta-review-closed-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    margin-bottom: 20px;
+    border: 1px solid var(--delta-review-bar-border);
+    border-radius: var(--large-border-radius, 8px);
+    background: var(--delta-review-bar-bg);
+}
+
+.delta-review-closed-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 17px;
+    font-weight: 600;
+}
+
+.delta-review-closed-date {
+    color: var(--delta-text-muted, var(--delta-text-muted-fallback));
+    font-size: var(--delta-font-md);
+}
+
+.delta-review-closed-banner .delta-review-roster {
+    margin: 0;
+}
+
+.delta-review-closed-link {
+    margin-left: auto;
+}
+
+/* Reviewer's note on a declined review. */
+.delta-review-closed-note {
+    margin: -10px 0 20px;
+    padding: 10px 14px;
+    border-left: 3px solid var(--delta-del-border);
+    border-radius: 0 var(--delta-radius) var(--delta-radius) 0;
+    background: var(--delta-del-bg);
+    font-style: italic;
+    white-space: pre-wrap;
+}
+
 .delta-review-header-top {
     display: flex;
     flex-wrap: wrap;

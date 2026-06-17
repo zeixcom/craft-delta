@@ -46,9 +46,16 @@ class Review extends Model
     public int $submittedBy = 0;
     public ?DateTime $scheduledFor = null;
     public ?DateTime $appliedAt = null;
+    /** Reviewer's note on a decline (and the withdraw actor's, internally). */
+    public ?string $decisionNote = null;
 
     /** @var ReviewReviewer[] current-round reviewers, hydrated by the service */
     public array $reviewers = [];
+
+    public function isDeclined(): bool
+    {
+        return $this->state === self::STATE_DECLINED;
+    }
 
     public function isApproved(): bool
     {

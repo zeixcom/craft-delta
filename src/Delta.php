@@ -239,7 +239,7 @@ class Delta extends Plugin
                 . ',isDraft:' . ($isDraft ? 'true' : 'false')
                 . ',draftId:' . ($entry->draftId ?? 'null')
                 . ',siteId:' . $entry->siteId . '});'
-                . "(function(){var \$btn=$('#delta-submit-btn');if(\$btn.length){\$btn.on('click',function(){Craft.Delta.openSubmitModal(\$btn.data('draft-id'),\$btn.data('section-uid'),function(){location.reload();});});}})();",
+                . "(function(){var \$btn=$('#delta-submit-btn');if(\$btn.length){\$btn.on('click',function(){Craft.Delta.openSubmitModal(\$btn.data('draft-id'),\$btn.data('section-uid'));});}})();",
             );
 
             $workflowHtml = '';

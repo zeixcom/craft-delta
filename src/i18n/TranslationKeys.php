@@ -125,6 +125,10 @@ final class TranslationKeys
     public const NOT_REVIEWER_FOR_DRAFT = 'error.notReviewerForDraft';
     public const ONLY_AUTHOR_CAN_DO_THAT = 'error.onlyAuthorCanDoThat';
     public const REVIEW_NO_LONGER_OPEN = 'error.reviewNoLongerOpen';
+    public const EMAIL_DRAFT_APPROVED = 'email.draftApproved';
+    public const EMAIL_BODY_APPROVED = 'email.bodyApproved';
+    public const EMAIL_NEW_COMMENT = 'email.newComment';
+    public const EMAIL_COMMENT_INTRO = 'email.commentIntro';
     public const EMAIL_DRAFT_DECLINED = 'email.draftDeclined';
     public const EMAIL_DRAFT_APPROVED_SCHEDULED = 'email.draftApprovedScheduled';
     public const EMAIL_DRAFT_PUBLISHED = 'email.draftPublished';
@@ -141,6 +145,7 @@ final class TranslationKeys
     public const WORKFLOW_DECLINE_CONFIRM = 'workflow.declineConfirm';
     public const WORKFLOW_WITHDRAW_CONFIRM = 'workflow.withdrawConfirm';
     public const WORKFLOW_PUBLISH_CONFIRM = 'workflow.publishConfirm';
+    public const WORKFLOW_DONE_SUBMITTED = 'workflow.doneSubmitted';
     public const WORKFLOW_DONE_APPROVED = 'workflow.doneApproved';
     public const WORKFLOW_DONE_DECLINED = 'workflow.doneDeclined';
     public const WORKFLOW_DONE_WITHDRAWN = 'workflow.doneWithdrawn';
@@ -157,6 +162,7 @@ final class TranslationKeys
     public const WORKFLOW_COMMENT_FAILED = 'workflow.commentFailed';
     public const WORKFLOW_GENERAL_DISCUSSION = 'workflow.generalDiscussion';
     public const WORKFLOW_OPEN_REVIEW = 'workflow.openReview';
+    public const WORKFLOW_OPEN_ENTRY = 'workflow.openEntry';
     public const WORKFLOW_POST_COMMENT = 'workflow.postComment';
     public const WORKFLOW_COMMENT_PLACEHOLDER = 'workflow.commentPlaceholder';
     public const WORKFLOW_REPLY = 'workflow.reply';

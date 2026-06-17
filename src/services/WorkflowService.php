@@ -276,7 +276,15 @@ class WorkflowService extends Component
 
     public function approve(Review $review, User $reviewer): Review
     {
+        $wasApproved = $review->isApproved();
         $fresh = $this->recordVerdict($review, $reviewer, ReviewReviewer::VERDICT_APPROVED, null);
+        // Tell the author their draft passed review — a distinct milestone from
+        // publishing, and the only signal if publishing happens later or by
+        // someone else. Only on the transition INTO approved, so a second
+        // reviewer approving an already-approved review doesn't re-notify.
+        if (!$wasApproved && $fresh->isApproved()) {
+            $this->notifyAuthor($fresh, fn(Entry $draft, User $author) => $this->delta()->email->sendApproved($fresh, $draft, $author));
+        }
         $this->trigger(self::EVENT_AFTER_APPROVE, new WorkflowEvent(['review' => $fresh]));
         return $fresh;
     }
@@ -611,6 +619,7 @@ class WorkflowService extends Component
             'submittedBy' => $record->submittedBy,
             'scheduledFor' => DbDate::parse($record->scheduledFor),
             'appliedAt' => DbDate::parse($record->appliedAt),
+            'decisionNote' => $record->decisionNote,
         ]);
         $review->reviewers = $this->loadReviewers((int)$record->id, (int)$record->round);
         return $review;

@@ -29,9 +29,31 @@ class EmailService extends Component
         $this->notifyReviewer($review, $draft, $reviewerUserId, 'submitted', fn() => Craft::t('craft-delta', TranslationKeys::EMAIL_DRAFT_AWAITING_REVIEW, ['title' => $draft->title]));
     }
 
+    public function sendApproved(Review $review, Entry $draft, User $author): void
+    {
+        $this->notifyAuthor($review, $author, $draft, 'approved', TranslationKeys::EMAIL_DRAFT_APPROVED, null);
+    }
+
     public function sendDeclined(Review $review, Entry $draft, User $author, ?string $note): void
     {
         $this->notifyAuthor($review, $author, $draft, 'declined', TranslationKeys::EMAIL_DRAFT_DECLINED, $note);
+    }
+
+    /** Notify the draft's author that someone left a comment on their review. */
+    public function sendCommentToAuthor(Review $review, Entry $entry, User $author, string $commenter, string $comment): void
+    {
+        $this->dispatch(
+            $author,
+            fn() => Craft::t('craft-delta', TranslationKeys::EMAIL_NEW_COMMENT, ['title' => $entry->title]),
+            'comment',
+            [
+                'author' => $author,
+                'entry' => $entry,
+                'url' => $this->reviewUrl($review),
+                'commenter' => $commenter,
+                'comment' => $comment,
+            ],
+        );
     }
 
     public function sendPublished(Review $review, Entry $draft, User $author): void

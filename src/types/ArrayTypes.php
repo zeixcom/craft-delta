@@ -54,7 +54,9 @@ namespace zeixcom\craftdelta\types;
  *   reviewer?: \craft\elements\User,
  *   round?: int,
  *   note?: string|null,
- *   scheduledFor?: string|null
+ *   scheduledFor?: string|null,
+ *   commenter?: string,
+ *   comment?: string
  * }
  * @phpstan-type ReviewSummaryPayload array{id: ?int, state: string, round: int}
  * @phpstan-type CommentJsonFields array{

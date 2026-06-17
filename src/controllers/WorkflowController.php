@@ -117,6 +117,7 @@ class WorkflowController extends Controller
             // Default the diff to changed-only (honoring the setting) so the page
             // isn't a wall of "no changes" rows; a toggle reveals unchanged fields.
             'showUnchanged' => $plugin->getSettings()->defaultShowUnchanged,
+            'entryUrl' => $canonical->getCpEditUrl(),
             'isReviewer' => $plugin->workflow->canReview($user, $review),
             'entryId' => $review->canonicalEntryId,
             'siteId' => $canonical->siteId,
@@ -155,7 +156,18 @@ class WorkflowController extends Controller
             return $this->failure(TranslationKeys::FAILED_SUBMIT_FOR_REVIEW);
         }
 
-        return $this->asJson(['success' => true, 'review' => $this->reviewPayload($review)]);
+        // Return the confirmation message + status so the client shows a notice
+        // and swaps the sidebar button for the status pill in place — no reload,
+        // which would immediately wipe the notice.
+        return $this->asJson([
+            'success' => true,
+            'review' => [
+                'id' => $review->id,
+                'state' => $review->state,
+                'statusLabel' => $review->statusLabel(),
+            ],
+            'message' => Craft::t('craft-delta', TranslationKeys::WORKFLOW_DONE_SUBMITTED),
+        ]);
     }
 
     public function actionApprove(): Response
@@ -251,7 +263,23 @@ class WorkflowController extends Controller
             return $this->failure(TranslationKeys::WORKFLOW_COMMENT_FAILED);
         }
 
+        // Comments are now the main change-request channel, so surface a
+        // reviewer's comment to the author instead of making them poll for it.
+        if ($user->id !== $review->submittedBy) {
+            $this->notifyAuthorOfComment($plugin, $review, $user, $comment);
+        }
+
         return $this->asJson(['success' => true, 'comment' => $this->commentPayload($comment)]);
+    }
+
+    private function notifyAuthorOfComment(Delta $plugin, Review $review, User $commenter, ReviewComment $comment): void
+    {
+        $author = Craft::$app->getUsers()->getUserById($review->submittedBy);
+        $entry = ($review->draftId !== null ? $plugin->revision->getDraftByDraftId($review->draftId) : null)
+            ?? Craft::$app->getEntries()->getEntryById($review->canonicalEntryId);
+        if ($author !== null && $entry instanceof Entry) {
+            $plugin->email->sendCommentToAuthor($review, $entry, $author, UserName::of($commenter), $comment->body);
+        }
     }
 
     public function actionResolveComment(): Response

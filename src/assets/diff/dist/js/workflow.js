@@ -88,7 +88,21 @@
                 data: { draftId: draftId, reviewerIds: reviewerIds },
             }).then(function(response) {
                 closeModal();
-                if (typeof onSuccess === 'function') onSuccess(response.data.review);
+                var data = response.data || {};
+                // Confirm the submission. No reload (that would wipe the notice),
+                // so swap the sidebar button for the in-review status pill here.
+                if (data.message) { Craft.cp.displayNotice(data.message); }
+                var review = data.review;
+                var sidebarBtn = document.getElementById('delta-submit-btn');
+                if (sidebarBtn && review && review.statusLabel) {
+                    var pill = document.createElement('p');
+                    pill.className = 'delta-workflow-status' + (review.state ? ' delta-workflow-status--' + review.state : '');
+                    pill.textContent = review.statusLabel;
+                    sidebarBtn.replaceWith(pill);
+                } else if (sidebarBtn) {
+                    sidebarBtn.remove();
+                }
+                if (typeof onSuccess === 'function') onSuccess(review);
             }).catch(function() {
                 $btn.removeClass('loading');
                 Craft.cp.displayError(Craft.t('craft-delta', Craft.Delta._keys.failedSubmitForReview));

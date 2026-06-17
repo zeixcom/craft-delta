@@ -10,13 +10,43 @@
 ] %}
 
 {% block content %}
-    {% if result is null %}
-        {# Closed/published review — the draft is gone, nothing to diff. #}
-        <p class="zilch">{{ workflow.statusLabel() }}</p>
-    {% else %}
-        {# Everything lives inside .delta-review-page so workflow.js resolves its
-           root (toolbar, atom triggers, comments) against one container. #}
-        <div class="delta-review-page" id="delta-review-root">
+    {# Everything lives inside .delta-review-page so workflow.js resolves its
+       root (toolbar, atom triggers, comments) against one container. #}
+    <div class="delta-review-page{{ workflow.isTerminal() ? ' delta-review-page--closed' : '' }}" id="delta-review-root">
+        {% if workflow.isTerminal() %}
+            {# Closed review: lead with the outcome so it can't be mistaken for an
+               empty active review (a granular apply leaves the draft, so the diff
+               can be empty). Status + who/when + a link to the entry, with the
+               comment thread read-only below. #}
+            <div class="delta-review-closed-banner" data-review-id="{{ workflow.id }}">
+                <span class="delta-review-closed-status">
+                    <span class="status {{ workflow.statusColor() }}"></span>
+                    {{ workflow.statusLabel() }}
+                </span>
+                {% if workflow.appliedAt %}
+                    <span class="delta-review-closed-date">{{ workflow.appliedAt|datetime('short') }}</span>
+                {% endif %}
+                {% if workflow.reviewers %}
+                    <span class="delta-review-roster">
+                        <span class="delta-review-roster-label">{{ deltaKeys.workflowReviewers|t('craft-delta') }}:</span>
+                        {% for r in workflow.reviewers %}
+                            <span class="delta-reviewer-pill delta-reviewer-pill--{{ r.verdict }}">{{ r.userName ?? ('#' ~ r.userId) }}</span>
+                        {% endfor %}
+                    </span>
+                {% endif %}
+                {% if entryUrl is defined and entryUrl %}
+                    <a class="btn delta-review-closed-link" href="{{ entryUrl }}">{{ deltaKeys.workflowOpenEntry|t('craft-delta') }}</a>
+                {% endif %}
+            </div>
+
+            {% if workflow.isDeclined() and workflow.decisionNote %}
+                <blockquote class="delta-review-closed-note">{{ workflow.decisionNote|nl2br }}</blockquote>
+            {% endif %}
+
+            {% include 'craft-delta/_review-discussion' with { workflow: workflow } %}
+        {% elseif result is null %}
+            <p class="zilch">{{ workflow.statusLabel() }}</p>
+        {% else %}
             {% include 'craft-delta/_review-header' with {
                 result: result,
                 reviewMode: reviewMode,
@@ -41,23 +71,24 @@
             </div>
 
             {% include 'craft-delta/_review-discussion' with { workflow: workflow } %}
-        </div>
+        {% endif %}
+    </div>
 
-        {% js %}
-            (function () {
-                // DiffAsset injects Craft.Delta._keys (the i18n map) at POS_END.
-                // This block is server-rendered and can run before that inline
-                // script executes, so wait for _keys — enter()/comment rendering
-                // dereference it synchronously and would otherwise throw.
-                function wire() {
-                    if (typeof Craft === 'undefined' || !Craft.Delta || !Craft.Delta._keys) {
-                        window.setTimeout(wire, 30);
-                        return;
-                    }
-                    mountReview();
+    {% js %}
+        (function () {
+            // DiffAsset injects Craft.Delta._keys (the i18n map) at POS_END.
+            // This block is server-rendered and can run before that inline
+            // script executes, so wait for _keys — enter()/comment rendering
+            // dereference it synchronously and would otherwise throw.
+            function wire() {
+                if (typeof Craft === 'undefined' || !Craft.Delta || !Craft.Delta._keys) {
+                    window.setTimeout(wire, 30);
+                    return;
                 }
+                mountReview();
+            }
 
-                function mountReview() {
+            function mountReview() {
                 var root = document.getElementById('delta-review-root');
                 if (!root) { return; }
 
@@ -70,6 +101,11 @@
                 var wfToolbar = root.querySelector('.delta-workflow-toolbar');
                 if (wfToolbar && Craft.Delta.mountWorkflowToolbar) {
                     Craft.Delta.mountWorkflowToolbar($(wfToolbar));
+                } else if (Craft.Delta.reviewComments) {
+                    // Closed reviews have no toolbar; mount the (read-only) comment
+                    // thread off the status banner, which carries data-review-id.
+                    var idCarrier = root.querySelector('[data-review-id]');
+                    if (idCarrier) { Craft.Delta.reviewComments.mount($(idCarrier)); }
                 }
 
                 var reviewToolbar = root.querySelector('[data-review-toolbar]');
@@ -108,10 +144,9 @@
                         window.addEventListener('resize', syncStickyTop);
                     }
                 }
-                }
+            }
 
-                wire();
-            })();
-        {% endjs %}
-    {% endif %}
+            wire();
+        })();
+    {% endjs %}
 {% endblock %}
