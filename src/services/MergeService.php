@@ -23,8 +23,6 @@ use zeixcom\craftdelta\util\AtomKey;
  * fresh diff, copies field/Matrix values from source to a new draft of the
  * canonical entry, saves once.
  *
- * Pure write-side. Shares no mutable state with DiffService.
- *
  * @phpstan-import-type MatrixBlockAtom from \zeixcom\craftdelta\types\ArrayTypes
  * @phpstan-import-type MatrixCanonicalDraftMap from \zeixcom\craftdelta\types\ArrayTypes
  * @phpstan-import-type MatrixSetValue from \zeixcom\craftdelta\types\ArrayTypes

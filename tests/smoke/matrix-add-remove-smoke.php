@@ -54,7 +54,6 @@ if (!$matrixField instanceof \craft\fields\Matrix) {
 $blockType = $matrixField->getEntryTypes()[0];
 echo "Block type: {$blockType->handle}\n";
 
-// Phase 0: Seed canonical with exactly 3 blocks (A, B, C).
 echo "\nPhase 0: seeding canonical with 3 blocks\n";
 
 $canonical->setFieldValue($fieldHandle, [
@@ -91,7 +90,6 @@ $fullBeforeCount = count($fullCanonicalBefore);
 $fullBeforeUids = array_map(fn($b) => $b->canonicalUid, $fullCanonicalBefore);
 echo "  Total canonical block count (incl. leftovers): {$fullBeforeCount}\n\n";
 
-// Phase 1: Build a draft with B removed and a new block added.
 echo "Phase 1: drafting state — remove B + add new block D\n";
 
 $draft = Craft::$app->getDrafts()->createDraft($canonical, $adminUser->id, 'Matrix add+remove smoke');
@@ -102,8 +100,6 @@ foreach ($draftBlocks as $b) {
     $draftCloneByCanonicalUid[$b->canonicalUid] = $b;
 }
 
-// Build the draft's new blocks payload: keep ALL existing canonical blocks
-// EXCEPT B, plus add a new block.
 $newBlockTitle = '[smoke ' . date('His') . '] freshly added';
 $entries = [];
 $sortOrder = [];
@@ -149,7 +145,6 @@ if (count($newBlocksOnDraft) !== 1) {
 $newBlockCanonicalUid = $newBlocksOnDraft[0];
 echo "  New block on draft: canonicalUid={$newBlockCanonicalUid}\n\n";
 
-// Phase 2: Verify atoms.
 echo "Phase 2: running DiffService\n";
 
 $plugin = \zeixcom\craftdelta\Delta::getInstance();
@@ -175,7 +170,6 @@ if (!empty($missing)) {
 }
 echo "  ✓ Both expected atoms present\n\n";
 
-// Phase 3: Apply both atoms.
 echo "Phase 3: applying both atoms via MergeService::merge\n";
 
 $beforeRev = (int)Craft::$app->getDb()->createCommand('SELECT COUNT(*) FROM revisions WHERE canonicalId = :id', [':id' => $canonical->id])->queryScalar();
@@ -205,7 +199,6 @@ if ($afterRev === $beforeRev) {
 }
 echo "\n";
 
-// Phase 4: Verify canonical state.
 echo "Phase 4: verifying canonical post-apply state\n";
 
 $canonicalAfter = Entry::find()->id($canonical->id)->status(null)->one();
@@ -215,28 +208,24 @@ echo "  Post-apply block count: " . count($canonicalAfterBlocks) . "\n";
 
 $failures = [];
 
-// Block A preserved
 if (!in_array($blockA->canonicalUid, $canonicalAfterUids, true)) {
     $failures[] = "Block A ({$blockA->canonicalUid}) was lost — should be preserved";
 } else {
     echo "  ✓ Block A preserved ({$blockA->canonicalUid})\n";
 }
 
-// Block B removed
 if (in_array($blockB->canonicalUid, $canonicalAfterUids, true)) {
     $failures[] = "Block B ({$blockB->canonicalUid}) is still present — `removed` atom didn't take effect";
 } else {
     echo "  ✓ Block B removed ({$blockB->canonicalUid})\n";
 }
 
-// Block C preserved
 if (!in_array($blockC->canonicalUid, $canonicalAfterUids, true)) {
     $failures[] = "Block C ({$blockC->canonicalUid}) was lost — should be preserved";
 } else {
     echo "  ✓ Block C preserved ({$blockC->canonicalUid})\n";
 }
 
-// Exactly 1 new block (a brand-new canonicalUid not in the before set)
 $newOnCanonical = array_values(array_diff($canonicalAfterUids, $fullBeforeUids));
 if (count($newOnCanonical) !== 1) {
     $failures[] = "expected exactly 1 brand-new canonicalUid on canonical, got " . count($newOnCanonical) . ": " . implode(',', $newOnCanonical);
@@ -247,7 +236,6 @@ if (count($newOnCanonical) !== 1) {
     }
 }
 
-// No duplicates
 $counts = array_count_values($canonicalAfterUids);
 $dupes = array_filter($counts, fn($c) => $c > 1);
 if (!empty($dupes)) {

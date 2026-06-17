@@ -26,9 +26,8 @@ use zeixcom\craftdelta\records\ReviewRecord;
 use zeixcom\craftdelta\records\ReviewReviewerRecord;
 
 /**
- * Owns the review-request state machine and is the only writer of the
- * craftdelta_reviews / craftdelta_review_reviewers tables. Controllers stay thin
- * and delegate here.
+ * The only writer of the craftdelta_reviews / craftdelta_review_reviewers
+ * tables.
  *
  * `reviews.state` is a CACHE of a derivation over the current round's reviewer
  * verdicts (see deriveState). declined / cancelled / published are explicit,

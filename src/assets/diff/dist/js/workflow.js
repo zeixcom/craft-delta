@@ -1,13 +1,8 @@
 /**
- * Craft Delta workflow client. Provides:
- *   - Submit-for-review modal (author side, multi-reviewer)
- *   - Review toolbar buttons (reviewer + author side, mounted by delta.js)
+ * Craft Delta workflow client: submit-for-review modal and review toolbar buttons.
  *
- * Localized strings for the toolbar are rendered into data-* attributes by
- * _diff-slideout.twig, so this layer reads them from the DOM rather than via
- * Craft.t() — no extra JS message registration is needed for the toolbar.
- *
- * Designed to be a thin layer over Craft.sendActionRequest.
+ * Toolbar strings are rendered into data-* attributes by _diff-slideout.twig and
+ * read from the DOM, so the toolbar needs no extra JS message registration.
  */
 (function() {
     'use strict';
@@ -53,15 +48,12 @@
                     return;
                 }
                 resp.assignees.forEach(function(u) {
-                    // Build via .val()/.text() — never concatenate the user's
-                    // name into an HTML string (it would be a stored-XSS vector
-                    // since names are user-controlled profile data).
+                    // Build via .val()/.text() — never concatenate the user-controlled name into HTML (stored-XSS vector).
                     var $opt = $('<label class="delta-assignee-option"></label>');
                     $opt.append($('<input type="checkbox">').val(u.id));
                     $opt.append($('<span></span>').text(u.name));
                     $list.append($opt);
                 });
-                // Submit enables only once at least one reviewer is checked.
                 $list.on('change', 'input[type="checkbox"]', function() {
                     var any = $list.find('input[type="checkbox"]:checked').length > 0;
                     $modal.find('.btn.submit').toggleClass('disabled', !any);
@@ -78,7 +70,6 @@
             // 'loading' doubles as the in-flight guard: a double-click must not
             // fire a second POST (the duplicate would 422 as "already exists").
             if ($btn.hasClass('disabled') || $btn.hasClass('loading')) return;
-            // Collect the checked reviewer checkboxes as an array of ids.
             var reviewerIds = $modal.find('.delta-assignee input[type="checkbox"]:checked').map(function() {
                 return this.value;
             }).get();
@@ -89,8 +80,7 @@
             }).then(function(response) {
                 closeModal();
                 var data = response.data || {};
-                // Confirm the submission. No reload (that would wipe the notice),
-                // so swap the sidebar button for the in-review status pill here.
+                // No reload (it would wipe the notice), so swap the sidebar button for the in-review status pill in place.
                 if (data.message) { Craft.cp.displayNotice(data.message); }
                 var review = data.review;
                 var sidebarBtn = document.getElementById('delta-submit-btn');
@@ -108,6 +98,35 @@
                 Craft.cp.displayError(Craft.t('craft-delta', Craft.Delta._keys.failedSubmitForReview));
             });
         });
+    };
+
+    // Schedule-publish modal. The markup (with Craft's native date+time pickers)
+    // is server-rendered as #delta-schedule-modal so the forms macro loads the
+    // picker assets and initialises the widgets; here we just show it and read
+    // the chosen values. onConfirm receives { date, time, timezone } — the shape
+    // DateTimeHelper::toDateTime parses server-side.
+    Craft.Delta.openScheduleModal = function(onConfirm) {
+        var el = document.getElementById('delta-schedule-modal');
+        if (!el) return;
+        var $modal = $(el);
+        var modal = $modal.data('delta-schedule-modal');
+        // Reuse the modal — rebuilding would orphan the server-initialised date/time pickers inside.
+        if (!modal) {
+            modal = new Garnish.Modal($modal, { autoShow: false });
+            $modal.data('delta-schedule-modal', modal);
+            $modal.find('[data-schedule-cancel]').on('click', function() { modal.hide(); });
+            $modal.find('[data-schedule-confirm]').on('click', function() {
+                var date = $modal.find('.datewrapper input.text').val();
+                var time = $modal.find('.timewrapper input.text').val();
+                // A date is required to schedule; a missing time defaults to 00:00.
+                if (!date) { Garnish.shake($modal); return; }
+                modal.hide();
+                var cb = $modal.data('delta-schedule-cb');
+                if (cb) cb({ date: date, time: time, timezone: (window.Craft && Craft.timezone) || undefined });
+            });
+        }
+        $modal.data('delta-schedule-cb', onConfirm);
+        modal.show();
     };
 
     /**
@@ -139,14 +158,15 @@
                 });
         }
 
-        // action -> behavior. confirm/notePrompt/schedulePrompt strings come
-        // from the toolbar's data-* attributes (localized server-side).
+        // action -> behavior. confirm/notePrompt strings come from the toolbar's
+        // data-* attributes (localized server-side). 'schedule' opens a native
+        // date+time picker modal rather than a prompt.
         var actions = {
             'approve':         { endpoint: 'approve',         done: ds.doneApprove },
             'decline':         { endpoint: 'decline',         done: ds.doneDecline,  confirm: ds.confirmDecline, notePrompt: ds.notePrompt },
             'withdraw':        { endpoint: 'withdraw',        done: ds.doneWithdraw, confirm: ds.confirmWithdraw },
             'publish':         { endpoint: 'publish',         done: ds.donePublish,  confirm: ds.confirmPublish, redirect: true },
-            'schedule':        { endpoint: 'publish',         done: ds.donePublish,  schedulePrompt: ds.publishAtPrompt, redirect: true }
+            'schedule':        { endpoint: 'publish',         done: ds.donePublish,  scheduleModal: true, redirect: true }
         };
 
         $toolbar.find('[data-wf-action]').on('click', function() {
@@ -155,17 +175,19 @@
 
             var params = { reviewId: reviewId };
 
-            if (cfg.confirm && !confirm(cfg.confirm)) return;
-
-            if (cfg.schedulePrompt) {
-                var when = prompt(cfg.schedulePrompt);
-                if (!when) return;
-                params.scheduledFor = when;
+            // Scheduling defers the POST to the picker modal's confirm callback.
+            if (cfg.scheduleModal) {
+                Craft.Delta.openScheduleModal(function(scheduledFor) {
+                    params.scheduledFor = scheduledFor;
+                    post(cfg.endpoint, params, cfg.done, cfg.redirect);
+                });
+                return;
             }
 
+            if (cfg.confirm && !confirm(cfg.confirm)) return;
+
             if (cfg.notePrompt) {
-                // decline: optional note to the author; already confirmed, so a
-                // cancelled or empty prompt still proceeds.
+                // decline: optional note to the author — already confirmed, so a cancelled/empty prompt still proceeds.
                 var note = prompt(cfg.notePrompt);
                 params.note = note || '';
             }
@@ -232,6 +254,10 @@
             // Closed reviews render read-only: the backend rejects posts/replies
             // on an inactive review ("review no longer open"), so don't offer them.
             this.isActive = $section[0].dataset.reviewActive !== '0';
+            // Resolving a comment requires reviewer permission (the backend's
+            // assertCanResolveComment); authors can comment/reply but not resolve.
+            // Gate the button so we don't render an affordance that always 403s.
+            this.canResolve = $section[0].dataset.reviewCanResolve === '1';
 
             var self = this;
             this.bindDelegatedHandlers();
@@ -368,10 +394,7 @@
             var $section = this.$root.find('[data-review-comments]');
             var isPage = this.$root.hasClass('delta-review-page');
 
-            // The dedicated review page has a single comment thread at the bottom:
-            // every non-outdated comment (general or anchored) lands there, so
-            // there's one place to read and one field to post. The slideout keeps
-            // the compact per-atom trigger/panel model and its general list.
+            // The review page collapses all non-outdated comments into one bottom thread; the slideout keeps the per-atom trigger/panel model plus its general list.
             var mainComments = isPage
                 ? this.comments.filter(function(c) { return !c.outdated; })
                 : parts.general;
@@ -444,7 +467,6 @@
                 }
             });
 
-            // Refresh open panel if still valid
             if (this.openPanelAtomId) {
                 this.openPanel(this.openPanelAtomId);
             }
@@ -543,11 +565,7 @@
             $item.append($('<div class="delta-comment-body"></div>').text(c.body));
 
             if (interactive) {
-                // The backend allows a single level of nesting: a reply may not
-                // itself be replied to (ReviewCommentService::addComment throws
-                // "Only one level of replies is supported"). So the reply button +
-                // form must only render on top-level comments — otherwise the UI
-                // offers an action the server always rejects.
+                // The backend allows only one nesting level (ReviewCommentService::addComment rejects a reply to a reply), so only top-level comments get a reply button.
                 var canReply = c.parentId == null;
 
                 var actions = $('<div class="delta-comment-actions"></div>');
@@ -557,13 +575,17 @@
                             .text(deltaT('reply'))
                     );
                 }
-                actions.append(
-                    $('<button type="button" class="btn small" data-comment-resolve></button>')
-                        .attr('data-comment-resolve', c.id)
-                        .attr('data-resolved', c.resolved ? '1' : '0')
-                        .text(c.resolved ? deltaT('unresolve') : deltaT('resolve'))
-                );
-                $item.append(actions);
+                if (this.canResolve) {
+                    actions.append(
+                        $('<button type="button" class="btn small" data-comment-resolve></button>')
+                            .attr('data-comment-resolve', c.id)
+                            .attr('data-resolved', c.resolved ? '1' : '0')
+                            .text(c.resolved ? deltaT('unresolve') : deltaT('resolve'))
+                    );
+                }
+                if (actions.children().length) {
+                    $item.append(actions);
+                }
 
                 if (canReply) {
                     var $replyForm = $(

@@ -70,7 +70,7 @@ class MergeServiceTest extends TestCase
     {
         $current = [['uid' => 'A', 'content' => 'a']];
         $source = [['uid' => 'A', 'content' => 'a'], ['uid' => 'X', 'content' => 'x']];
-        $atoms = []; // X-added not accepted
+        $atoms = [];
 
         $result = MergeService::buildMatrixBlockList($current, $source, $atoms);
 
@@ -94,7 +94,7 @@ class MergeServiceTest extends TestCase
     {
         $current = [['uid' => 'A', 'content' => 'a'], ['uid' => 'B', 'content' => 'b']];
         $source = [['uid' => 'A', 'content' => 'a']];
-        $atoms = []; // B-removed rejected
+        $atoms = [];
 
         $result = MergeService::buildMatrixBlockList($current, $source, $atoms);
 
@@ -132,7 +132,7 @@ class MergeServiceTest extends TestCase
             ['uid' => 'C'],
         ];
         $current = [['uid' => 'A'], ['uid' => 'B'], ['uid' => 'C']];
-        $source = [['uid' => 'C'], ['uid' => 'B'], ['uid' => 'A']]; // reversed
+        $source = [['uid' => 'C'], ['uid' => 'B'], ['uid' => 'A']];
 
         $result = MergeService::orderMatrixBlocks($survivors, $current, $source, false);
 
@@ -272,7 +272,6 @@ class MergeServiceTest extends TestCase
 
         $value = MergeService::buildMatrixSetValue($ordered, $currentByCanonicalUid);
 
-        // Existing block keyed uid:…, new block keyed newN; sortOrder in display order.
         $this->assertArrayHasKey('uid:draft-uid-1', $value['entries']);
         $this->assertArrayHasKey('new1', $value['entries']);
         $this->assertSame(['draft-uid-1', 'new1'], $value['sortOrder']);
@@ -296,7 +295,6 @@ class MergeServiceTest extends TestCase
 
         $value = MergeService::buildMatrixSetValue($ordered, $currentByCanonicalUid);
 
-        // Display order preserved via sortOrder: new block first.
         $this->assertSame(['new1', 'draft-uid-1'], $value['sortOrder']);
         // But the entries MAP leads with the UID-shaped key so Craft keeps UID
         // mode and does not drop the existing block.

@@ -50,6 +50,7 @@ final class TranslationKeys
     public const APPROVED = 'workflow.approved';
     public const APPROVED_SCHEDULED = 'workflow.approvedScheduled';
     public const SCHEDULE_FOR = 'workflow.scheduleFor';
+    public const SCHEDULE_PUBLISH = 'workflow.schedulePublish';
     public const REJECT = 'workflow.reject';
     public const PUBLISH_AT_PROMPT = 'workflow.publishAtPrompt';
     public const OPTIONAL_NOTE_FOR_AUTHOR = 'workflow.optionalNoteForAuthor';

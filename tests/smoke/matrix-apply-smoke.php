@@ -22,8 +22,7 @@ use craft\elements\User;
 
 require __DIR__ . '/_guard.php';
 
-// Find the canonical entry to test against. Picks the first non-deleted entry
-// with a Matrix field on its layout. You can override via env CRAFT_DELTA_SMOKE_ENTRY_ID.
+// Override the target entry via env CRAFT_DELTA_SMOKE_ENTRY_ID.
 $entryId = (int)(getenv('CRAFT_DELTA_SMOKE_ENTRY_ID') ?: 13);
 
 echo "── Matrix apply smoke test ──\n";
@@ -46,7 +45,6 @@ if (!$canonical instanceof Entry) {
 }
 echo "Canonical loaded: \"{$canonical->title}\"\n";
 
-// Find a Matrix field on the entry's layout.
 $matrixFieldHandle = null;
 foreach ($canonical->getFieldLayout()->getCustomFields() as $field) {
     if ($field instanceof \craft\fields\Matrix) {
@@ -66,7 +64,6 @@ $canonicalBlockCount = count($canonicalBlocks);
 echo "Canonical block count: {$canonicalBlockCount}\n";
 echo "Canonical block canonicalUids: " . implode(', ', $canonicalBlockUids) . "\n\n";
 
-// Step 1: Create a fresh draft of the canonical, add ONE new Matrix block.
 echo "Step 1: creating draft + adding a new Matrix block\n";
 
 $draft = Craft::$app->getDrafts()->createDraft($canonical, $adminUser->id, 'Matrix runtime smoke test');
@@ -77,7 +74,6 @@ if (!$draft instanceof Entry) {
 }
 echo "  Draft created: id={$draft->id}, draftId={$draft->draftId}\n";
 
-// The block type to add — we use the first available block type on the field.
 $matrixField = $canonical->getFieldLayout()->getFieldByHandle($matrixFieldHandle);
 $entryTypes = $matrixField->getEntryTypes();
 if (empty($entryTypes)) {
@@ -124,7 +120,6 @@ if ($draftBlockCount !== $canonicalBlockCount + 1) {
     exit(3);
 }
 
-// Find the new block's canonicalUid (it's the one not in canonicalBlockUids).
 $newBlockUids = array_diff($draftBlockUids, $canonicalBlockUids);
 $newBlockUid = reset($newBlockUids);
 if ($newBlockUid === false) {
@@ -133,7 +128,6 @@ if ($newBlockUid === false) {
 }
 echo "  New block canonicalUid: {$newBlockUid}\n\n";
 
-// Step 2: Run DiffService and verify it produces the expected `added` atom.
 echo "Step 2: running DiffService — expecting matrix-block:{$matrixFieldHandle}:{$newBlockUid}:added\n";
 
 $plugin = \zeixcom\craftdelta\Delta::getInstance();
@@ -153,7 +147,6 @@ if (!in_array($expectedAtom, $available, true)) {
 }
 echo "  ✓ Atom present\n\n";
 
-// Step 3: Apply the atom via MergeService::merge.
 echo "Step 3: calling MergeService::merge with the added-atom\n";
 
 $beforeRevisionCount = (int)Craft::$app->getDb()
@@ -189,7 +182,6 @@ if ($afterRevisionCount !== $beforeRevisionCount + 1) {
 }
 echo "  ✓ Exactly one new revision created\n\n";
 
-// Step 4: Verify the canonical now has the new block.
 echo "Step 4: verifying canonical state after apply\n";
 
 // Re-load canonical fresh from DB.
@@ -231,7 +223,6 @@ if ($brandNew[0] !== $newBlockUid) {
     echo "          draft is deleted (use the 'Quell-Entwurf ebenfalls löschen' checkbox).\n";
 }
 
-// Sanity check: no DUPLICATE of any pre-existing canonicalUid.
 $counts = array_count_values($canonicalAfterUids);
 $dupes = array_filter($counts, fn($c) => $c > 1);
 if (!empty($dupes)) {
@@ -240,7 +231,6 @@ if (!empty($dupes)) {
 }
 echo "  ✓ No duplicate blocks (no canonicalUid appears twice)\n";
 
-// Title check on the new block.
 $newBlockOnCanonical = null;
 foreach ($canonicalAfterBlocks as $block) {
     if ($block->canonicalUid === $newBlockUid) {

@@ -22,6 +22,7 @@ use zeixcom\craftdelta\helpers\UserName;
 use zeixcom\craftdelta\i18n\TranslationKeys;
 use zeixcom\craftdelta\models\Review;
 use zeixcom\craftdelta\models\ReviewComment;
+use zeixcom\craftdelta\models\ReviewReviewer;
 use zeixcom\craftdelta\Permissions;
 use zeixcom\craftdelta\services\MergeService;
 
@@ -38,7 +39,6 @@ use zeixcom\craftdelta\services\MergeService;
  */
 class WorkflowController extends Controller
 {
-    /** Block every workflow endpoint when the feature is switched off. */
     public function beforeAction($action): bool
     {
         if (!parent::beforeAction($action)) {
@@ -263,22 +263,47 @@ class WorkflowController extends Controller
             return $this->failure(TranslationKeys::WORKFLOW_COMMENT_FAILED);
         }
 
-        // Comments are now the main change-request channel, so surface a
-        // reviewer's comment to the author instead of making them poll for it.
-        if ($user->id !== $review->submittedBy) {
-            $this->notifyAuthorOfComment($plugin, $review, $user, $comment);
-        }
+        $this->notifyOfComment($plugin, $review, $user, $comment);
 
         return $this->asJson(['success' => true, 'comment' => $this->commentPayload($comment)]);
     }
 
-    private function notifyAuthorOfComment(Delta $plugin, Review $review, User $commenter, ReviewComment $comment): void
+    /** At most one comment email per recipient per review per this many seconds. */
+    private const COMMENT_NOTIFY_COOLDOWN = 300;
+
+    private function notifyOfComment(Delta $plugin, Review $review, User $commenter, ReviewComment $comment): void
     {
-        $author = Craft::$app->getUsers()->getUserById($review->submittedBy);
         $entry = ($review->draftId !== null ? $plugin->revision->getDraftByDraftId($review->draftId) : null)
             ?? Craft::$app->getEntries()->getEntryById($review->canonicalEntryId);
-        if ($author !== null && $entry instanceof Entry) {
-            $plugin->email->sendCommentToAuthor($review, $entry, $author, UserName::of($commenter), $comment->body);
+        if (!$entry instanceof Entry) {
+            return;
+        }
+
+        // Author's comment → tell the reviewers; a reviewer's → tell the author.
+        $recipientIds = (int)$commenter->id === (int)$review->submittedBy
+            ? array_map(static fn(ReviewReviewer $r) => $r->userId, $review->reviewers)
+            : [$review->submittedBy];
+
+        $commenterName = UserName::of($commenter);
+        $cache = Craft::$app->getCache();
+
+        foreach (array_values(array_unique($recipientIds)) as $recipientId) {
+            if ($recipientId === (int)$commenter->id) {
+                continue;
+            }
+            // Debounce: one alert per recipient per review per cooldown window —
+            // they open the review and read the whole thread, so a burst of
+            // comments shouldn't be a burst of emails.
+            $cacheKey = "craftdelta:comment-notified:{$review->id}:{$recipientId}";
+            if ($cache->exists($cacheKey)) {
+                continue;
+            }
+            $recipient = Craft::$app->getUsers()->getUserById($recipientId);
+            if ($recipient === null) {
+                continue;
+            }
+            $plugin->email->sendCommentNotification($review, $entry, $recipient, $commenterName, $comment->body);
+            $cache->set($cacheKey, true, self::COMMENT_NOTIFY_COOLDOWN);
         }
     }
 

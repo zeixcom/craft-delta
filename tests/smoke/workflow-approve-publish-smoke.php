@@ -55,7 +55,6 @@ if (!$canonical instanceof Entry) {
 }
 out("Canonical: \"{$canonical->title}\" (id={$canonical->id})");
 
-// ── Step 1: author creates a draft with a changed title ──────────────────────
 Craft::$app->getUser()->setIdentity($author);
 $draft = Craft::$app->getDrafts()->createDraft($canonical, $author->id, 'Approve/publish smoke');
 if (!$draft instanceof Entry) {
@@ -68,7 +67,6 @@ if (!Craft::$app->getElements()->saveElement($draft)) {
 }
 out("Step 1: draft id={$draft->id} draftId={$draft->draftId}, title → \"{$newTitle}\"");
 
-// ── Step 2: submit for review ────────────────────────────────────────────────
 $review = $plugin->workflow->submit($draft, [(int)$reviewer->id], $author);
 if ($review->state !== Review::STATE_OPEN) {
     bail("Expected OPEN after submit, got {$review->state}.");
@@ -78,7 +76,6 @@ if (!$review->isActive() || $review->round !== 1) {
 }
 out("Step 2: submitted — review id={$review->id}, state={$review->state}, round={$review->round}");
 
-// ── Step 3: reviewer approves ────────────────────────────────────────────────
 Craft::$app->getUser()->setIdentity($reviewer);
 $review = $plugin->workflow->approve($review, $reviewer);
 if (!$review->isApproved()) {
@@ -86,7 +83,6 @@ if (!$review->isApproved()) {
 }
 out("Step 3: approved — state={$review->state}");
 
-// ── Step 4: publish (apply the draft to canonical) ───────────────────────────
 $review = $plugin->workflow->publish($review, null, $reviewer);
 if ($review->state !== Review::STATE_PUBLISHED || $review->appliedAt === null) {
     bail("Expected PUBLISHED with appliedAt set, got state={$review->state}, appliedAt=" . var_export($review->appliedAt, true));
@@ -96,7 +92,6 @@ if (!$review->isTerminal()) {
 }
 out("Step 4: published — state={$review->state}, appliedAt set");
 
-// ── Step 5: canonical now carries the approved change ────────────────────────
 $canonicalAfter = Entry::find()->id($canonical->id)->status(null)->one();
 if (!$canonicalAfter instanceof Entry) {
     bail('Could not reload canonical after publish.');

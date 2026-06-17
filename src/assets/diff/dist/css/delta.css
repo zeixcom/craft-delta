@@ -829,8 +829,7 @@ button.delta-field-header {
     line-height: 1.4;
 }
 
-/* Submit-for-review: secondary (outline) to the compare button's solid primary,
-   so the sidebar reads as one primary + one secondary action, not two raw buttons. */
+/* Outline style: secondary to the compare button's solid primary. */
 #delta-submit-btn {
     display: block;
     width: 100%;
@@ -848,7 +847,6 @@ button.delta-field-header {
 
 #delta-submit-btn:hover { background: var(--delta-compare-bg); color: #fff; }
 
-/* Shown in place of the submit button once a draft is already in review. */
 .delta-workflow-status {
     margin: 10px 0 0;
     padding: 6px 10px;
@@ -943,9 +941,7 @@ button.delta-field-header {
     flex: 1 1 auto;
 }
 
-/* Accept/reject = one segmented toggle, not two gray chips. The group is a
-   single hairline-bordered pill; segments are transparent at rest so it blends
-   into the field header, and tint green / red on hover or fill on selection. */
+/* Accept/reject as one segmented pill: transparent at rest, tinting green/red on hover and filling on selection. */
 .delta-atom-actions {
     display: inline-flex;
     gap: 0;
@@ -973,7 +969,6 @@ button.delta-field-header {
     transition: background-color var(--delta-transition-btn), color var(--delta-transition-btn);
 }
 
-/* Hairline divider between the two segments. */
 .delta-atom-actions button.delta-atom-reject,
 .delta-atom-actions .btn.delta-atom-reject {
     border-left: 1px solid var(--delta-atom-btn-border);
@@ -1070,9 +1065,7 @@ button.delta-field-header {
     background: var(--gray-100, #e8eaed);
 }
 
-/* Reviews dashboard: each section is a separate <table>, so fix the layout and
-   pin column widths — otherwise every table auto-sizes to its own content and
-   the columns don't line up between sections. */
+/* Each dashboard section is its own <table>; pin column widths so they line up across sections instead of auto-sizing. */
 .delta-reviews-table { table-layout: fixed; }
 .delta-reviews-table th:nth-child(1), .delta-reviews-table td:nth-child(1) { width: 44%; }
 .delta-reviews-table th:nth-child(2), .delta-reviews-table td:nth-child(2) { width: 18%; }
@@ -1093,18 +1086,57 @@ button.delta-field-header {
     margin-top: 8px;
 }
 
-/* Approve is a positive action — force green regardless of the install's CP
-   accent (which may be red, making "Approve" read as destructive). Craft sets
-   the .btn.submit background with !important, so override in kind; our selector
-   is more specific, so the more-specific !important wins. */
+/* Force green over the CP accent (which may be red): more specific than Craft's .btn.submit, so this !important wins. */
 [data-wf-action="approve"].btn.submit {
     background-image: none;
     background-color: #2e7d32 !important;
     color: #fff;
 }
 
-[data-wf-action="approve"].btn.submit:hover {
+[data-wf-action="approve"].btn.submit:not(.disabled):hover,
+[data-wf-action="approve"].btn.submit:not(.disabled):focus,
+[data-wf-action="approve"].btn.submit:not(.disabled):active {
+    background-image: none !important;
     background-color: #1b5e20 !important;
+    color: #fff;
+}
+
+.delta-review-header.delta-review-header--approved {
+    padding: 16px 18px;
+}
+
+.delta-review-header .delta-workflow-toolbar.delta-review-approved-banner {
+    margin-top: 0;
+    gap: 10px 14px;
+}
+
+.delta-review-approved-banner .delta-review-approved-primary {
+    margin-left: auto;
+}
+
+/* Decline + Withdraw drop to a quiet row under a hairline so Publish stays the clear primary. */
+.delta-review-approved-banner .delta-review-approved-secondary {
+    flex-basis: 100%;
+    margin-top: 2px;
+    padding-top: 10px;
+    border-top: 1px solid var(--delta-review-bar-border);
+    gap: 12px;
+}
+
+.btn.delta-btn-quiet,
+.btn.delta-btn-quiet:not(.disabled):hover {
+    padding-left: 2px;
+    padding-right: 2px;
+    background: none !important;
+    background-image: none !important;
+    box-shadow: none;
+    font-weight: normal;
+    color: var(--medium-text-color, #606d7b);
+}
+
+.btn.delta-btn-quiet:not(.disabled):hover {
+    color: var(--text-color, #29333d);
+    text-decoration: underline;
 }
 
 /* ─── Submit-for-review reviewer picker ─── */
@@ -1179,7 +1211,7 @@ button.delta-field-header {
 .delta-comment-compose {
     display: flex;
     flex-direction: column;
-    align-items: flex-end; /* post button hugs its text, right-aligned — not a full-width CTA */
+    align-items: flex-end;
     gap: 8px;
     margin-top: 8px;
 }
@@ -1323,15 +1355,13 @@ button.delta-field-header {
     top: var(--delta-review-sticky-top, 0px);
 }
 
-/* "Changed only" toggle above the diff on the review page. */
 .delta-review-filter {
     display: inline-flex;
     align-items: center;
     margin-bottom: 12px;
 }
 
-/* Closed-review status banner — makes a published / declined / withdrawn review
-   unmistakable instead of a misleading empty diff. */
+/* Marks a published/declined/withdrawn review unmistakable instead of a misleading empty diff. */
 .delta-review-closed-banner {
     display: flex;
     flex-wrap: wrap;
@@ -1365,7 +1395,6 @@ button.delta-field-header {
     margin-left: auto;
 }
 
-/* Reviewer's note on a declined review. */
 .delta-review-closed-note {
     margin: -10px 0 20px;
     padding: 10px 14px;
@@ -1384,23 +1413,20 @@ button.delta-field-header {
     gap: 10px;
 }
 
-/* On the full-page header the stat is a prominent label, not a toolbar
-   eyebrow — drop the uppercase/tracking so it reads as a normal sentence. */
+/* Drop the toolbar eyebrow's uppercase/tracking — here the stat reads as a normal label. */
 .delta-review-header .delta-stats {
     text-transform: none;
     letter-spacing: 0;
     font-size: var(--delta-font-base);
 }
 
-/* Inside the header the toolbar drops its own bar chrome — the header card
-   already provides the background and border. */
+/* Drop the toolbar's own bar chrome — the header card already provides background and border. */
 .delta-review-header .delta-workflow-toolbar {
     padding: 0;
     background: none;
     border-bottom: 0;
     margin-top: 8px;
-    /* Lay the role groups (reviewer/publish/author) on one wrapping row so a
-       lone action like "Withdraw" doesn't drop to its own line. */
+    /* One wrapping row so a lone action like "Withdraw" doesn't drop to its own line. */
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -1415,9 +1441,6 @@ button.delta-field-header {
     margin-top: 0;
 }
 
-/* Inside the sticky header the stepper is just another row — drop its own bar
-   chrome (background/border/sticky) and the extra padding so the header stays
-   compact and doesn't read as a bar-within-a-bar. */
 .delta-review-header .delta-review-stepper {
     position: static;
     padding: 8px 0 0;
@@ -1426,7 +1449,6 @@ button.delta-field-header {
     border-bottom: 0;
 }
 
-/* Discussion is a full-width section under the diff, not a toolbar footnote. */
 .delta-review-comments--page {
     margin-top: 28px;
     padding-top: 20px;
@@ -1436,7 +1458,6 @@ button.delta-field-header {
     font-size: 16px;
 }
 
-/* Slideout/compare "in review" banner → link to the dedicated review page. */
 .delta-review-link-banner {
     display: flex;
     flex-wrap: wrap;

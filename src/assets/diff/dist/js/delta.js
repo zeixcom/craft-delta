@@ -141,9 +141,7 @@
 
     openFullPage: function () {
       this.closeModal();
-      // 'delta-compare', not 'craft-delta/compare': handle-prefixed CP URLs
-      // require the accessPlugin-craft-delta permission, which plain editors
-      // don't have.
+      // 'delta-compare', not 'craft-delta/compare': handle-prefixed CP URLs require the accessPlugin-craft-delta permission, which plain editors lack.
       var url = Craft.getCpUrl('delta-compare', { entryId: this.entryId, siteId: this.options.siteId });
       window.location.href = url;
     },
@@ -356,7 +354,6 @@
       this.loadDiff($older.val(), $newer.val());
     },
 
-
     _collapsedFields: {},
     _debounceTimer: null,
     _loadId: 0,
@@ -380,8 +377,7 @@
       }, 300);
     },
 
-    // Re-run the current comparison. Used by review mode to recover from a
-    // stale-atoms apply failure (the diff on screen is out of date).
+    // Used by review mode to recover from a stale-atoms apply failure.
     reload: function () {
       if (this.$older && this.$older.length && this.$newer && this.$newer.length) {
         this.loadDiff(this.$older.val(), this.$newer.val());
@@ -476,10 +472,7 @@
       var self = this;
       var headers = container.querySelectorAll('.delta-field-header');
       headers.forEach(function (header) {
-        // The header button sits inside `.delta-field-headerbar` (alongside the
-        // review accept/reject actions), so its parentElement is that wrapper —
-        // walk up to the actual `.delta-field` that the collapse CSS targets and
-        // that carries `data-field-handle`.
+        // Not parentElement: the header sits inside `.delta-field-headerbar`, so walk up to the `.delta-field` the collapse CSS targets.
         var field = header.closest('.delta-field');
         if (!field) { return; }
         var handle = field.getAttribute('data-field-handle');
@@ -529,10 +522,7 @@
       wrapper.style.setProperty('--delta-toolbar-height', height + 'px');
     },
 
-    // Returns { el, eventTarget, isWindow } for the active mode's scroll
-    // container, or null if the wrapper isn't available yet. In fullpage
-    // mode the page (window) is what scrolls; in slideout/modal it's the
-    // .delta-slideout wrapper.
+    // In fullpage mode the page (window) scrolls; in slideout/modal it's the .delta-slideout wrapper.
     _resolveScroller: function () {
       if (this.mode === 'fullpage') {
         return {
@@ -641,12 +631,17 @@
   Craft.Delta.reviewMode = {
     active: false,
     state: Object.create(null),         // atomId → 'accepted' | 'rejected'
-    storageKey: null,                   // computed when entering review mode
+    storageKey: null,
     canonicalUpdatedAt: null,
     saveTimer: null,
-    eventsBound: false,                 // guard so bindEvents only attaches once
-    toolbarEl: null,                    // the "Start Review" bar, hidden while active
+    eventsBound: false,
+    toolbarEl: null,
     focusedAtomId: null,
+    // The cursor ring stays hidden until the user actually navigates with J/K.
+    // Otherwise the auto-seed (enter) and scroll-spy (IntersectionObserver) would
+    // light a blue ring on load that reads as a selection/error and competes with
+    // the clickable accept/reject buttons. A/R and scroll still track focus.
+    showFocusRing: false,
     intersectionObserver: null,
 
     next: function () {
@@ -660,24 +655,24 @@
       const ids = this.atomIdsInDocumentOrder();
       if (ids.length === 0) return;
 
+      this.showFocusRing = true;
       let idx = this.focusedAtomId ? ids.indexOf(this.focusedAtomId) : -1;
-      // (idx + delta + length) % length is always in range for delta of ±1 and
-      // length >= 1, so no extra negative-index guard is needed.
+      // (idx + delta + length) % length stays in range for delta ±1, so no negative-index guard is needed.
       idx = (idx + delta + ids.length) % ids.length;
 
       this.setFocus(ids[idx], true);
     },
 
     setFocus: function (atomId, scroll) {
-      const self = this;
-      // Clear previous focus
-      document.querySelectorAll('.delta-atom-stepper-focus').forEach(function (el) {
-        el.classList.remove('delta-atom-stepper-focus');
-      });
       const wrapper = document.querySelector('[data-atom-id="' + cssEscape(atomId) + '"]');
       if (!wrapper) return;
-      wrapper.classList.add('delta-atom-stepper-focus');
       this.focusedAtomId = atomId;
+      if (this.showFocusRing) {
+        document.querySelectorAll('.delta-atom-stepper-focus').forEach(function (el) {
+          el.classList.remove('delta-atom-stepper-focus');
+        });
+        wrapper.classList.add('delta-atom-stepper-focus');
+      }
       if (scroll) {
         wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
@@ -696,7 +691,6 @@
         if (!e.key) return; // synthetic / IME-composition events have no key
         // Never hijack browser/OS shortcuts (Cmd+A select-all, Ctrl+R reload, …)
         if (e.metaKey || e.ctrlKey || e.altKey) return;
-        // Skip when typing in an input or operating a select
         if (e.target.matches('input, textarea, select, [contenteditable], [contenteditable="true"]')) return;
         switch (e.key.toLowerCase()) {
           case 'j': self.next(); e.preventDefault(); break;
@@ -769,7 +763,6 @@
       const banner = document.querySelector('[data-review-banner]');
       if (!banner) return;
 
-      // Stale check
       if (parsed.canonicalUpdatedAt && parsed.canonicalUpdatedAt !== liveUpdatedAt) {
         try { localStorage.removeItem(key); } catch (e) {}
         banner.textContent = Craft.t('craft-delta', Craft.Delta._keys.entryChangedSinceLastReview);
@@ -812,9 +805,7 @@
     },
 
     enter: function (toolbar) {
-      // If a previous session is still active (re-enter without an explicit
-      // exit — e.g. Resume after a diff reload), tear it down first so the
-      // keyboard handler and IntersectionObserver don't stack and leak.
+      // Re-enter without an explicit exit (e.g. Resume after a diff reload) would stack the keyboard handler and IntersectionObserver, so tear down first.
       if (this.active) { this.exit(); }
 
       const entryId = toolbar.dataset.entryId;
@@ -830,8 +821,6 @@
       this.pruneStoredReviews();
       this.loadFromStorage();
       this.showStepper();
-      // The standalone "Start Review" bar is redundant once review mode is
-      // active — hide it so only the stepper shows.
       this.toolbarEl = toolbar;
       if (toolbar) { toolbar.style.display = 'none'; }
       this.showAllAtomActions();
@@ -839,7 +828,8 @@
       this.bindEvents();
       this.bindKeyboardShortcuts();
       this.bindScrollFocus();
-      // Auto-focus the first atom
+      // Seed focus on the first atom (ring stays hidden until the user navigates).
+      this.showFocusRing = false;
       const ids = this.atomIdsInDocumentOrder();
       if (ids.length > 0) this.setFocus(ids[0], false);
     },
@@ -853,13 +843,14 @@
       this.unbindKeyboardShortcuts();
       this.unbindScrollFocus();
       this.focusedAtomId = null;
+      this.showFocusRing = false;
       this.clearAtomStateClasses();
     },
 
     recordDecision: function (atomId, decision) {
       if (!this.active) return;
 
-      // Toggle off if same button pressed twice
+      // Toggle off if the same button is pressed twice
       if (this.state[atomId] === decision) {
         delete this.state[atomId];
       } else {
@@ -903,8 +894,7 @@
         wrapper.classList.add('delta-atom-state-pending');
       }
 
-      // Reflect decision on the wrapper's own buttons (filter to skip nested
-      // atom buttons inside Matrix sub-fields).
+      // Filter to skip nested atom buttons inside Matrix sub-fields.
       wrapper.querySelectorAll('.delta-atom-accept, .delta-atom-reject').forEach(function (btn) {
         if (btn.closest('[data-atom-id]') !== wrapper) return;
         if (btn.classList.contains('delta-atom-accept')) {
@@ -976,7 +966,6 @@
 
       const self = this;
 
-      // One delegated click handler covers all per-atom buttons + stepper actions
       document.addEventListener('click', function (e) {
         if (!self.active) return;
 
@@ -1093,8 +1082,7 @@
 
       const toolbar = document.querySelector('[data-review-toolbar]');
       if (!toolbar) {
-        // The diff (and its toolbar) was replaced out from under us; nothing
-        // safe to apply against.
+        // The diff (and its toolbar) was replaced out from under us; nothing safe to apply against.
         self.handleApplyError({ errorCode: 'stale-atoms' });
         return;
       }
@@ -1145,13 +1133,11 @@
             banner.textContent = data.error || Craft.t('craft-delta', Craft.Delta._keys.entryChangedSinceReviewStarted);
             banner.removeAttribute('hidden');
           }
-          // Trigger a fresh diff reload if a helper exists; otherwise no-op.
           if (typeof Craft.Delta.reload === 'function') {
             Craft.Delta.reload();
           }
           break;
         case 'validation-failed':
-          // Preserve localStorage; show the error
           alert((data.error || Craft.t('craft-delta', Craft.Delta._keys.validationFailed)) + '\n\n' + Craft.t('craft-delta', Craft.Delta._keys.decisionsSavedRetry));
           break;
         case 'no-changes':
@@ -1164,14 +1150,11 @@
     },
   };
 
-  // Helper for querySelector — atom IDs contain colons which are invalid in
-  // CSS selectors unless escaped. CSS.escape may not be available in older browsers.
+  // Atom IDs contain colons, invalid in CSS selectors unless escaped; CSS.escape may be missing in older browsers.
   function cssEscape(s) {
     return (window.CSS && window.CSS.escape) ? window.CSS.escape(s) : s.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
   }
 
-  // Top-level delegated listener for the Start Review button. Module-level
-  // is consistent with the rest of init wiring in this file.
   document.addEventListener('click', function (e) {
     const startBtn = e.target.closest('[data-action="start-review"]');
     if (!startBtn) return;

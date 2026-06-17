@@ -5,7 +5,8 @@
 
 {% if workflow is defined and workflow %}
     <div class="delta-review-comments delta-review-comments--page" data-review-comments
-         data-review-active="{{ workflow.isActive() ? '1' : '0' }}" hidden>
+         data-review-active="{{ workflow.isActive() ? '1' : '0' }}"
+         data-review-can-resolve="{{ (isReviewer is defined and isReviewer) ? '1' : '0' }}" hidden>
         <details class="delta-comments-outdated" data-outdated-comments hidden>
             <summary data-outdated-summary></summary>
             <div class="delta-comment-list" data-outdated-comment-list></div>

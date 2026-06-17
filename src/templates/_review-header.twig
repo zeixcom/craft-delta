@@ -6,14 +6,19 @@
    Mirrors the workflow-toolbar markup in _diff-slideout.twig but arranged as a
    page header instead of stacked above the diff. #}
 
+{% import '_includes/forms.twig' as forms %}
+
 {% set isReviewerActive = workflow is defined and workflow and isReviewer is defined and isReviewer and workflow.isActive() %}
 {% set isReviewAuthor = workflow is defined and workflow and currentUser and (currentUser.id == workflow.submittedBy or currentUser.admin) %}
 {# When the reviewer can apply, "Granular review" is the entry into accept/reject,
    so the standalone "Start Review" button is suppressed. #}
 {% set showGranularReview = isReviewerActive and currentUser.can('craftdelta-applyReview') %}
 {% set stats = result.getStats() %}
+{% set isApproved = workflow is defined and workflow and workflow.isApproved() %}
 
-<div class="delta-review-header">
+<div class="delta-review-header{{ isApproved ? ' delta-review-header--approved' : '' }}">
+    {# Open review shows stats + roster here; an approved review's banner (below) replaces it. #}
+    {% if not isApproved %}
     <div class="delta-review-header-top">
         <div class="delta-stats" data-stats>
             <span>
@@ -41,9 +46,10 @@
             </div>
         {% endif %}
     </div>
+    {% endif %}
 
     {% if workflow is defined and workflow %}
-        <div class="delta-workflow-toolbar"
+        <div class="delta-workflow-toolbar{{ isApproved ? ' delta-review-approved-banner' : '' }}"
              data-review-id="{{ workflow.id }}"
              data-section-uid="{{ workflow.sectionUid }}"
              data-note-prompt="{{ deltaKeys.optionalNoteForAuthor|t('craft-delta') }}"
@@ -57,27 +63,56 @@
              data-done-publish="{{ deltaKeys.workflowDonePublished|t('craft-delta') }}"
              data-action-failed="{{ deltaKeys.workflowActionFailed|t('craft-delta') }}">
 
-            {% if isReviewerActive %}
-                <div class="delta-workflow-actions" data-role="reviewer">
-                    <button type="button" class="btn submit" data-wf-action="approve">{{ deltaKeys.workflowApprove|t('craft-delta') }}</button>
-                    {# No "Granular review" entry button: on the review page accept/reject
-                       is always-on (the wiring JS auto-enters review mode), so a manual
-                       entry button would be redundant and a re-click would wipe decisions. #}
-                    <button type="button" class="btn" data-wf-action="decline">{{ deltaKeys.workflowDecline|t('craft-delta') }}</button>
+            {% if not workflow.isApproved() %}
+                {# Open review: the reviewer renders a verdict; the author may withdraw. #}
+                {% if isReviewerActive %}
+                    <div class="delta-workflow-actions" data-role="reviewer">
+                        {# No "Granular review" entry button: on the review page accept/reject
+                           is always-on (the wiring JS auto-enters review mode), so a manual
+                           entry button would be redundant and a re-click would wipe decisions. #}
+                        <button type="button" class="btn submit" data-wf-action="approve">{{ deltaKeys.workflowApprove|t('craft-delta') }}</button>
+                        <button type="button" class="btn" data-wf-action="decline">{{ deltaKeys.workflowDecline|t('craft-delta') }}</button>
+                    </div>
+                {% endif %}
+                {% if isReviewAuthor and workflow.isActive() %}
+                    <div class="delta-workflow-actions" data-role="author">
+                        <button type="button" class="btn" data-wf-action="withdraw">{{ deltaKeys.workflowWithdraw|t('craft-delta') }}</button>
+                    </div>
+                {% endif %}
+            {% else %}
+                {# Approved: lay the toolbar out as a banner mirroring the closed-review
+                   banner — status + roster on the left, Publish pushed right — so reviewed
+                   and published read as one component. The verdict is settled, so the
+                   Approve button is dropped; Decline (reverse) + Withdraw demote to a quiet
+                   row beneath. Every wf-action button stays inside this toolbar so the JS
+                   (mountWorkflowToolbar) still binds them and reads its data-* prompts. #}
+                <span class="delta-review-closed-status">
+                    <span class="status {{ workflow.statusColor() }}"></span>
+                    {{ workflow.statusLabel() }}
+                </span>
+                <div class="delta-review-roster">
+                    <span class="delta-review-roster-label">{{ deltaKeys.workflowReviewers|t('craft-delta') }}:</span>
+                    {% for r in workflow.reviewers %}
+                        <span class="delta-reviewer-pill delta-reviewer-pill--{{ r.verdict }}">{{ r.userName ?? ('#' ~ r.userId) }}</span>
+                    {% endfor %}
+                    <span class="delta-review-round">{{ deltaKeys.workflowRound|t('craft-delta', { round: workflow.round }) }}</span>
                 </div>
-            {% endif %}
-
-            {% if workflow.isApproved() and (isReviewerActive or isReviewAuthor) %}
-                <div class="delta-workflow-actions" data-role="publish">
-                    <button type="button" class="btn submit" data-wf-action="publish">{{ deltaKeys.workflowPublish|t('craft-delta') }}</button>
-                    <button type="button" class="btn" data-wf-action="schedule">{{ deltaKeys.scheduleFor|t('craft-delta') }}</button>
-                </div>
-            {% endif %}
-
-            {% if isReviewAuthor and workflow.isActive() %}
-                <div class="delta-workflow-actions" data-role="author">
-                    <button type="button" class="btn" data-wf-action="withdraw">{{ deltaKeys.workflowWithdraw|t('craft-delta') }}</button>
-                </div>
+                {% if isReviewerActive or isReviewAuthor %}
+                    <div class="delta-workflow-actions delta-review-approved-primary" data-role="publish">
+                        <button type="button" class="btn submit" data-wf-action="publish">{{ deltaKeys.workflowPublish|t('craft-delta') }}</button>
+                        <button type="button" class="btn" data-wf-action="schedule">{{ deltaKeys.scheduleFor|t('craft-delta') }}</button>
+                    </div>
+                {% endif %}
+                {% if isReviewerActive or (isReviewAuthor and workflow.isActive()) %}
+                    <div class="delta-workflow-actions delta-review-approved-secondary" data-role="secondary">
+                        {% if isReviewerActive %}
+                            <button type="button" class="btn delta-btn-quiet" data-wf-action="decline">{{ deltaKeys.workflowDecline|t('craft-delta') }}</button>
+                        {% endif %}
+                        {% if isReviewAuthor and workflow.isActive() %}
+                            <button type="button" class="btn delta-btn-quiet" data-wf-action="withdraw">{{ deltaKeys.workflowWithdraw|t('craft-delta') }}</button>
+                        {% endif %}
+                    </div>
+                {% endif %}
             {% endif %}
         </div>
     {% endif %}
@@ -135,3 +170,26 @@
         <div class="delta-review-banner" data-review-banner hidden></div>
     {% endif %}
 </div>
+
+{# Scheduling modal: native Craft date + time pickers (the same widget as an
+   entry's post date) in an overlay. Server-rendered so the forms macro pulls in
+   the timepicker asset and initialises the picker; the workflow JS shows it on
+   "Planen für…" and posts the chosen date/time. #}
+{% if isApproved and (isReviewerActive or isReviewAuthor) %}
+    <div id="delta-schedule-modal" class="modal delta-submit-modal delta-schedule-modal" style="display: none">
+        <div class="body">
+            <h2>{{ deltaKeys.scheduleFor|t('craft-delta') }}</h2>
+            {{ forms.dateTimeField({
+                id: 'delta-schedule-at',
+                name: 'scheduleAt',
+            }) }}
+        </div>
+        <div class="footer">
+            <div class="buttons right">
+                <button type="button" class="btn" data-schedule-cancel>{{ 'Cancel'|t('app') }}</button>
+                <button type="button" class="btn submit" data-schedule-confirm>{{ deltaKeys.schedulePublish|t('craft-delta') }}</button>
+            </div>
+        </div>
+    </div>
+{% endif %}
+

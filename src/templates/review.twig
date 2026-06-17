@@ -43,7 +43,7 @@
                 <blockquote class="delta-review-closed-note">{{ workflow.decisionNote|nl2br }}</blockquote>
             {% endif %}
 
-            {% include 'craft-delta/_review-discussion' with { workflow: workflow } %}
+            {% include 'craft-delta/_review-discussion' with { workflow: workflow, isReviewer: isReviewer } %}
         {% elseif result is null %}
             <p class="zilch">{{ workflow.statusLabel() }}</p>
         {% else %}
@@ -70,7 +70,7 @@
                 {% include 'craft-delta/_diff-fields' with { result: result, reviewMode: reviewMode } %}
             </div>
 
-            {% include 'craft-delta/_review-discussion' with { workflow: workflow } %}
+            {% include 'craft-delta/_review-discussion' with { workflow: workflow, isReviewer: isReviewer } %}
         {% endif %}
     </div>
 
@@ -120,7 +120,6 @@
                     }
                 }
 
-                // "Changed only" toggle: show/hide the unchanged-field rows.
                 var changedOnlyCb = root.querySelector('[data-review-changed-only]');
                 var reviewBody = root.querySelector('[data-review-body]');
                 if (changedOnlyCb && reviewBody) {

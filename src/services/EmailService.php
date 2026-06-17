@@ -15,9 +15,9 @@ use zeixcom\craftdelta\i18n\TranslationKeys;
 use zeixcom\craftdelta\models\Review;
 
 /**
- * Composes and sends the review notification emails. Wraps
- * Craft::$app->getMailer() so callers stay short. A failed send never throws —
- * a notification must not abort the committed transition that triggered it.
+ * Composes and sends the review notification emails. A failed send never
+ * throws — a notification must not abort the committed transition that
+ * triggered it.
  *
  * @phpstan-import-type EmailDispatchVars from \zeixcom\craftdelta\types\ArrayTypes
  * @phpstan-import-type EmailExtraVars from \zeixcom\craftdelta\types\ArrayTypes
@@ -39,15 +39,18 @@ class EmailService extends Component
         $this->notifyAuthor($review, $author, $draft, 'declined', TranslationKeys::EMAIL_DRAFT_DECLINED, $note);
     }
 
-    /** Notify the draft's author that someone left a comment on their review. */
-    public function sendCommentToAuthor(Review $review, Entry $entry, User $author, string $commenter, string $comment): void
+    /**
+     * Notify a participant (the author, or a reviewer) that someone else left a
+     * comment on the review. `author` in the vars is the greeting recipient.
+     */
+    public function sendCommentNotification(Review $review, Entry $entry, User $recipient, string $commenter, string $comment): void
     {
         $this->dispatch(
-            $author,
+            $recipient,
             fn() => Craft::t('craft-delta', TranslationKeys::EMAIL_NEW_COMMENT, ['title' => $entry->title]),
             'comment',
             [
-                'author' => $author,
+                'author' => $recipient,
                 'entry' => $entry,
                 'url' => $this->reviewUrl($review),
                 'commenter' => $commenter,
@@ -142,7 +145,6 @@ class EmailService extends Component
         return $draft->getCpEditUrl() ?? UrlHelper::cpUrl("entries/{$draft->getCanonicalId()}");
     }
 
-    /** The dedicated review workspace — the actionable destination for reviewers and authors. */
     private function reviewUrl(Review $review): string
     {
         return UrlHelper::cpUrl('delta-review', ['reviewId' => $review->id]);
