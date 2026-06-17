@@ -160,6 +160,35 @@ A differ implements `zeixcom\craftdelta\differ\DifferInterface`:
 
 Field types without a registered differ fall back to the scalar differ.
 
+### Custom email templates
+
+The five notification emails ship with bundled plain-text templates. To use your own, map the email key to a template in your site `templates/` folder via `config/craft-delta.php`:
+
+```php
+// config/craft-delta.php
+return [
+    'emailTemplates' => [
+        'submitted' => 'emails/delta/submitted',
+        'approved'  => 'emails/delta/approved',
+        'declined'  => 'emails/delta/declined',
+        'published' => 'emails/delta/published',
+        'comment'   => 'emails/delta/comment',
+    ],
+];
+```
+
+Each key is optional — omit one, or point it at a template that doesn't exist, and that email keeps its bundled default. Templates render as plain text in the recipient's preferred language. The variables passed to each:
+
+| Key | Sent to | Variables |
+|---|---|---|
+| `submitted` | the reviewer | `reviewer` (User), `author` (User), `entry` (Entry draft), `url` (review page) |
+| `approved` | the author | `author` (User), `entry` (Entry draft), `url` (review page), `note` (always null) |
+| `declined` | the author | `author` (User), `entry` (Entry draft), `url` (review page), `note` (reviewer's decline note, or null) |
+| `published` | the author | `author` (User), `entry` (Entry draft), `url` (entry edit page), `scheduledFor` (`DateTime` when scheduled, else null) |
+| `comment` | the other participant | `author` (User recipient), `entry` (Entry), `url` (review page), `commenter` (name), `comment` (body) |
+
+A starter `config.php` with every setting and these variable references is included in the plugin root — copy it to `config/craft-delta.php`. (All plugin settings can be overridden there per environment, not just email templates.)
+
 ### Workflow events
 
 `WorkflowService` fires events carrying the affected `Review` model as `$event->review` — hook them for custom notifications, audit logging, or syncing to external systems:
@@ -168,9 +197,7 @@ Field types without a registered differ fall back to the scalar differ.
 |---|---|
 | `WorkflowService::EVENT_AFTER_SUBMIT` | a draft is submitted for review |
 | `WorkflowService::EVENT_AFTER_APPROVE` | a reviewer records an approval verdict |
-| `WorkflowService::EVENT_AFTER_CHANGES_REQUESTED` | a reviewer requests changes |
 | `WorkflowService::EVENT_AFTER_DECLINE` | a reviewer declines (terminal) |
-| `WorkflowService::EVENT_AFTER_REREQUEST` | the author re-requests review (new round) |
 | `WorkflowService::EVENT_AFTER_WITHDRAW` | the author withdraws (terminal) |
 | `WorkflowService::EVENT_AFTER_PUBLISH` | the draft is published — immediately, scheduled, *or* via a granular Review Mode apply |
 

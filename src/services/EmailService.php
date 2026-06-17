@@ -10,6 +10,7 @@ use craft\elements\Entry;
 use craft\elements\User;
 use craft\helpers\UrlHelper;
 use craft\web\View;
+use zeixcom\craftdelta\Delta;
 use zeixcom\craftdelta\helpers\PlainText;
 use zeixcom\craftdelta\i18n\TranslationKeys;
 use zeixcom\craftdelta\models\Review;
@@ -126,16 +127,36 @@ class EmailService extends Component
         Craft::$app->language = $recipient->preferredLanguage ?? $originalLanguage;
 
         try {
+            [$path, $mode] = $this->resolveTemplate($template);
             Craft::$app->getMailer()->compose()
                 ->setTo($recipient->email)
                 ->setSubject($subject())
-                ->setTextBody(Craft::$app->getView()->renderTemplate("craft-delta/_emails/{$template}", $vars, View::TEMPLATE_MODE_CP))
+                ->setTextBody(Craft::$app->getView()->renderTemplate($path, $vars, $mode))
                 ->send();
         } catch (\Throwable $e) {
             Craft::warning("Craft Delta review notification failed: {$e->getMessage()}", __METHOD__);
         } finally {
             Craft::$app->language = $originalLanguage;
         }
+    }
+
+    /**
+     * A configured `emailTemplates` override (a SITE template) when set and it
+     * exists, else the bundled CP default. A configured-but-missing override
+     * falls back rather than erroring the send.
+     *
+     * @return array{0: string, 1: string} [template path, template mode]
+     */
+    private function resolveTemplate(string $template): array
+    {
+        $plugin = Delta::getInstance();
+        $override = $plugin !== null ? ($plugin->getSettings()->emailTemplates[$template] ?? null) : null;
+
+        if (is_string($override) && $override !== '' && Craft::$app->getView()->doesTemplateExist($override, View::TEMPLATE_MODE_SITE)) {
+            return [$override, View::TEMPLATE_MODE_SITE];
+        }
+
+        return ["craft-delta/_emails/{$template}", View::TEMPLATE_MODE_CP];
     }
 
     private function editUrl(Entry $draft): string

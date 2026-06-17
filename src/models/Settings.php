@@ -22,6 +22,18 @@ class Settings extends Model
      */
     public bool $enableWorkflow = true;
 
+    /**
+     * Override the built-in notification email templates. Maps an email key to a
+     * template path resolved against your site `templates/` folder; an unmapped
+     * key (or one whose template is missing) falls back to the bundled default.
+     * Config-file only — it's an array, so set it in `config/craft-delta.php`,
+     * not the CP. Keys: `submitted`, `approved`, `declined`, `published`,
+     * `comment`. See `config.php` for the variables each template receives.
+     *
+     * @var array<string, string>
+     */
+    public array $emailTemplates = [];
+
     protected function defineRules(): array
     {
         return [
