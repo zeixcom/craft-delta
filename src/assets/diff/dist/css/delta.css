@@ -1094,6 +1094,20 @@ button.delta-field-header {
     margin-top: 8px;
 }
 
+/* Approve is a positive action — force green regardless of the install's CP
+   accent (which may be red, making "Approve" read as destructive). Craft sets
+   the .btn.submit background with !important, so override in kind; our selector
+   is more specific, so the more-specific !important wins. */
+[data-wf-action="approve"].btn.submit {
+    background-image: none;
+    background-color: #2e7d32 !important;
+    color: #fff;
+}
+
+[data-wf-action="approve"].btn.submit:hover {
+    background-color: #1b5e20 !important;
+}
+
 /* ─── Submit-for-review reviewer picker ─── */
 
 .delta-submit-modal .body { min-width: 320px; }
