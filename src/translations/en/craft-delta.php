@@ -150,4 +150,11 @@ return [
     'workflow.openReview' => 'Open review',
     'workflow.postComment' => 'Post comment',
     'workflow.commentPlaceholder' => 'Leave a comment…',
+    'workflow.reply' => 'Reply',
+    'workflow.resolve' => 'Resolve',
+    'workflow.unresolve' => 'Reopen',
+    'workflow.replyPlaceholder' => 'Write a reply…',
+    'workflow.comments' => 'Comments',
+    'workflow.noComments' => 'No comments yet',
+    'workflow.outdated' => '{count} outdated',
 ];

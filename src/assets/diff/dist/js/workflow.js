@@ -269,20 +269,6 @@
                     return;
                 }
 
-                var addToggle = e.target.closest('[data-comment-add-toggle]');
-                if (addToggle) {
-                    e.preventDefault();
-                    var addWrap = addToggle.closest('.delta-comment-add');
-                    var addForm = addWrap && addWrap.querySelector('[data-comment-add-form]');
-                    if (addForm) {
-                        addForm.hidden = !addForm.hidden;
-                        if (!addForm.hidden) {
-                            addForm.querySelector('textarea').focus();
-                        }
-                    }
-                    return;
-                }
-
                 var replyBtn = e.target.closest('[data-comment-reply-toggle]');
                 if (replyBtn) {
                     e.preventDefault();
@@ -366,8 +352,16 @@
         render: function() {
             var parts = this.partition();
             var $section = this.$root.find('[data-review-comments]');
+            var isPage = this.$root.hasClass('delta-review-page');
 
-            this.renderList($section.find('[data-general-comment-list]'), parts.general, this.isActive);
+            // The dedicated review page has a single comment thread at the bottom:
+            // every non-outdated comment (general or anchored) lands there, so
+            // there's one place to read and one field to post. The slideout keeps
+            // the compact per-atom trigger/panel model and its general list.
+            var mainComments = isPage
+                ? this.comments.filter(function(c) { return !c.outdated; })
+                : parts.general;
+            this.renderList($section.find('[data-general-comment-list]'), mainComments, this.isActive);
 
             var $outdatedWrap = $section.find('[data-outdated-comments]');
             if (parts.outdated.length) {
@@ -380,11 +374,7 @@
                 $outdatedWrap.prop('hidden', true);
             }
 
-            // Review page: anchored threads render inline + always-visible under
-            // each change. Slideout keeps the compact toggle-panel model.
-            if (this.$root.hasClass('delta-review-page')) {
-                this.renderInlineThreads(parts.byAtom, this.isActive);
-            } else {
+            if (!isPage) {
                 this.mountAtomTriggers(parts.byAtom);
             }
         },
@@ -444,63 +434,6 @@
             if (this.openPanelAtomId) {
                 this.openPanel(this.openPanelAtomId);
             }
-        },
-
-        // GitHub-style inline threads for the dedicated review page: each anchored
-        // atom gets an always-visible thread plus a collapsed "add comment" box,
-        // inserted directly after its diff. Wrapped in [data-comment-panel] so the
-        // existing reply/post handlers inherit the atom id. Re-rendered wholesale
-        // on every render() (post/resolve refetch the thread), so it's idempotent.
-        renderInlineThreads: function(byAtom, interactive) {
-            var self = this;
-            var root = this.$root[0];
-            if (!root) {
-                return;
-            }
-
-            root.querySelectorAll('[data-comment-inline]').forEach(function(b) {
-                b.remove();
-            });
-
-            root.querySelectorAll('[data-atom-id]').forEach(function(el) {
-                var atomId = el.dataset.atomId;
-                var threads = byAtom[atomId] || [];
-
-                // On a closed review with no comments there's nothing to show and
-                // nothing to add — skip the block entirely.
-                if (!threads.length && !interactive) {
-                    return;
-                }
-
-                var block = document.createElement('div');
-                block.className = 'delta-comment-inline';
-                block.dataset.commentInline = atomId;
-                block.dataset.commentPanel = atomId;
-
-                if (threads.length) {
-                    var list = document.createElement('div');
-                    list.className = 'delta-comment-list';
-                    self.renderList($(list), threads, interactive);
-                    block.appendChild(list);
-                }
-
-                if (interactive) {
-                    var add = document.createElement('div');
-                    add.className = 'delta-comment-add';
-                    add.innerHTML =
-                        '<button type="button" class="btn small delta-comment-add-toggle" data-comment-add-toggle>'
-                        + escHtml(deltaT('addComment')) + '</button>'
-                        + '<div class="delta-comment-compose" data-comment-add-form hidden>'
-                        + '<textarea class="text fullwidth" rows="2" data-comment-atom-input maxlength="10000"'
-                        + ' placeholder="' + escAttr(deltaT('commentPlaceholder')) + '"></textarea>'
-                        + '<button type="button" class="btn" data-comment-atom-post>'
-                        + escHtml(deltaT('postComment')) + '</button>'
-                        + '</div>';
-                    block.appendChild(add);
-                }
-
-                el.insertAdjacentElement('afterend', block);
-            });
         },
 
         togglePanel: function(atomId) {

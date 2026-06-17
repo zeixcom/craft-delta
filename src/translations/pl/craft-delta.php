@@ -150,4 +150,11 @@ return [
     'workflow.openReview' => 'Otwórz recenzję',
     'workflow.postComment' => 'Opublikuj komentarz',
     'workflow.commentPlaceholder' => 'Zostaw komentarz…',
+    'workflow.reply' => 'Odpowiedz',
+    'workflow.resolve' => 'Rozwiąż',
+    'workflow.unresolve' => 'Otwórz ponownie',
+    'workflow.replyPlaceholder' => 'Napisz odpowiedź…',
+    'workflow.comments' => 'Komentarze',
+    'workflow.noComments' => 'Brak komentarzy',
+    'workflow.outdated' => 'Nieaktualne: {count}',
 ];

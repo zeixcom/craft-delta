@@ -1071,6 +1071,16 @@ button.delta-field-header {
     background: var(--gray-100, #e8eaed);
 }
 
+/* Reviews dashboard: each section is a separate <table>, so fix the layout and
+   pin column widths — otherwise every table auto-sizes to its own content and
+   the columns don't line up between sections. */
+.delta-reviews-table { table-layout: fixed; }
+.delta-reviews-table th:nth-child(1), .delta-reviews-table td:nth-child(1) { width: 44%; }
+.delta-reviews-table th:nth-child(2), .delta-reviews-table td:nth-child(2) { width: 18%; }
+.delta-reviews-table th:nth-child(3), .delta-reviews-table td:nth-child(3) { width: 10%; }
+.delta-reviews-table th:nth-child(4), .delta-reviews-table td:nth-child(4) { width: 28%; }
+.delta-reviews-table td:nth-child(1) a { word-break: break-word; }
+
 .delta-review-round {
     margin-left: auto;
     color: var(--gray-500, #7b8794);
@@ -1338,27 +1348,6 @@ button.delta-field-header {
 
 .delta-review-comments--page .delta-comments-heading {
     font-size: 16px;
-}
-
-/* Inline anchored comment threads on the review page (GitHub-style). */
-.delta-comment-inline {
-    margin: 0 0 14px 18px;
-    padding: 8px 12px;
-    border-left: 2px solid var(--delta-review-bar-border);
-    background: var(--delta-review-bar-bg);
-    border-radius: 0 4px 4px 0;
-}
-
-.delta-comment-inline .delta-comment-list {
-    margin-top: 0;
-}
-
-.delta-comment-add {
-    margin-top: 6px;
-}
-
-.delta-comment-add .delta-comment-compose {
-    margin-top: 8px;
 }
 
 /* Slideout/compare "in review" banner → link to the dedicated review page. */

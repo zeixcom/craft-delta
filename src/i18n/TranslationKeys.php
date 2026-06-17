@@ -159,6 +159,13 @@ final class TranslationKeys
     public const WORKFLOW_OPEN_REVIEW = 'workflow.openReview';
     public const WORKFLOW_POST_COMMENT = 'workflow.postComment';
     public const WORKFLOW_COMMENT_PLACEHOLDER = 'workflow.commentPlaceholder';
+    public const WORKFLOW_REPLY = 'workflow.reply';
+    public const WORKFLOW_RESOLVE = 'workflow.resolve';
+    public const WORKFLOW_UNRESOLVE = 'workflow.unresolve';
+    public const WORKFLOW_REPLY_PLACEHOLDER = 'workflow.replyPlaceholder';
+    public const WORKFLOW_COMMENTS = 'workflow.comments';
+    public const WORKFLOW_NO_COMMENTS = 'workflow.noComments';
+    public const WORKFLOW_OUTDATED = 'workflow.outdated';
 
     /**
      * Keys registered for Craft.t() in the control panel.
@@ -210,6 +217,14 @@ final class TranslationKeys
             self::WORKFLOW_POST_COMMENT,
             self::WORKFLOW_COMMENT_PLACEHOLDER,
             self::WORKFLOW_COMMENT_FAILED,
+            self::WORKFLOW_REPLY,
+            self::WORKFLOW_RESOLVE,
+            self::WORKFLOW_UNRESOLVE,
+            self::WORKFLOW_REPLY_PLACEHOLDER,
+            self::WORKFLOW_COMMENTS,
+            self::WORKFLOW_NO_COMMENTS,
+            self::WORKFLOW_OUTDATED,
+            self::WORKFLOW_ROUND,
         ];
     }
 
@@ -263,6 +278,14 @@ final class TranslationKeys
             'postComment' => self::WORKFLOW_POST_COMMENT,
             'commentPlaceholder' => self::WORKFLOW_COMMENT_PLACEHOLDER,
             'commentFailed' => self::WORKFLOW_COMMENT_FAILED,
+            'reply' => self::WORKFLOW_REPLY,
+            'resolve' => self::WORKFLOW_RESOLVE,
+            'unresolve' => self::WORKFLOW_UNRESOLVE,
+            'replyPlaceholder' => self::WORKFLOW_REPLY_PLACEHOLDER,
+            'comments' => self::WORKFLOW_COMMENTS,
+            'noComments' => self::WORKFLOW_NO_COMMENTS,
+            'outdated' => self::WORKFLOW_OUTDATED,
+            'roundLabel' => self::WORKFLOW_ROUND,
         ];
     }
 

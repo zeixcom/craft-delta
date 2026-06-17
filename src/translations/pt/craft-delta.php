@@ -150,4 +150,11 @@ return [
     'workflow.openReview' => 'Abrir revisão',
     'workflow.postComment' => 'Publicar comentário',
     'workflow.commentPlaceholder' => 'Deixe um comentário…',
+    'workflow.reply' => 'Responder',
+    'workflow.resolve' => 'Resolver',
+    'workflow.unresolve' => 'Reabrir',
+    'workflow.replyPlaceholder' => 'Escrever uma resposta…',
+    'workflow.comments' => 'Comentários',
+    'workflow.noComments' => 'Ainda sem comentários',
+    'workflow.outdated' => '{count} desatualizados',
 ];

@@ -150,4 +150,11 @@ return [
     'workflow.openReview' => 'Apri revisione',
     'workflow.postComment' => 'Pubblica commento',
     'workflow.commentPlaceholder' => 'Lascia un commento…',
+    'workflow.reply' => 'Rispondi',
+    'workflow.resolve' => 'Risolvi',
+    'workflow.unresolve' => 'Riapri',
+    'workflow.replyPlaceholder' => 'Scrivi una risposta…',
+    'workflow.comments' => 'Commenti',
+    'workflow.noComments' => 'Nessun commento',
+    'workflow.outdated' => '{count} obsoleti',
 ];

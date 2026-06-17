@@ -150,4 +150,11 @@ return [
     'workflow.openReview' => 'Review openen',
     'workflow.postComment' => 'Opmerking plaatsen',
     'workflow.commentPlaceholder' => 'Laat een opmerking achter…',
+    'workflow.reply' => 'Beantwoorden',
+    'workflow.resolve' => 'Oplossen',
+    'workflow.unresolve' => 'Heropenen',
+    'workflow.replyPlaceholder' => 'Schrijf een reactie…',
+    'workflow.comments' => 'Reacties',
+    'workflow.noComments' => 'Nog geen reacties',
+    'workflow.outdated' => '{count} verouderd',
 ];
