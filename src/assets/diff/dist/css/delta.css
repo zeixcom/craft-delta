@@ -840,6 +840,37 @@ button.delta-field-header {
     line-height: 1.4;
 }
 
+/* Submit-for-review: secondary (outline) to the compare button's solid primary,
+   so the sidebar reads as one primary + one secondary action, not two raw buttons. */
+#delta-submit-btn {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: var(--delta-radius-xl) 14px;
+    font-size: var(--delta-font-md);
+    font-weight: 600;
+    border-radius: var(--delta-radius-md);
+    cursor: pointer;
+    border: 1px solid var(--delta-compare-bg);
+    background: transparent;
+    color: var(--delta-compare-bg);
+    transition: background 0.15s, color 0.15s;
+}
+
+#delta-submit-btn:hover { background: var(--delta-compare-bg); color: #fff; }
+
+/* Shown in place of the submit button once a draft is already in review. */
+.delta-workflow-status {
+    margin: 10px 0 0;
+    padding: 6px 10px;
+    border-radius: var(--delta-radius);
+    font-size: var(--delta-font-sm);
+    font-weight: 600;
+    text-align: center;
+    background: var(--gray-100, #e8eaed);
+    color: var(--gray-700, #3f4a5a);
+}
+
 .delta-error {
     color: var(--delta-mod-text);
     font-style: italic;
@@ -1034,11 +1065,6 @@ button.delta-field-header {
 .delta-reviewer-pill--approved {
     background: #e6f4ea;
     color: #137333;
-}
-
-.delta-reviewer-pill--changes_requested {
-    background: #fef7e0;
-    color: #b06000;
 }
 
 .delta-reviewer-pill--pending {
@@ -1271,6 +1297,14 @@ button.delta-field-header {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
+}
+
+/* On the full-page header the stat is a prominent label, not a toolbar
+   eyebrow — drop the uppercase/tracking so it reads as a normal sentence. */
+.delta-review-header .delta-stats {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: var(--delta-font-base);
 }
 
 /* Inside the header the toolbar drops its own bar chrome — the header card

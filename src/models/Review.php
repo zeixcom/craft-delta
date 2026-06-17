@@ -13,28 +13,26 @@ use zeixcom\craftdelta\i18n\TranslationKeys;
 /**
  * A review request for a draft. State machine:
  *
- *   (no row) --submit--------> open
- *   open     --request changes-> changes_requested
- *   changes_requested --re-request--> open            (author revised, round++)
- *   open     --approve (any one)--> approved
- *   approved --publish---------> published            (terminal)
- *   open/changes_requested --decline--> declined      (terminal)
- *   open/changes_requested --withdraw--> cancelled    (terminal)
+ *   (no row) --submit-----------> open
+ *   open     --approve (any one)-> approved
+ *   approved --publish----------> published    (terminal)
+ *   open     --decline----------> declined     (terminal)
+ *   open     --withdraw---------> cancelled     (terminal)
  *
- * `state` is a CACHE of a derivation over the current round's reviewer verdicts
- * (open / changes_requested / approved). declined, cancelled and published are
- * explicit, set by an action — never derived.
+ * Reviewers Approve or Decline; granular feedback is left as comments. `state`
+ * is a CACHE of a derivation over the current round's reviewer verdicts (open /
+ * approved). declined, cancelled and published are explicit, set by an action —
+ * never derived.
  */
 class Review extends Model
 {
     public const STATE_OPEN = ReviewState::Open->value;
-    public const STATE_CHANGES_REQUESTED = ReviewState::ChangesRequested->value;
     public const STATE_APPROVED = ReviewState::Approved->value;
     public const STATE_DECLINED = ReviewState::Declined->value;
     public const STATE_CANCELLED = ReviewState::Cancelled->value;
     public const STATE_PUBLISHED = ReviewState::Published->value;
 
-    private const ACTIVE_STATES = [self::STATE_OPEN, self::STATE_CHANGES_REQUESTED, self::STATE_APPROVED];
+    private const ACTIVE_STATES = [self::STATE_OPEN, self::STATE_APPROVED];
     private const TERMINAL_STATES = [self::STATE_DECLINED, self::STATE_CANCELLED, self::STATE_PUBLISHED];
 
     public ?int $id = null;
@@ -51,11 +49,6 @@ class Review extends Model
 
     /** @var ReviewReviewer[] current-round reviewers, hydrated by the service */
     public array $reviewers = [];
-
-    public function isChangesRequested(): bool
-    {
-        return $this->state === self::STATE_CHANGES_REQUESTED;
-    }
 
     public function isApproved(): bool
     {
@@ -86,7 +79,6 @@ class Review extends Model
     {
         return match ($this->state) {
             self::STATE_OPEN => Craft::t('craft-delta', TranslationKeys::REVIEW_IN_REVIEW),
-            self::STATE_CHANGES_REQUESTED => Craft::t('craft-delta', TranslationKeys::REVIEW_CHANGES_REQUESTED),
             self::STATE_APPROVED => $this->isScheduled()
                 ? Craft::t('craft-delta', TranslationKeys::APPROVED_SCHEDULED)
                 : Craft::t('craft-delta', TranslationKeys::APPROVED),
@@ -105,7 +97,6 @@ class Review extends Model
     {
         return match ($this->state) {
             self::STATE_OPEN => 'pending',
-            self::STATE_CHANGES_REQUESTED => 'warning',
             self::STATE_APPROVED => $this->isScheduled() ? 'amber' : 'live',
             self::STATE_DECLINED => 'expired',
             self::STATE_CANCELLED => 'disabled',

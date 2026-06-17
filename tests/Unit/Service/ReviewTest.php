@@ -12,7 +12,6 @@ class ReviewTest extends TestCase
     public function testStateConstants(): void
     {
         $this->assertSame('open', Review::STATE_OPEN);
-        $this->assertSame('changes_requested', Review::STATE_CHANGES_REQUESTED);
         $this->assertSame('approved', Review::STATE_APPROVED);
         $this->assertSame('declined', Review::STATE_DECLINED);
         $this->assertSame('cancelled', Review::STATE_CANCELLED);
@@ -21,7 +20,7 @@ class ReviewTest extends TestCase
 
     public function testIsActiveForInFlightStates(): void
     {
-        foreach ([Review::STATE_OPEN, Review::STATE_CHANGES_REQUESTED, Review::STATE_APPROVED] as $state) {
+        foreach ([Review::STATE_OPEN, Review::STATE_APPROVED] as $state) {
             $review = new Review(['state' => $state, 'appliedAt' => null]);
             $this->assertTrue($review->isActive(), "expected {$state} to be active");
         }
@@ -73,7 +72,6 @@ class ReviewTest extends TestCase
     public function testStatusColorMapsToCraftPalette(): void
     {
         $this->assertSame('pending', (new Review(['state' => Review::STATE_OPEN]))->statusColor());
-        $this->assertSame('warning', (new Review(['state' => Review::STATE_CHANGES_REQUESTED]))->statusColor());
         $this->assertSame('live', (new Review(['state' => Review::STATE_APPROVED]))->statusColor());
         $this->assertSame('amber', (new Review([
             'state' => Review::STATE_APPROVED,

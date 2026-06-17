@@ -8,12 +8,17 @@
 - **The diff slideout (and the `delta-compare` full page) are now diff-only.** When the draft under view has a review, a slim banner links to the dedicated review page ("Open review"). All verdict buttons, comments, and accept/reject controls were removed from the slideout.
 - **Anchored comments render inline** under each changed field/Matrix block (GitHub-style), with an inline "Add comment" affordance — replacing the click-to-open comment panel on the review page.
 - **Accept/reject is always-on** on the review page for reviewers who can apply (auto-enters review mode), with the decided counter and "Apply N accepted" in the header. Verdict (Approve) and Apply remain distinct actions. Honors the **Enable Review Mode** kill-switch — when off, the page shows verdict + comments only, no accept/reject/apply.
-- The **Reviews dashboard** rows and the **email notifications** (submitted, re-requested, changes requested, declined) now link to the dedicated review page.
+- The **Reviews dashboard** rows and the **email notifications** (submitted, declined) now link to the dedicated review page.
+
+### Removed
+
+- **The "Request changes" verdict and the re-request / review-rounds loop are gone.** Reviewers now **Approve** or **Decline** only; requests for changes are expressed as comments. This removes the `changes_requested` review state and reviewer verdict, the `request-changes` and `re-request` endpoints, `WorkflowService::requestChanges()`/`reRequest()`, the `EVENT_AFTER_CHANGES_REQUESTED`/`EVENT_AFTER_REREQUEST` events, and the "changes requested" / "re-requested" emails. A migration (schema `2.1.3`) reopens any in-flight `changes_requested` reviews (→ `open`, reviewer verdicts reset to pending) so existing rows aren't stranded.
 
 ### Fixed
 
 - A reply no longer shows a "Reply" affordance (the data model supports only one level of replies), which previously dead-ended in a generic "could not be saved" error.
 - Closed/terminal reviews (published, declined, cancelled) now render comments **read-only** — the composer, reply, and add-comment affordances are hidden, since the backend rejects posts on an inactive review.
+- **Review UI polish.** Non-primary buttons no longer use the CP accent color — "Approve" no longer reads as a destructive red action, and "Submit comment" is a quiet right-aligned button rather than a full-width CTA. Zero-change reviews no longer render an "Apply 0 accepted" toolbar. The submit-for-review reviewer picker is a styled checkbox list instead of a raw native multi-select. The entry sidebar shows its hint under the Compare button it describes.
 
 ## 2.0.0 - 2026-06-12
 

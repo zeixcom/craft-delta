@@ -8,7 +8,6 @@ namespace zeixcom\craftdelta\enums;
 enum ReviewState: string
 {
     case Open = 'open';
-    case ChangesRequested = 'changes_requested';
     case Approved = 'approved';
     case Declined = 'declined';
     case Cancelled = 'cancelled';

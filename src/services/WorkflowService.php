@@ -41,42 +41,36 @@ class WorkflowService extends Component
 {
     public const EVENT_AFTER_SUBMIT = 'afterSubmit';
     public const EVENT_AFTER_APPROVE = 'afterApprove';
-    public const EVENT_AFTER_CHANGES_REQUESTED = 'afterChangesRequested';
     public const EVENT_AFTER_DECLINE = 'afterDecline';
-    public const EVENT_AFTER_REREQUEST = 'afterReRequest';
     public const EVENT_AFTER_WITHDRAW = 'afterWithdraw';
     public const EVENT_AFTER_PUBLISH = 'afterPublish';
 
     /** @var list<string> States from which the cached state may still be re-derived from verdicts. */
     private const DERIVABLE_STATES = [
         Review::STATE_OPEN,
-        Review::STATE_CHANGES_REQUESTED,
         Review::STATE_APPROVED,
     ];
 
     /** @var list<string> */
     private const ACTIVE_TRANSITION_FROM = [
         Review::STATE_OPEN,
-        Review::STATE_CHANGES_REQUESTED,
         Review::STATE_APPROVED,
     ];
 
     /**
      * Derive a review's overall state from its current round's reviewer verdicts.
-     * Pure + static so the precedence rule is unit-testable without a kernel.
+     * Pure + static so the rule is unit-testable without a kernel.
      *
-     * Precedence: any "changes requested" blocks; else any "approved" passes;
-     * else still open.
+     * Any one "approved" passes the review; otherwise it stays open. (Reviewers
+     * who want changes leave comments and decline or hold off approving.)
      *
      * @param string[] $verdicts Current-round verdict strings.
      */
     public static function deriveState(array $verdicts): string
     {
-        return match (true) {
-            in_array(ReviewReviewer::VERDICT_CHANGES_REQUESTED, $verdicts, true) => Review::STATE_CHANGES_REQUESTED,
-            in_array(ReviewReviewer::VERDICT_APPROVED, $verdicts, true) => Review::STATE_APPROVED,
-            default => Review::STATE_OPEN,
-        };
+        return in_array(ReviewReviewer::VERDICT_APPROVED, $verdicts, true)
+            ? Review::STATE_APPROVED
+            : Review::STATE_OPEN;
     }
 
     public function getByDraftId(int $draftId): ?Review
@@ -287,14 +281,6 @@ class WorkflowService extends Component
         return $fresh;
     }
 
-    public function requestChanges(Review $review, User $reviewer, ?string $note): Review
-    {
-        $fresh = $this->recordVerdict($review, $reviewer, ReviewReviewer::VERDICT_CHANGES_REQUESTED, $note);
-        $this->notifyAuthor($fresh, fn(Entry $draft, User $author) => $this->delta()->email->sendChangesRequested($fresh, $draft, $author, $note));
-        $this->trigger(self::EVENT_AFTER_CHANGES_REQUESTED, new WorkflowEvent(['review' => $fresh]));
-        return $fresh;
-    }
-
     public function decline(Review $review, User $reviewer, ?string $note): Review
     {
         $this->assertCanReview($reviewer, $review);
@@ -306,33 +292,6 @@ class WorkflowService extends Component
         );
         $this->notifyAuthor($fresh, fn(Entry $draft, User $author) => $this->delta()->email->sendDeclined($fresh, $draft, $author, $note));
         $this->trigger(self::EVENT_AFTER_DECLINE, new WorkflowEvent(['review' => $fresh]));
-        return $fresh;
-    }
-
-    public function reRequest(Review $review, User $author): Review
-    {
-        $this->assertCanActAsAuthor($author, $review);
-
-        $reopened = Craft::$app->getDb()->transaction(function() use ($review) {
-            $next = $this->transition(
-                $review->id,
-                [Review::STATE_CHANGES_REQUESTED],
-                Review::STATE_OPEN,
-                ['round' => $review->round + 1, 'scheduledFor' => null],
-            );
-
-            // Carry the reviewer set into the new round, reset to pending.
-            /** @var ReviewReviewerRecord $row */
-            foreach (ReviewReviewerRecord::find()->where(['reviewId' => $review->id, 'round' => $review->round])->all() as $row) {
-                $this->insertReviewer($review->id, (int)$row->userId, $next->round);
-            }
-
-            return $next;
-        });
-
-        $fresh = $this->loadReview($reopened->id);
-        $this->notifyReviewers($fresh, fn(Review $r, Entry $d, int $uid) => $this->delta()->email->sendReRequested($r, $d, $uid));
-        $this->trigger(self::EVENT_AFTER_REREQUEST, new WorkflowEvent(['review' => $fresh]));
         return $fresh;
     }
 

@@ -129,10 +129,8 @@
         // from the toolbar's data-* attributes (localized server-side).
         var actions = {
             'approve':         { endpoint: 'approve',         done: ds.doneApprove },
-            'request-changes': { endpoint: 'request-changes', done: ds.doneRequestChanges, notePrompt: ds.rcPrompt, noteRequired: true },
             'decline':         { endpoint: 'decline',         done: ds.doneDecline,  confirm: ds.confirmDecline, notePrompt: ds.notePrompt },
             'withdraw':        { endpoint: 'withdraw',        done: ds.doneWithdraw, confirm: ds.confirmWithdraw },
-            're-request':      { endpoint: 're-request',      done: ds.doneRerequest, confirm: ds.confirmRerequest },
             'publish':         { endpoint: 'publish',         done: ds.donePublish,  confirm: ds.confirmPublish, redirect: true },
             'schedule':        { endpoint: 'publish',         done: ds.donePublish,  schedulePrompt: ds.publishAtPrompt, redirect: true }
         };
@@ -152,10 +150,9 @@
             }
 
             if (cfg.notePrompt) {
+                // decline: optional note to the author; already confirmed, so a
+                // cancelled or empty prompt still proceeds.
                 var note = prompt(cfg.notePrompt);
-                // request-changes: a cancelled prompt aborts. decline: already
-                // confirmed, so a cancelled/empty note still proceeds.
-                if (cfg.noteRequired && note === null) return;
                 params.note = note || '';
             }
 

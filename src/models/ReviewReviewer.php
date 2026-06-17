@@ -15,7 +15,6 @@ class ReviewReviewer extends Model
 {
     public const VERDICT_PENDING = ReviewVerdict::Pending->value;
     public const VERDICT_APPROVED = ReviewVerdict::Approved->value;
-    public const VERDICT_CHANGES_REQUESTED = ReviewVerdict::ChangesRequested->value;
 
     public ?int $id = null;
     public int $reviewId = 0;

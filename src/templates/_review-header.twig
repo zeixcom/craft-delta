@@ -33,9 +33,7 @@
                 {% for r in workflow.reviewers %}
                     {% set verdictLabel = r.verdict == 'approved'
                         ? deltaKeys.approved|t('craft-delta')
-                        : (r.verdict == 'changes_requested'
-                            ? deltaKeys.reviewChangesRequested|t('craft-delta')
-                            : deltaKeys.workflowAwaiting|t('craft-delta')) %}
+                        : deltaKeys.workflowAwaiting|t('craft-delta') %}
                     <span class="delta-reviewer-pill delta-reviewer-pill--{{ r.verdict }}"
                           title="{{ verdictLabel }}">{{ r.userName ?? ('#' ~ r.userId) }}</span>
                 {% endfor %}
@@ -49,24 +47,19 @@
              data-review-id="{{ workflow.id }}"
              data-section-uid="{{ workflow.sectionUid }}"
              data-note-prompt="{{ deltaKeys.optionalNoteForAuthor|t('craft-delta') }}"
-             data-rc-prompt="{{ deltaKeys.workflowRequestChangesPrompt|t('craft-delta') }}"
              data-confirm-decline="{{ deltaKeys.workflowDeclineConfirm|t('craft-delta') }}"
              data-confirm-withdraw="{{ deltaKeys.workflowWithdrawConfirm|t('craft-delta') }}"
-             data-confirm-rerequest="{{ deltaKeys.workflowReRequestConfirm|t('craft-delta') }}"
              data-confirm-publish="{{ deltaKeys.workflowPublishConfirm|t('craft-delta') }}"
              data-publish-at-prompt="{{ deltaKeys.publishAtPrompt|t('craft-delta') }}"
              data-done-approve="{{ deltaKeys.workflowDoneApproved|t('craft-delta') }}"
-             data-done-request-changes="{{ deltaKeys.workflowDoneChangesRequested|t('craft-delta') }}"
              data-done-decline="{{ deltaKeys.workflowDoneDeclined|t('craft-delta') }}"
              data-done-withdraw="{{ deltaKeys.workflowDoneWithdrawn|t('craft-delta') }}"
-             data-done-rerequest="{{ deltaKeys.workflowDoneReRequested|t('craft-delta') }}"
              data-done-publish="{{ deltaKeys.workflowDonePublished|t('craft-delta') }}"
              data-action-failed="{{ deltaKeys.workflowActionFailed|t('craft-delta') }}">
 
             {% if isReviewerActive %}
                 <div class="delta-workflow-actions" data-role="reviewer">
                     <button type="button" class="btn submit" data-wf-action="approve">{{ deltaKeys.workflowApprove|t('craft-delta') }}</button>
-                    <button type="button" class="btn" data-wf-action="request-changes">{{ deltaKeys.workflowRequestChanges|t('craft-delta') }}</button>
                     {# No "Granular review" entry button: on the review page accept/reject
                        is always-on (the wiring JS auto-enters review mode), so a manual
                        entry button would be redundant and a re-click would wipe decisions. #}
@@ -83,9 +76,6 @@
 
             {% if isReviewAuthor and workflow.isActive() %}
                 <div class="delta-workflow-actions" data-role="author">
-                    {% if workflow.isChangesRequested() %}
-                        <button type="button" class="btn submit" data-wf-action="re-request">{{ deltaKeys.workflowReRequest|t('craft-delta') }}</button>
-                    {% endif %}
                     <button type="button" class="btn" data-wf-action="withdraw">{{ deltaKeys.workflowWithdraw|t('craft-delta') }}</button>
                 </div>
             {% endif %}

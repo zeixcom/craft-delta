@@ -161,20 +161,9 @@ class WorkflowController extends Controller
         return $this->asJson(['success' => true, 'review' => $this->reviewPayload($plugin->workflow->approve($review, $user))]);
     }
 
-    public function actionRequestChanges(): Response
-    {
-        return $this->verdictResponse(fn($p, $r, $u, $note) => $p->workflow->requestChanges($r, $u, $note));
-    }
-
     public function actionDecline(): Response
     {
         return $this->verdictResponse(fn($p, $r, $u, $note) => $p->workflow->decline($r, $u, $note));
-    }
-
-    public function actionReRequest(): Response
-    {
-        [$plugin, $review, $user] = $this->resolveReview();
-        return $this->asJson(['success' => true, 'review' => $this->reviewPayload($plugin->workflow->reRequest($review, $user))]);
     }
 
     public function actionWithdraw(): Response

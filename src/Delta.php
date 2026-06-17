@@ -50,7 +50,7 @@ use zeixcom\craftdelta\services\WorkflowService;
  */
 class Delta extends Plugin
 {
-    public string $schemaVersion = '2.1.2';
+    public string $schemaVersion = '2.1.3';
     public bool $hasCpSettings = true;
 
     public static function config(): array
@@ -160,9 +160,7 @@ class Delta extends Plugin
                 'delta-compare' => 'craft-delta/diff/compare-full-page',
                 'POST craft-delta/workflow/submit' => 'craft-delta/workflow/submit',
                 'POST craft-delta/workflow/approve' => 'craft-delta/workflow/approve',
-                'POST craft-delta/workflow/request-changes' => 'craft-delta/workflow/request-changes',
                 'POST craft-delta/workflow/decline' => 'craft-delta/workflow/decline',
-                'POST craft-delta/workflow/re-request' => 'craft-delta/workflow/re-request',
                 'POST craft-delta/workflow/withdraw' => 'craft-delta/workflow/withdraw',
                 'POST craft-delta/workflow/publish' => 'craft-delta/workflow/publish',
                 'POST craft-delta/workflow/comment' => 'craft-delta/workflow/comment',
@@ -267,10 +265,14 @@ class Delta extends Plugin
                 }
             }
 
+            // Order: primary action (compare) + the hint that describes it,
+            // then the workflow affordance (submit button / status) as its own
+            // distinct block — the hint previously sat under the submit button,
+            // which read as if it described "submit for review".
             $event->html .= '<div class="meta" id="delta-meta">'
                 . '<button id="delta-compare-btn" type="button">' . htmlspecialchars(Craft::t('craft-delta', TranslationKeys::COMPARE_REVISIONS)) . '</button>'
-                . $workflowHtml
                 . '<p class="delta-meta-hint">' . htmlspecialchars(Craft::t('craft-delta', TranslationKeys::VIEW_SIDE_BY_SIDE_HINT)) . '</p>'
+                . $workflowHtml
                 . '</div>';
         });
     }

@@ -42,21 +42,4 @@ class WorkflowServiceTest extends TestCase
             ReviewReviewer::VERDICT_APPROVED,
         ]));
     }
-
-    public function testChangesRequestedBlocksEvenWithApproval(): void
-    {
-        // "Any one approves" is overridden by an unresolved "changes requested".
-        $this->assertSame(Review::STATE_CHANGES_REQUESTED, WorkflowService::deriveState([
-            ReviewReviewer::VERDICT_APPROVED,
-            ReviewReviewer::VERDICT_CHANGES_REQUESTED,
-        ]));
-    }
-
-    public function testChangesRequestedAloneBlocks(): void
-    {
-        $this->assertSame(Review::STATE_CHANGES_REQUESTED, WorkflowService::deriveState([
-            ReviewReviewer::VERDICT_CHANGES_REQUESTED,
-            ReviewReviewer::VERDICT_PENDING,
-        ]));
-    }
 }
