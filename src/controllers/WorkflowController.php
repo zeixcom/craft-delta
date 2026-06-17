@@ -176,6 +176,13 @@ class WorkflowController extends Controller
     {
         [$plugin, $review, $user] = $this->resolveReview();
 
+        // Publishing applies the review to the canonical entry, so it requires
+        // the dedicated apply permission — same gate as the granular apply path
+        // (DiffController::actionApply). Native save rights alone aren't enough.
+        if (!$user->can(Permissions::APPLY)) {
+            throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NO_PERMISSION_APPLY_REVIEW));
+        }
+
         $canonical = Craft::$app->getEntries()->getEntryById($review->canonicalEntryId);
         if ($canonical === null) {
             throw new NotFoundHttpException(Craft::t('craft-delta', TranslationKeys::ENTRY_NOT_FOUND));

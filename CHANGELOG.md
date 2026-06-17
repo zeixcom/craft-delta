@@ -14,6 +14,10 @@
 
 - **The "Request changes" verdict and the re-request / review-rounds loop are gone.** Reviewers now **Approve** or **Decline** only; requests for changes are expressed as comments. This removes the `changes_requested` review state and reviewer verdict, the `request-changes` and `re-request` endpoints, `WorkflowService::requestChanges()`/`reRequest()`, the `EVENT_AFTER_CHANGES_REQUESTED`/`EVENT_AFTER_REREQUEST` events, and the "changes requested" / "re-requested" emails. A migration (schema `2.1.3`) reopens any in-flight `changes_requested` reviews (→ `open`, reviewer verdicts reset to pending) so existing rows aren't stranded.
 
+### Security
+
+- **Publishing an approved review now requires the `craftdelta-applyReview` permission**, matching the granular Review-Mode apply path — native entry save rights alone are no longer sufficient. Verified: a user with section save rights but without `applyReview` is rejected (403) at `workflow/publish`; `applyReview` holders and admins are unaffected.
+
 ### Fixed
 
 - A reply no longer shows a "Reply" affordance (the data model supports only one level of replies), which previously dead-ended in a generic "could not be saved" error.
