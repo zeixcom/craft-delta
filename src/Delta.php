@@ -158,10 +158,6 @@ class Delta extends Plugin
                 'delta-reviews' => 'craft-delta/workflow/index',
                 'delta-review' => 'craft-delta/workflow/review',
                 'delta-compare' => 'craft-delta/diff/compare-full-page',
-                // Legacy URL, kept for bookmarks. Avoid linking to it: the
-                // handle-prefixed path additionally demands the
-                // accessPlugin-craft-delta permission (403 for plain editors).
-                'craft-delta/compare' => 'craft-delta/diff/compare-full-page',
                 'POST craft-delta/workflow/submit' => 'craft-delta/workflow/submit',
                 'POST craft-delta/workflow/approve' => 'craft-delta/workflow/approve',
                 'POST craft-delta/workflow/request-changes' => 'craft-delta/workflow/request-changes',

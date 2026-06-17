@@ -7,6 +7,7 @@ namespace zeixcom\craftdelta\models;
 use Craft;
 use craft\base\Model;
 use DateTime;
+use zeixcom\craftdelta\enums\ReviewState;
 use zeixcom\craftdelta\i18n\TranslationKeys;
 
 /**
@@ -26,12 +27,12 @@ use zeixcom\craftdelta\i18n\TranslationKeys;
  */
 class Review extends Model
 {
-    public const STATE_OPEN = 'open';
-    public const STATE_CHANGES_REQUESTED = 'changes_requested';
-    public const STATE_APPROVED = 'approved';
-    public const STATE_DECLINED = 'declined';
-    public const STATE_CANCELLED = 'cancelled';
-    public const STATE_PUBLISHED = 'published';
+    public const STATE_OPEN = ReviewState::Open->value;
+    public const STATE_CHANGES_REQUESTED = ReviewState::ChangesRequested->value;
+    public const STATE_APPROVED = ReviewState::Approved->value;
+    public const STATE_DECLINED = ReviewState::Declined->value;
+    public const STATE_CANCELLED = ReviewState::Cancelled->value;
+    public const STATE_PUBLISHED = ReviewState::Published->value;
 
     private const ACTIVE_STATES = [self::STATE_OPEN, self::STATE_CHANGES_REQUESTED, self::STATE_APPROVED];
     private const TERMINAL_STATES = [self::STATE_DECLINED, self::STATE_CANCELLED, self::STATE_PUBLISHED];
@@ -47,9 +48,6 @@ class Review extends Model
     public int $submittedBy = 0;
     public ?DateTime $scheduledFor = null;
     public ?DateTime $appliedAt = null;
-    public ?DateTime $dateCreated = null;
-    public ?DateTime $dateUpdated = null;
-    public ?string $uid = null;
 
     /** @var ReviewReviewer[] current-round reviewers, hydrated by the service */
     public array $reviewers = [];

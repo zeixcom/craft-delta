@@ -12,6 +12,7 @@ use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 use zeixcom\craftdelta\Delta;
+use zeixcom\craftdelta\helpers\EntryMeta;
 use zeixcom\craftdelta\i18n\TranslationKeys;
 use zeixcom\craftdelta\Permissions;
 use zeixcom\craftdelta\services\StaleAtomException;
@@ -101,7 +102,7 @@ class DiffController extends Controller
                 'stats' => $result->getStats(),
             ]);
         } catch (\Throwable $e) {
-            Craft::error("Diff comparison failed: {$e->getMessage()}", __METHOD__);
+            Craft::error("Diff comparison failed: {$e}", __METHOD__);
             return $this->asJson([
                 'success' => false,
                 'error' => Craft::t('craft-delta', TranslationKeys::FAILED_GENERATE_DIFF),
@@ -253,8 +254,13 @@ class DiffController extends Controller
         } catch (\InvalidArgumentException $e) {
             Craft::warning("Apply rejected malformed atom: {$e->getMessage()}", __METHOD__);
             return $this->staleAtomsResponse();
+        } catch (\RuntimeException $e) {
+            // Merge or publish failed (e.g. draft validation) — a real server-side
+            // fault, not user noise. Log the full exception; the client still 422s.
+            Craft::error("Apply failed (merge/publish): {$e}", __METHOD__);
+            return $this->apply422('validation-failed', TranslationKeys::COULD_NOT_APPLY_CHANGES);
         } catch (\Throwable $e) {
-            Craft::error("Apply failed: {$e->getMessage()}", __METHOD__);
+            Craft::error("Apply failed (unexpected): {$e}", __METHOD__);
             return $this->apply422('validation-failed', TranslationKeys::COULD_NOT_APPLY_CHANGES);
         }
     }
@@ -273,11 +279,10 @@ class DiffController extends Controller
         ])->setStatusCode(422);
     }
 
-    /** @return array<string, mixed> */
+    /** @return array{id: ?int, num: int, label: string, date: string, type: 'revision'} */
     private function revisionOption(Entry $rev): array
     {
-        /** @var \craft\behaviors\RevisionBehavior|null $behavior */
-        $behavior = $rev->getBehavior('revision');
+        $behavior = EntryMeta::revision($rev);
         $creator = $behavior?->getCreator()?->friendlyName ?? Craft::t('craft-delta', TranslationKeys::UNKNOWN);
         $revisionNum = $behavior?->revisionNum ?? 0;
         return [
@@ -289,11 +294,10 @@ class DiffController extends Controller
         ];
     }
 
-    /** @return array<string, mixed> */
+    /** @return array{id: string, label: string, date: string, type: 'draft'} */
     private function draftOption(Entry $draft): array
     {
-        /** @var \craft\behaviors\DraftBehavior|null $behavior */
-        $behavior = $draft->getBehavior('draft');
+        $behavior = EntryMeta::draft($draft);
         return [
             'id' => 'draft:' . $draft->draftId,
             'label' => ($behavior?->draftName ?? Craft::t('craft-delta', TranslationKeys::DRAFT))
@@ -305,8 +309,7 @@ class DiffController extends Controller
 
     private function userCanViewDraft(Entry $draft, Entry $canonical, ?User $user): bool
     {
-        /** @var \craft\behaviors\DraftBehavior|null $behavior */
-        $behavior = $draft->getBehavior('draft');
+        $behavior = EntryMeta::draft($draft);
         $creatorId = $behavior?->creatorId;
         if ($creatorId && (int)$creatorId !== (int)$user?->id) {
             $section = $canonical->getSection();

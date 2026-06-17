@@ -12,6 +12,8 @@ use Jfcherng\Diff\Factory\RendererFactory;
  */
 class TextDiffer implements DifferInterface
 {
+    use WordCountStats;
+
     public function __construct(
         private int $context = 3,
     ) {
@@ -41,8 +43,6 @@ class TextDiffer implements DifferInterface
     /** @return DiffStats */
     public function getStats(mixed $oldValue, mixed $newValue): array
     {
-        $old = str_word_count((string)($oldValue ?? ''));
-        $new = str_word_count((string)($newValue ?? ''));
-        return ['additions' => max(0, $new - $old), 'deletions' => max(0, $old - $new)];
+        return $this->wordCountStats((string)($oldValue ?? ''), (string)($newValue ?? ''));
     }
 }

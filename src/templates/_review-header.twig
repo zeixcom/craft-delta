@@ -92,7 +92,9 @@
         </div>
     {% endif %}
 
-    {% if reviewMode is defined and reviewMode %}
+    {# Accept/reject only makes sense when there's something to decide — a
+       0-change review otherwise shows a live "Apply 0 accepted" button. #}
+    {% if reviewMode is defined and reviewMode and stats.fieldsChanged > 0 %}
         <div class="delta-review-toolbar"
              data-review-toolbar
              data-auto-review="{{ showGranularReview ? '1' : '' }}"

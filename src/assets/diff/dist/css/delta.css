@@ -1058,6 +1058,39 @@ button.delta-field-header {
     margin-top: 8px;
 }
 
+/* ─── Submit-for-review reviewer picker ─── */
+
+.delta-submit-modal .body { min-width: 320px; }
+
+.delta-assignee {
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid var(--hairline-color, #e3e5e8);
+    border-radius: var(--delta-radius, 4px);
+    background: #fff;
+}
+
+.delta-assignee-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--hairline-color, #e3e5e8);
+}
+
+.delta-assignee-option:last-child { border-bottom: none; }
+.delta-assignee-option:hover { background: var(--gray-100, #f3f4f6); }
+.delta-assignee-option input { margin: 0; }
+
+.delta-assignee-loading,
+.delta-assignee-empty {
+    margin: 0;
+    padding: 10px 12px;
+    color: var(--gray-500, #7b8794);
+    font-style: italic;
+}
+
 /* ─── Review comments (PR-style) ─── */
 
 .delta-review-comments {
@@ -1097,9 +1130,12 @@ button.delta-field-header {
 .delta-comment-compose {
     display: flex;
     flex-direction: column;
+    align-items: flex-end; /* post button hugs its text, right-aligned — not a full-width CTA */
     gap: 8px;
     margin-top: 8px;
 }
+
+.delta-comment-compose textarea { align-self: stretch; }
 
 .delta-comment-compose textarea {
     min-height: 56px;
@@ -1244,6 +1280,12 @@ button.delta-field-header {
     background: none;
     border-bottom: 0;
     margin-top: 10px;
+    /* Lay the role groups (reviewer/publish/author) on one wrapping row so a
+       lone action like "Withdraw" doesn't drop to its own line. */
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
 }
 
 .delta-review-header .delta-review-roster {

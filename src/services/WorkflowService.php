@@ -15,6 +15,7 @@ use yii\web\ForbiddenHttpException;
 use zeixcom\craftdelta\Delta;
 use zeixcom\craftdelta\events\WorkflowEvent;
 use zeixcom\craftdelta\helpers\DbDate;
+use zeixcom\craftdelta\helpers\EntryMeta;
 use zeixcom\craftdelta\helpers\UserName;
 use zeixcom\craftdelta\i18n\TranslationKeys;
 use zeixcom\craftdelta\models\Review;
@@ -152,8 +153,7 @@ class WorkflowService extends Component
         if ($section === null) {
             return false;
         }
-        /** @var \craft\behaviors\DraftBehavior|null $behavior */
-        $behavior = $draft->getBehavior('draft');
+        $behavior = EntryMeta::draft($draft);
         $creatorId = $behavior?->creatorId;
         if ($creatorId !== null && $creatorId !== $user->id && !$user->admin) {
             return false;
@@ -652,9 +652,6 @@ class WorkflowService extends Component
             'submittedBy' => $record->submittedBy,
             'scheduledFor' => DbDate::parse($record->scheduledFor),
             'appliedAt' => DbDate::parse($record->appliedAt),
-            'dateCreated' => DbDate::parse($record->dateCreated),
-            'dateUpdated' => DbDate::parse($record->dateUpdated),
-            'uid' => $record->uid,
         ]);
         $review->reviewers = $this->loadReviewers((int)$record->id, (int)$record->round);
         return $review;
@@ -672,9 +669,6 @@ class WorkflowService extends Component
                 'verdict' => $record->verdict,
                 'note' => $record->note,
                 'decidedAt' => DbDate::parse($record->decidedAt),
-                'dateCreated' => DbDate::parse($record->dateCreated),
-                'dateUpdated' => DbDate::parse($record->dateUpdated),
-                'uid' => $record->uid,
             ]);
             $model->userName = UserName::byId((int)$record->userId);
             return $model;

@@ -32,8 +32,6 @@ class ReviewComment extends Model
     public bool $resolved = false;
     public ?int $parentId = null;
     public ?DateTime $dateCreated = null;
-    public ?DateTime $dateUpdated = null;
-    public ?string $uid = null;
 
     /** Display name, hydrated by the service for the UI. */
     public ?string $authorName = null;

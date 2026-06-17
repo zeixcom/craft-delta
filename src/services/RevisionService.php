@@ -19,7 +19,7 @@ class RevisionService extends Component
         )->all();
     }
 
-    /** @return Entry[] */
+    /** @return list<Entry> */
     public function getDrafts(int $canonicalId, ?int $siteId = null, int $limit = 50): array
     {
         return $this->withSiteId(

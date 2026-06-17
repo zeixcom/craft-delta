@@ -22,7 +22,7 @@
                 '<div class="body">' +
                     '<h2>' + Craft.t('craft-delta', Craft.Delta._keys.submitForReview) + '</h2>' +
                     '<label>' + Craft.t('craft-delta', Craft.Delta._keys.reviewer) + '</label>' +
-                    '<select class="delta-assignee fullwidth" multiple size="6"><option>' + Craft.t('craft-delta', Craft.Delta._keys.loading) + '</option></select>' +
+                    '<div class="delta-assignee" data-assignee-list><p class="delta-assignee-loading">' + Craft.t('craft-delta', Craft.Delta._keys.loading) + '</p></div>' +
                 '</div>' +
                 '<div class="footer">' +
                     '<div class="buttons right">' +
@@ -47,21 +47,28 @@
         // the assignees action calls requireAcceptsJson() and 400s otherwise.
         $.getJSON(Craft.getActionUrl('craft-delta/workflow/assignees'), { sectionUid: sectionUid })
             .done(function(resp) {
-                var $select = $modal.find('.delta-assignee').empty();
+                var $list = $modal.find('.delta-assignee').empty();
                 if (!resp.assignees.length) {
-                    $select.append('<option>' + Craft.t('craft-delta', Craft.Delta._keys.noEligibleReviewers) + '</option>');
+                    $list.append($('<p class="delta-assignee-empty"></p>').text(Craft.t('craft-delta', Craft.Delta._keys.noEligibleReviewers)));
                     return;
                 }
                 resp.assignees.forEach(function(u) {
                     // Build via .val()/.text() — never concatenate the user's
                     // name into an HTML string (it would be a stored-XSS vector
                     // since names are user-controlled profile data).
-                    $select.append($('<option></option>').val(u.id).text(u.name));
+                    var $opt = $('<label class="delta-assignee-option"></label>');
+                    $opt.append($('<input type="checkbox">').val(u.id));
+                    $opt.append($('<span></span>').text(u.name));
+                    $list.append($opt);
                 });
-                $modal.find('.btn.submit').removeClass('disabled');
+                // Submit enables only once at least one reviewer is checked.
+                $list.on('change', 'input[type="checkbox"]', function() {
+                    var any = $list.find('input[type="checkbox"]:checked').length > 0;
+                    $modal.find('.btn.submit').toggleClass('disabled', !any);
+                });
             })
             .fail(function() {
-                $modal.find('.delta-assignee').empty().append('<option>' + Craft.t('craft-delta', Craft.Delta._keys.failedLoadReviewers) + '</option>');
+                $modal.find('.delta-assignee').empty().append($('<p class="delta-assignee-empty"></p>').text(Craft.t('craft-delta', Craft.Delta._keys.failedLoadReviewers)));
             });
 
         $modal.find('.btn.cancel').on('click', closeModal);
@@ -71,8 +78,10 @@
             // 'loading' doubles as the in-flight guard: a double-click must not
             // fire a second POST (the duplicate would 422 as "already exists").
             if ($btn.hasClass('disabled') || $btn.hasClass('loading')) return;
-            // A multiple <select> returns an array of selected ids (or null).
-            var reviewerIds = $modal.find('.delta-assignee').val();
+            // Collect the checked reviewer checkboxes as an array of ids.
+            var reviewerIds = $modal.find('.delta-assignee input[type="checkbox"]:checked').map(function() {
+                return this.value;
+            }).get();
             if (!reviewerIds || !reviewerIds.length) return;
             $btn.addClass('loading');
             Craft.sendActionRequest('POST', 'craft-delta/workflow/submit', {
@@ -487,7 +496,7 @@
                         + '<div class="delta-comment-compose" data-comment-add-form hidden>'
                         + '<textarea class="text fullwidth" rows="2" data-comment-atom-input maxlength="10000"'
                         + ' placeholder="' + escAttr(deltaT('commentPlaceholder')) + '"></textarea>'
-                        + '<button type="button" class="btn submit" data-comment-atom-post>'
+                        + '<button type="button" class="btn" data-comment-atom-post>'
                         + escHtml(deltaT('postComment')) + '</button>'
                         + '</div>';
                     block.appendChild(add);
@@ -530,7 +539,7 @@
             compose.innerHTML =
                 '<textarea class="text fullwidth" rows="2" data-comment-atom-input maxlength="10000"'
                 + ' placeholder="' + escAttr(deltaT('commentPlaceholder')) + '"></textarea>'
-                + '<button type="button" class="btn submit" data-comment-atom-post>'
+                + '<button type="button" class="btn" data-comment-atom-post>'
                 + escHtml(deltaT('postComment')) + '</button>';
             panel.appendChild(compose);
 
@@ -595,13 +604,6 @@
                 // "Only one level of replies is supported"). So the reply button +
                 // form must only render on top-level comments — otherwise the UI
                 // offers an action the server always rejects.
-                //
-                // TODO(you): define `canReply`. The thread payload carries
-                // `parentId` for every comment (null for top-level), and
-                // postComment() refetches the whole thread before re-rendering, so
-                // `c.parentId` is always fresh here. Alternatively you could thread
-                // a depth/isReply flag through renderComment's recursion — pick
-                // whichever you find clearer. (Resolve stays available on replies.)
                 var canReply = c.parentId == null;
 
                 var actions = $('<div class="delta-comment-actions"></div>');

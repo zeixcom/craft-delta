@@ -32,6 +32,7 @@ use zeixcom\craftdelta\services\MergeService;
  *
  * @phpstan-import-type AuthenticatedReviewTuple from \zeixcom\craftdelta\types\ArrayTypes
  * @phpstan-import-type CommentJsonPayload from \zeixcom\craftdelta\types\ArrayTypes
+ * @phpstan-import-type CommentJsonFields from \zeixcom\craftdelta\types\ArrayTypes
  * @phpstan-import-type CommentJsonReply from \zeixcom\craftdelta\types\ArrayTypes
  * @phpstan-import-type ReviewSummaryPayload from \zeixcom\craftdelta\types\ArrayTypes
  */
@@ -356,6 +357,7 @@ class WorkflowController extends Controller
         return [...$this->commentFields($c), 'replies' => []];
     }
 
+    /** @return CommentJsonFields */
     private function commentFields(ReviewComment $c): array
     {
         return [

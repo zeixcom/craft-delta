@@ -145,8 +145,6 @@ class ReviewCommentService extends Component
             'resolved' => (bool)$record->resolved,
             'parentId' => $record->parentId,
             'dateCreated' => DbDate::parse($record->dateCreated),
-            'dateUpdated' => DbDate::parse($record->dateUpdated),
-            'uid' => $record->uid,
         ]);
         $model->authorName = UserName::byId((int)$record->authorId);
         if ($liveAtomKeys !== null) {

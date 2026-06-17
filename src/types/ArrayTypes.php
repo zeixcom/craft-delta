@@ -57,6 +57,20 @@ namespace zeixcom\craftdelta\types;
  *   scheduledFor?: string|null
  * }
  * @phpstan-type ReviewSummaryPayload array{id: ?int, state: string, round: int}
+ * @phpstan-type CommentJsonFields array{
+ *   id: ?int,
+ *   body: string,
+ *   authorName: ?string,
+ *   anchorType: AnchorType,
+ *   fieldHandle: ?string,
+ *   blockUid: ?string,
+ *   atomId: ?string,
+ *   resolved: bool,
+ *   outdated: bool,
+ *   round: int,
+ *   parentId: ?int,
+ *   dateCreated: ?string
+ * }
  * @phpstan-type CommentJsonReply array{
  *   id: ?int,
  *   body: string,

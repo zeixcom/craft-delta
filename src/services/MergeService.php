@@ -11,6 +11,7 @@ use craft\elements\Entry;
 use zeixcom\craftdelta\Delta;
 use zeixcom\craftdelta\enums\AtomKind;
 use zeixcom\craftdelta\enums\DiffChangeType;
+use zeixcom\craftdelta\helpers\EntryMeta;
 use zeixcom\craftdelta\helpers\Limits;
 use zeixcom\craftdelta\helpers\MatrixValue;
 use zeixcom\craftdelta\i18n\TranslationKeys;
@@ -310,7 +311,7 @@ class MergeService extends Component
             throw new \RuntimeException('Failed to publish: ' . json_encode($draft->getErrors()));
         }
 
-        if ($deleteSourceDraft && $source->getBehavior('draft') !== null) {
+        if ($deleteSourceDraft && EntryMeta::draft($source) !== null) {
             \Craft::$app->getElements()->deleteElement($source, true);
         }
 
@@ -361,13 +362,11 @@ class MergeService extends Component
 
     private function humanRefForSource(Entry $source): string
     {
-        /** @var \craft\behaviors\RevisionBehavior|null $revisionBehavior */
-        $revisionBehavior = $source->getBehavior('revision');
+        $revisionBehavior = EntryMeta::revision($source);
         if ($revisionBehavior?->revisionNum !== null) {
             return \Craft::t('craft-delta', TranslationKeys::REV_NUM, ['num' => $revisionBehavior->revisionNum]);
         }
-        /** @var \craft\behaviors\DraftBehavior|null $draftBehavior */
-        $draftBehavior = $source->getBehavior('draft');
+        $draftBehavior = EntryMeta::draft($source);
         if ($draftBehavior !== null) {
             return $draftBehavior->draftName ?? \Craft::t('craft-delta', TranslationKeys::DRAFT);
         }

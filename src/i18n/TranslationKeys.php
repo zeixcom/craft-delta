@@ -50,7 +50,6 @@ final class TranslationKeys
     public const APPROVED = 'workflow.approved';
     public const APPROVED_SCHEDULED = 'workflow.approvedScheduled';
     public const SCHEDULE_FOR = 'workflow.scheduleFor';
-    public const GRANULAR_REVIEW = 'workflow.granularReview';
     public const REJECT = 'workflow.reject';
     public const PUBLISH_AT_PROMPT = 'workflow.publishAtPrompt';
     public const OPTIONAL_NOTE_FOR_AUTHOR = 'workflow.optionalNoteForAuthor';
@@ -171,16 +170,7 @@ final class TranslationKeys
     public const WORKFLOW_GENERAL_DISCUSSION = 'workflow.generalDiscussion';
     public const WORKFLOW_OPEN_REVIEW = 'workflow.openReview';
     public const WORKFLOW_POST_COMMENT = 'workflow.postComment';
-    public const WORKFLOW_REPLY = 'workflow.reply';
-    public const WORKFLOW_RESOLVE = 'workflow.resolve';
-    public const WORKFLOW_UNRESOLVE = 'workflow.unresolve';
-    public const WORKFLOW_OUTDATED = 'workflow.outdated';
     public const WORKFLOW_COMMENT_PLACEHOLDER = 'workflow.commentPlaceholder';
-    public const WORKFLOW_REPLY_PLACEHOLDER = 'workflow.replyPlaceholder';
-    public const WORKFLOW_COMMENTS = 'workflow.comments';
-    public const WORKFLOW_ADD_COMMENT = 'workflow.addComment';
-    public const WORKFLOW_NO_COMMENTS = 'workflow.noComments';
-    public const WORKFLOW_ROUND_LABEL = 'workflow.roundLabel';
 
     /**
      * Keys registered for Craft.t() in the control panel.
@@ -230,16 +220,7 @@ final class TranslationKeys
             self::REVIEW_MODE_UNAVAILABLE,
             self::WORKFLOW_GENERAL_DISCUSSION,
             self::WORKFLOW_POST_COMMENT,
-            self::WORKFLOW_REPLY,
-            self::WORKFLOW_RESOLVE,
-            self::WORKFLOW_UNRESOLVE,
-            self::WORKFLOW_OUTDATED,
             self::WORKFLOW_COMMENT_PLACEHOLDER,
-            self::WORKFLOW_REPLY_PLACEHOLDER,
-            self::WORKFLOW_COMMENTS,
-            self::WORKFLOW_ADD_COMMENT,
-            self::WORKFLOW_NO_COMMENTS,
-            self::WORKFLOW_ROUND_LABEL,
             self::WORKFLOW_COMMENT_FAILED,
         ];
     }
@@ -292,16 +273,7 @@ final class TranslationKeys
             'reviewModeUnavailable' => self::REVIEW_MODE_UNAVAILABLE,
             'generalDiscussion' => self::WORKFLOW_GENERAL_DISCUSSION,
             'postComment' => self::WORKFLOW_POST_COMMENT,
-            'reply' => self::WORKFLOW_REPLY,
-            'resolve' => self::WORKFLOW_RESOLVE,
-            'unresolve' => self::WORKFLOW_UNRESOLVE,
-            'outdated' => self::WORKFLOW_OUTDATED,
             'commentPlaceholder' => self::WORKFLOW_COMMENT_PLACEHOLDER,
-            'replyPlaceholder' => self::WORKFLOW_REPLY_PLACEHOLDER,
-            'comments' => self::WORKFLOW_COMMENTS,
-            'addComment' => self::WORKFLOW_ADD_COMMENT,
-            'noComments' => self::WORKFLOW_NO_COMMENTS,
-            'roundLabel' => self::WORKFLOW_ROUND_LABEL,
             'commentFailed' => self::WORKFLOW_COMMENT_FAILED,
         ];
     }

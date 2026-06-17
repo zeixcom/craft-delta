@@ -102,7 +102,7 @@ class FieldDiffService extends Component implements NestedFieldDiffInterface
 
             return FieldDiff::make($field, true, $diffHtml, $differ->getStats($oldValue, $newValue));
         } catch (\Throwable $e) {
-            Craft::error("Differ threw for field '{$field->handle}': {$e->getMessage()}", __METHOD__);
+            Craft::error("Differ threw for field '{$field->handle}': {$e}", __METHOD__);
             return FieldDiff::make($field, true, DiffHtml::unableToDiffField(), ['additions' => 0, 'deletions' => 0]);
         }
     }

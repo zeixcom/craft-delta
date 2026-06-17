@@ -12,6 +12,8 @@ use Jfcherng\Diff\Factory\RendererFactory;
  */
 class HtmlDiffer implements DifferInterface
 {
+    use WordCountStats;
+
     public function __construct(
         private int $context = Differ::CONTEXT_ALL,
     ) {
@@ -42,9 +44,10 @@ class HtmlDiffer implements DifferInterface
     /** @return DiffStats */
     public function getStats(mixed $oldValue, mixed $newValue): array
     {
-        $old = str_word_count($this->htmlToText((string)($oldValue ?? '')));
-        $new = str_word_count($this->htmlToText((string)($newValue ?? '')));
-        return ['additions' => max(0, $new - $old), 'deletions' => max(0, $old - $new)];
+        return $this->wordCountStats(
+            $this->htmlToText((string)($oldValue ?? '')),
+            $this->htmlToText((string)($newValue ?? '')),
+        );
     }
 
     private function htmlToText(string $html): string
