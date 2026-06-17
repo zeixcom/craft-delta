@@ -39,7 +39,6 @@
     --delta-banner-border: #e5d59a;
     --delta-review-bar-bg: var(--gray-050, #f9f9f9);
     --delta-review-bar-border: var(--hairline-color, #ddd);
-    --delta-atom-btn-bg: var(--gray-100, #e8eaed);
     --delta-atom-btn-border: var(--hairline-color, #cfd5dc);
     --delta-text-muted: var(--medium-text-color);
     --delta-text-muted-fallback: #5d6f7d;
@@ -944,58 +943,66 @@ button.delta-field-header {
     flex: 1 1 auto;
 }
 
+/* Accept/reject = one segmented toggle, not two gray chips. The group is a
+   single hairline-bordered pill; segments are transparent at rest so it blends
+   into the field header, and tint green / red on hover or fill on selection. */
 .delta-atom-actions {
     display: inline-flex;
-    gap: var(--delta-radius);
+    gap: 0;
+    flex-shrink: 0;
+    border: 1px solid var(--delta-atom-btn-border);
+    border-radius: var(--delta-radius-md, 6px);
+    overflow: hidden;
 }
 
 .delta-atom-actions button.delta-atom-accept,
 .delta-atom-actions button.delta-atom-reject,
 .delta-atom-actions .btn.delta-atom-accept,
 .delta-atom-actions .btn.delta-atom-reject {
+    margin: 0;
     padding: var(--delta-radius-sm) 10px;
     font-size: var(--delta-font-md);
     line-height: 1.4;
-    border-radius: var(--delta-radius);
-    cursor: pointer;
-    transition: background-color var(--delta-transition-btn), color var(--delta-transition-btn), border-color var(--delta-transition-btn), box-shadow var(--delta-transition-btn);
     font-weight: 500;
+    cursor: pointer;
+    border: 0;
+    border-radius: 0;
     background-image: none;
-    background-color: var(--delta-atom-btn-bg);
-    border: 1px solid var(--delta-atom-btn-border);
-    color: var(--text-color, var(--delta-text-fallback));
+    background-color: transparent;
+    color: var(--delta-text-muted, var(--delta-text-fallback));
+    transition: background-color var(--delta-transition-btn), color var(--delta-transition-btn);
+}
+
+/* Hairline divider between the two segments. */
+.delta-atom-actions button.delta-atom-reject,
+.delta-atom-actions .btn.delta-atom-reject {
+    border-left: 1px solid var(--delta-atom-btn-border);
 }
 
 .delta-atom-actions button.delta-atom-accept:hover,
 .delta-atom-actions .btn.delta-atom-accept:hover {
     background-color: var(--delta-add-bg-word);
-    border-color: var(--delta-add-border);
     color: var(--delta-add-text);
 }
 
 .delta-atom-actions button.delta-atom-reject:hover,
 .delta-atom-actions .btn.delta-atom-reject:hover {
     background-color: var(--delta-del-bg-word);
-    border-color: var(--delta-del-border);
     color: var(--delta-del-text);
 }
 
 .delta-atom-actions button.delta-atom-accept.is-active,
 .delta-atom-actions .btn.delta-atom-accept.is-active {
     background-color: var(--delta-add-border);
-    border-color: var(--delta-add-border);
     color: #fff;
     font-weight: 700;
-    box-shadow: var(--delta-shadow-accept);
 }
 
 .delta-atom-actions button.delta-atom-reject.is-active,
 .delta-atom-actions .btn.delta-atom-reject.is-active {
     background-color: var(--delta-del-border);
-    border-color: var(--delta-del-border);
     color: #fff;
     font-weight: 700;
-    box-shadow: var(--delta-shadow-reject);
 }
 
 [data-atom-id].delta-atom-state-accepted {
