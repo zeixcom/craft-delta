@@ -92,6 +92,16 @@ class SmokeController extends Controller
         return $this->runScript('setup-workflow-groups.php');
     }
 
+    /**
+     * Hard-deletes leftover review draft entries (craftdelta_reviews.draftId)
+     * through Craft so the before-delete listener cancels any still-open review;
+     * tidies the demo without touching the review audit rows.
+     */
+    public function actionCleanupWorkflowDrafts(): int
+    {
+        return $this->runScript('cleanup-workflow-drafts.php');
+    }
+
     private function runScript(string $name): int
     {
         $script = self::SMOKE_DIR . '/' . $name;
