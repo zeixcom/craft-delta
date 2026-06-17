@@ -415,16 +415,6 @@ button.delta-field-header {
     letter-spacing: -0.01em;
 }
 
-.delta-field-header .delta-field-type {
-    font-size: var(--delta-font-xs);
-    font-family: var(--delta-font-mono);
-    color: var(--delta-gutter-text);
-    background: var(--delta-gutter);
-    padding: 1px 6px;
-    border-radius: var(--delta-radius-sm);
-    letter-spacing: 0.02em;
-}
-
 .delta-field-body {
     padding: 0;
     font-size: var(--delta-font-base);
@@ -901,7 +891,9 @@ button.delta-field-header {
 
 .delta-review-stepper[hidden],
 .delta-review-banner[hidden],
-.delta-atom-actions[hidden] {
+.delta-atom-actions[hidden],
+.delta-review-actions [data-action="apply"][hidden],
+.delta-review-cleanup[hidden] {
     display: none !important;
 }
 
@@ -1028,7 +1020,7 @@ button.delta-field-header {
 }
 
 [data-atom-id].delta-atom-state-pending {
-    border-left: var(--delta-accent) dotted var(--delta-border);
+    border-left: var(--delta-accent) solid var(--delta-border);
 }
 
 /* ─── Workflow toolbar ─── */
@@ -1307,7 +1299,9 @@ button.delta-field-header {
 .delta-review-header {
     position: sticky;
     top: 0;
-    z-index: 5;
+    /* Above the sticky tab section headers (z-index 5) so they scroll UNDER the
+       header instead of over it. */
+    z-index: 15;
     background: var(--delta-review-bar-bg);
     border: 1px solid var(--delta-review-bar-border);
     border-radius: var(--large-border-radius, 8px);

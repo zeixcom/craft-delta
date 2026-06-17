@@ -954,6 +954,13 @@
       if (applyBtn) {
         applyBtn.textContent = Craft.t('craft-delta', Craft.Delta._keys.applyCountAccepted, { count: accepted });
         applyBtn.disabled = accepted === 0;
+        // Reveal Apply + "delete source" only once something is accepted, so a
+        // fresh review isn't cluttered by a disabled "Apply 0" button.
+        applyBtn.hidden = accepted === 0;
+      }
+      const cleanupEl = document.querySelector('[data-review-cleanup]');
+      if (cleanupEl) {
+        cleanupEl.hidden = accepted === 0;
       }
     },
 

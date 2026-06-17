@@ -108,14 +108,17 @@
                   title="{{ deltaKeys.reviewKeyboardHint|t('craft-delta') }}">
                 {{ deltaKeys.decidedOfTotal|t('craft-delta', { decided: 0, total: 0 }) }}
             </span>
+            {# Apply + "delete source" only appear once ≥1 change is accepted —
+               JS (reviewMode.refreshProgress) reveals them. Hidden by default so
+               a fresh review shows just the quiet "decided" counter. #}
             {% if sourceRef starts with 'draft:' %}
-                <label class="delta-review-cleanup">
+                <label class="delta-review-cleanup" data-review-cleanup hidden>
                     <input type="checkbox" data-delete-source-draft>
                     {{ deltaKeys.alsoDeleteSourceDraft|t('craft-delta') }}
                 </label>
             {% endif %}
             <div class="delta-review-actions">
-                <button type="button" class="btn submit" data-action="apply" disabled>
+                <button type="button" class="btn submit" data-action="apply" hidden disabled>
                     {{ deltaKeys.applyCountAccepted|t('craft-delta', { count: 0 }) }}
                 </button>
                 {# In always-on mode "Cancel" would exit the default state and hide

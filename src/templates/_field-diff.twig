@@ -8,9 +8,6 @@
                 aria-controls="delta-field-{{ diff.fieldHandle }}">
             {% include 'craft-delta/_chevron' with { class: 'delta-field-chevron' } only %}
             <span class="delta-field-label">{{ diff.fieldLabel }}</span>
-            {% if diff.fieldType != 'attribute' %}
-                <span class="delta-field-type">{{ diff.fieldType|split('\\')|last }}</span>
-            {% endif %}
         </button>
         {% if diff.hasChanges and not (diff.fieldType ends with '\\Matrix') and reviewMode is defined and reviewMode %}
             {% include 'craft-delta/_atom-actions' with { labelled: true } only %}
