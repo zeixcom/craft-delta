@@ -76,6 +76,22 @@
                         Craft.Delta.reviewMode.checkForPriorState(reviewToolbar);
                     }
                 }
+
+                // Keep the sticky tab section headers flush below the sticky
+                // header: its height changes (buttons wrap, the apply row
+                // appears), so track it and expose it as --delta-review-sticky-top.
+                var header = root.querySelector('.delta-review-header');
+                if (header) {
+                    var syncStickyTop = function () {
+                        root.style.setProperty('--delta-review-sticky-top', header.offsetHeight + 'px');
+                    };
+                    syncStickyTop();
+                    if (window.ResizeObserver) {
+                        new ResizeObserver(syncStickyTop).observe(header);
+                    } else {
+                        window.addEventListener('resize', syncStickyTop);
+                    }
+                }
                 }
 
                 wire();

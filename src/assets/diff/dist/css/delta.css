@@ -1305,8 +1305,15 @@ button.delta-field-header {
     background: var(--delta-review-bar-bg);
     border: 1px solid var(--delta-review-bar-border);
     border-radius: var(--large-border-radius, 8px);
-    padding: 12px 16px;
-    margin-bottom: 20px;
+    padding: 9px 14px;
+    margin-bottom: 12px;
+}
+
+/* The tab section headers (TAB: CONTENT …) stick flush BELOW the sticky review
+   header. Its height is dynamic (verdict buttons wrap, the apply row appears),
+   so review.twig keeps --delta-review-sticky-top in sync via a ResizeObserver. */
+.delta-review-page .delta-tab-header {
+    top: var(--delta-review-sticky-top, 0px);
 }
 
 .delta-review-header-top {
@@ -1331,7 +1338,7 @@ button.delta-field-header {
     padding: 0;
     background: none;
     border-bottom: 0;
-    margin-top: 10px;
+    margin-top: 8px;
     /* Lay the role groups (reviewer/publish/author) on one wrapping row so a
        lone action like "Withdraw" doesn't drop to its own line. */
     display: flex;
@@ -1346,6 +1353,17 @@ button.delta-field-header {
 
 .delta-review-header .delta-workflow-actions {
     margin-top: 0;
+}
+
+/* Inside the sticky header the stepper is just another row — drop its own bar
+   chrome (background/border/sticky) and the extra padding so the header stays
+   compact and doesn't read as a bar-within-a-bar. */
+.delta-review-header .delta-review-stepper {
+    position: static;
+    padding: 8px 0 0;
+    margin-top: 0;
+    background: none;
+    border-bottom: 0;
 }
 
 /* Discussion is a full-width section under the diff, not a toolbar footnote. */
