@@ -60,9 +60,9 @@ Open any entry that has at least one revision (or a published draft). A **Compar
 
 ### Review Mode
 
-Available when comparing a draft or revision against the **Current** entry, with the *Enable Review Mode* setting on. Requires the **Apply review-mode changes** permission.
+Review Mode runs on the dedicated **review page** (`/admin/delta-review?reviewId=N`), reached by submitting a draft for review (see [Submit-for-review workflow](#submit-for-review-workflow)) — the diff slideout and the `delta-compare` full page are diff-only. It requires the **Apply review-mode changes** permission and the *Enable Review Mode* setting.
 
-Click **Start Review**. Each changed field gains **✓ Accept** / **✗ Reject** buttons; Matrix blocks get them per block. Use **J / K** to step between changes and **A / R** to decide, then click **Apply N accepted** to publish the accepted changes to the entry as a new revision — rejected changes are dropped.
+For a reviewer who can apply, the review page auto-enters Review Mode: each changed field gains **✓ Accept** / **✗ Reject** controls, and Matrix blocks get them per block. Use **J / K** to step between changes and **A / R** to decide, then click **Apply N accepted** (in the header, beside a live "decided" counter) to publish the accepted changes as a new revision — rejected changes are dropped. With Review Mode off, the page shows verdicts and comments only.
 
 When the source is a draft, an **Also delete source draft** checkbox appears next to Apply:
 
@@ -115,7 +115,7 @@ Plugin permissions live under **Settings → Users → User Groups → Permissio
 |---|---|---|
 | Submit drafts for review | `craftdelta-submitDraft` | The **Submit for review** button on the holder's own drafts. |
 | Review submitted drafts | `craftdelta-reviewDraft` | Being assignable as a reviewer, plus the Approve / Decline verdicts. |
-| Apply review-mode changes | `craftdelta-applyReview` | Entering Review Mode and publishing — the per-change accept/reject (standalone Review Mode and on the review page) **and the wholesale Publish / Schedule of an approved review**. Native entry save rights alone are not enough. |
+| Apply review-mode changes | `craftdelta-applyReview` | Entering Review Mode and publishing — the per-change accept/reject on the review page **and the wholesale Publish / Schedule of an approved review**. Native entry save rights alone are not enough. |
 
 Section access is **not** handled by the plugin. Give each role the native Craft section permissions for the sections they work in, for example:
 
@@ -135,7 +135,7 @@ Users with none of the plugin permissions still see the read-only diff. Admins h
 | Diff Context Lines | 3 | Unchanged lines shown around a change (0–20). |
 | Max Field Length | 50,000 | Character count above which a field falls back to a simplified diff (min 1,000). |
 | Show Unchanged Fields | Off | Whether unchanged fields are shown by default. |
-| Enable Review Mode | On | Show **Start Review** and the accept/reject/apply controls. Off = read-only diff. |
+| Enable Review Mode | On | Show the per-change accept/reject/apply controls on the review page. Off = the review page shows verdicts + comments only. |
 | Enable Workflow | On | Show the submit-for-review workflow (and its endpoints). Off = v1.1 behavior. |
 | Enable Preview | On | Show the live draft preview beside the diff (sections with front-end URLs). Off drops the pane for everyone; reviewers can also hide it per-user. |
 | Approval policy | Any one reviewer | How many approvals move a review to **Approved**: any one reviewer, all assigned reviewers, or at least a set number (clamped to the number assigned). |
