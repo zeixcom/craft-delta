@@ -8,7 +8,7 @@ Major release: adds an inline **Review Mode** and a multi-reviewer **submit-for-
 
 **Review Mode**
 
-- Accept or reject individual changes from inside the diff, then publish only the accepted changes to the canonical entry as a new revision. Per-field and per-Matrix-block granularity, with block reordering as its own decision.
+- Accept or reject individual changes on the review page, then publish only the accepted changes to the canonical entry as a new revision. Per-field and per-Matrix-block granularity, with block reordering as its own decision.
 - Keyboard-driven stepper (`J`/`K` to navigate, `A`/`R` to decide). Decisions persist in browser `localStorage` and resume across restarts; stale-state detection against the canonical entry's `dateUpdated` guards against mid-review edits. The cursor highlight only appears once you start navigating, so the diff isn't pre-highlighted on load.
 - An **Also delete source draft** option (off by default) when the source is a draft — publishes, then deletes the draft. Left unchecked, the draft persists as a queue of the changes that weren't accepted.
 - `MergeService` owns all write logic — atom validation against a fresh diff, field/Matrix apply, a single `saveElement` followed by `applyDraft` for atomic publication.
