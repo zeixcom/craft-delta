@@ -107,6 +107,7 @@ return [
     'error.onlyAssignedReviewerMayApply' => 'Alleen de toegewezen beoordelaar mag dit ingediende concept toepassen.',
     'error.couldNotApplyChanges' => 'De wijzigingen konden niet worden toegepast. Laad de vergelijking opnieuw en probeer het opnieuw.',
     'error.reviewWorkflowDisabled' => 'De beoordelingsworkflow is uitgeschakeld.',
+    'error.reviewModeDisabled' => 'De beoordelingsmodus is uitgeschakeld.',
     'error.draftNotFound' => 'Concept niet gevonden.',
     'error.noPermissionSubmitSection' => 'U heeft geen rechten om concepten in te dienen voor deze sectie.',
     'error.workflowNotFound' => 'Workflow niet gevonden.',

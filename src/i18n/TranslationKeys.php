@@ -116,6 +116,7 @@ final class TranslationKeys
     public const ONLY_ASSIGNED_REVIEWER_MAY_APPLY = 'error.onlyAssignedReviewerMayApply';
     public const COULD_NOT_APPLY_CHANGES = 'error.couldNotApplyChanges';
     public const REVIEW_WORKFLOW_DISABLED = 'error.reviewWorkflowDisabled';
+    public const REVIEW_MODE_DISABLED = 'error.reviewModeDisabled';
     public const DRAFT_NOT_FOUND = 'error.draftNotFound';
     public const NO_PERMISSION_SUBMIT_SECTION = 'error.noPermissionSubmitSection';
     public const WORKFLOW_NOT_FOUND = 'error.workflowNotFound';

@@ -107,6 +107,7 @@ return [
     'error.onlyAssignedReviewerMayApply' => 'Seul le réviseur assigné peut appliquer ce brouillon soumis.',
     'error.couldNotApplyChanges' => 'Impossible d\'appliquer les modifications. Veuillez recharger la comparaison et réessayer.',
     'error.reviewWorkflowDisabled' => 'Le flux de révision est désactivé.',
+    'error.reviewModeDisabled' => 'Le mode de révision est désactivé.',
     'error.draftNotFound' => 'Brouillon introuvable.',
     'error.noPermissionSubmitSection' => 'Vous n\'avez pas la permission de soumettre des brouillons pour cette section.',
     'error.workflowNotFound' => 'Flux de travail introuvable.',

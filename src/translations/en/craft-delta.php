@@ -107,6 +107,7 @@ return [
     'error.onlyAssignedReviewerMayApply' => 'Only the assigned reviewer may apply this submitted draft.',
     'error.couldNotApplyChanges' => 'Could not apply the changes. Please reload the diff and try again.',
     'error.reviewWorkflowDisabled' => 'The review workflow is disabled.',
+    'error.reviewModeDisabled' => 'The review mode is disabled.',
     'error.draftNotFound' => 'Draft not found.',
     'error.noPermissionSubmitSection' => 'You do not have permission to submit drafts for this section.',
     'error.workflowNotFound' => 'Workflow not found.',

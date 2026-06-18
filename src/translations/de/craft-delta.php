@@ -107,6 +107,7 @@ return [
     'error.onlyAssignedReviewerMayApply' => 'Nur die zugewiesene Prüfer:in darf diesen eingereichten Entwurf anwenden.',
     'error.couldNotApplyChanges' => 'Die Änderungen konnten nicht angewendet werden. Bitte laden Sie den Vergleich neu und versuchen Sie es erneut.',
     'error.reviewWorkflowDisabled' => 'Der Überprüfungs-Workflow ist deaktiviert.',
+    'error.reviewModeDisabled' => 'Der Überprüfungs-Modus ist deaktiviert.',
     'error.draftNotFound' => 'Entwurf nicht gefunden.',
     'error.noPermissionSubmitSection' => 'Sie haben keine Berechtigung, Entwürfe für diese Sektion einzureichen.',
     'error.workflowNotFound' => 'Workflow nicht gefunden.',

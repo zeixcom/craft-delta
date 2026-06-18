@@ -107,6 +107,7 @@ return [
     'error.onlyAssignedReviewerMayApply' => 'Tylko przypisany recenzent może zastosować ten przesłany szkic.',
     'error.couldNotApplyChanges' => 'Nie udało się zastosować zmian. Załaduj porównanie ponownie i spróbuj jeszcze raz.',
     'error.reviewWorkflowDisabled' => 'Przepływ przeglądu jest wyłączony.',
+    'error.reviewModeDisabled' => 'Tryb przeglądu jest wyłączony.',
     'error.draftNotFound' => 'Nie znaleziono szkicu.',
     'error.noPermissionSubmitSection' => 'Nie masz uprawnień do przesyłania szkiców w tej sekcji.',
     'error.workflowNotFound' => 'Nie znaleziono przepływu pracy.',

@@ -115,12 +115,12 @@ Plugin permissions live under **Settings → Users → User Groups → Permissio
 |---|---|---|
 | Submit drafts for review | `craftdelta-submitDraft` | The **Submit for review** button on the holder's own drafts. |
 | Review submitted drafts | `craftdelta-reviewDraft` | Being assignable as a reviewer, plus the Approve / Decline verdicts. |
-| Apply review-mode changes | `craftdelta-applyReview` | Entering Review Mode and publishing accepted changes — both standalone Review Mode and the per-change accept/reject on the review page. |
+| Apply review-mode changes | `craftdelta-applyReview` | Entering Review Mode and publishing — the per-change accept/reject (standalone Review Mode and on the review page) **and the wholesale Publish / Schedule of an approved review**. Native entry save rights alone are not enough. |
 
 Section access is **not** handled by the plugin. Give each role the native Craft section permissions for the sections they work in, for example:
 
 - **Authors** — View / Create / Save entries.
-- **Reviewers** — View entries, **View other authors' drafts** (`viewPeerEntryDrafts`) so they can open an assigned draft, and Save entries (including other authors') to publish them.
+- **Reviewers** — View entries, **View other authors' drafts** (`viewPeerEntryDrafts`) so they can open an assigned draft, and Save entries (including other authors') to publish them. A reviewer who publishes also needs the **Apply review-mode changes** plugin permission — without it they can Approve but not Publish.
 
 The reviewer dropdown only lists users who hold **Review submitted drafts** *and* can view peer drafts in the draft's section, so an assignee can always open what they're given.
 

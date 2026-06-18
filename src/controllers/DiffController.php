@@ -170,6 +170,12 @@ class DiffController extends Controller
         $this->requireCpRequest();
         $this->requirePostRequest();
 
+        // Review Mode kill switch: the read-only diff still renders when off, but
+        // applying changes is gone — mirrors WorkflowController's enableWorkflow gate.
+        if (!Delta::getInstance()->getSettings()->enableReviewMode) {
+            throw new NotFoundHttpException(Craft::t('craft-delta', TranslationKeys::REVIEW_MODE_DISABLED));
+        }
+
         $request = Craft::$app->getRequest();
         $acceptedAtoms = $request->getBodyParam('acceptedAtoms');
         if (!is_array($acceptedAtoms) || $acceptedAtoms === []) {

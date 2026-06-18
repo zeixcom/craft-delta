@@ -107,6 +107,7 @@ return [
     'error.onlyAssignedReviewerMayApply' => 'Apenas o revisor atribuído pode aplicar este rascunho submetido.',
     'error.couldNotApplyChanges' => 'Não foi possível aplicar as alterações. Por favor, recarregue a comparação e tente novamente.',
     'error.reviewWorkflowDisabled' => 'O fluxo de revisão está desativado.',
+    'error.reviewModeDisabled' => 'O modo de revisão está desativado.',
     'error.draftNotFound' => 'Rascunho não encontrado.',
     'error.noPermissionSubmitSection' => 'Não tem permissão para submeter rascunhos nesta secção.',
     'error.workflowNotFound' => 'Fluxo de trabalho não encontrado.',

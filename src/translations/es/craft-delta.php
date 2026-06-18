@@ -107,6 +107,7 @@ return [
     'error.onlyAssignedReviewerMayApply' => 'Solo el revisor asignado puede aplicar este borrador enviado.',
     'error.couldNotApplyChanges' => 'No se pudieron aplicar los cambios. Por favor, recargue la comparación e inténtelo de nuevo.',
     'error.reviewWorkflowDisabled' => 'El flujo de revisión está desactivado.',
+    'error.reviewModeDisabled' => 'El modo de revisión está desactivado.',
     'error.draftNotFound' => 'Borrador no encontrado.',
     'error.noPermissionSubmitSection' => 'No tiene permiso para enviar borradores en esta sección.',
     'error.workflowNotFound' => 'Flujo de trabajo no encontrado.',

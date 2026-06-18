@@ -107,6 +107,7 @@ return [
     'error.onlyAssignedReviewerMayApply' => 'Solo il revisore assegnato può applicare questa bozza inviata.',
     'error.couldNotApplyChanges' => 'Impossibile applicare le modifiche. Ricarica il confronto e riprova.',
     'error.reviewWorkflowDisabled' => 'Il flusso di revisione è disabilitato.',
+    'error.reviewModeDisabled' => 'La modalità di revisione è disabilitata.',
     'error.draftNotFound' => 'Bozza non trovata.',
     'error.noPermissionSubmitSection' => 'Non hai il permesso di inviare bozze per questa sezione.',
     'error.workflowNotFound' => 'Flusso di lavoro non trovato.',
