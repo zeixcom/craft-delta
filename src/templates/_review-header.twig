@@ -139,7 +139,7 @@
         </div>
 
         <div class="delta-review-stepper" data-review-stepper hidden>
-            <span class="delta-review-progress" data-review-progress
+            <span class="delta-review-progress" data-review-progress role="status" aria-live="polite"
                   title="{{ deltaKeys.reviewKeyboardHint|t('craft-delta') }}">
                 {{ deltaKeys.decidedOfTotal|t('craft-delta', { decided: 0, total: 0 }) }}
             </span>

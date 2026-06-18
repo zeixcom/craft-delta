@@ -410,9 +410,15 @@ class WorkflowService extends Component
 
         if (ReviewRecord::updateAll(
             ['appliedAt' => $now, 'state' => Review::STATE_PUBLISHED, 'scheduledFor' => null, 'dateUpdated' => $now],
-            ['id' => $review->id, 'appliedAt' => null],
+            // The claim must also assert the review is still APPROVED. decline/
+            // withdraw move state terminal WITHOUT setting appliedAt, so an
+            // appliedAt-only predicate could publish a review that was concluded
+            // between the caller's state check and this claim — a TOCTOU on the
+            // scheduled path (job reads state=approved, a decline lands, the claim
+            // would otherwise still succeed). Both callers hold state=approved.
+            ['id' => $review->id, 'appliedAt' => null, 'state' => Review::STATE_APPROVED],
         ) === 0) {
-            return; // already applied by another process
+            return; // already applied, or no longer approved
         }
 
         $draft = $this->getDraftEntry($review->draftId);

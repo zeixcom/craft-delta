@@ -897,11 +897,11 @@
       // Filter to skip nested atom buttons inside Matrix sub-fields.
       wrapper.querySelectorAll('.delta-atom-accept, .delta-atom-reject').forEach(function (btn) {
         if (btn.closest('[data-atom-id]') !== wrapper) return;
-        if (btn.classList.contains('delta-atom-accept')) {
-          btn.classList.toggle('is-active', decision === 'accepted');
-        } else {
-          btn.classList.toggle('is-active', decision === 'rejected');
-        }
+        const active = btn.classList.contains('delta-atom-accept')
+          ? decision === 'accepted'
+          : decision === 'rejected';
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
     },
 
@@ -916,6 +916,7 @@
       });
       document.querySelectorAll('.delta-atom-accept.is-active, .delta-atom-reject.is-active').forEach(function (btn) {
         btn.classList.remove('is-active');
+        btn.setAttribute('aria-pressed', 'false');
       });
     },
 

@@ -6,6 +6,6 @@
 #}
 {% set labelled = labelled ?? false %}
 <span class="delta-atom-actions" hidden data-atom-actions>
-    <button type="button" class="btn small delta-atom-accept" data-action="accept">✓{% if labelled %} {{ deltaKeys.accept|t('craft-delta') }}{% endif %}</button>
-    <button type="button" class="btn small delta-atom-reject" data-action="reject">✗{% if labelled %} {{ deltaKeys.reject|t('craft-delta') }}{% endif %}</button>
+    <button type="button" class="btn small delta-atom-accept" data-action="accept" aria-pressed="false">✓{% if labelled %} {{ deltaKeys.accept|t('craft-delta') }}{% endif %}</button>
+    <button type="button" class="btn small delta-atom-reject" data-action="reject" aria-pressed="false">✗{% if labelled %} {{ deltaKeys.reject|t('craft-delta') }}{% endif %}</button>
 </span>
