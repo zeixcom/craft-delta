@@ -8,6 +8,7 @@ use craft\base\Component;
 use craft\elements\db\EntryQuery;
 use craft\elements\ElementCollection;
 use craft\elements\Entry;
+use craft\helpers\StringHelper;
 use zeixcom\craftdelta\Delta;
 use zeixcom\craftdelta\enums\AtomKind;
 use zeixcom\craftdelta\enums\DiffChangeType;
@@ -156,21 +157,23 @@ class MergeService extends Component
 
     /**
      * Build the Craft 5 Matrix setFieldValue payload
-     * (['entries' => [<key> => {…}], 'sortOrder' => […]]) from an ordered list
-     * of surviving blocks.
+     * (['entries' => ['uid:<uid>' => {…}], 'sortOrder' => [<uid>, …]]) from an
+     * ordered list of surviving blocks.
      *
-     * Existing draft clones are keyed `uid:<draftEntryUid>` so Craft patches
-     * that exact entry; brand-new blocks (from accepted `added` atoms) use
-     * new1/new2… so Craft assigns fresh element ids + canonical UIDs.
+     * EVERY block is keyed `uid:<uid>` — existing draft clones reuse their draft
+     * entry UID so Craft patches that exact entry; brand-new blocks (from accepted
+     * `added` atoms) get a freshly generated UUID, exactly as the CP posts a newly
+     * added block.
      *
-     * IMPORTANT: Craft chooses UID-mode vs ID-mode by inspecting ONLY the FIRST
-     * element of `entries`/`sortOrder` (Matrix::normalizeValue → array_key_first()
-     * / reset()). If a brand-new block ("newN") is emitted first, detection falls
-     * back to ID-mode, the "uid:" prefixes are never stripped, and every existing
-     * block is silently DROPPED. So we insert existing ("uid:…") entries into the
-     * map BEFORE the new ones — keeping the first key UID-shaped whenever any
-     * existing block survives. Display order is unaffected: Craft reads it from
-     * `sortOrder`, which we keep in the true ordered sequence.
+     * Why uniform UID keying matters: Craft picks UID-mode vs ID-mode by inspecting
+     * only the FIRST key (Matrix::_createEntriesFromSerializedData → array_key_first
+     * starts_with 'uid:'). In UID-mode it assigns each new entry the UID from its
+     * key. The old approach keyed new blocks `newN`; whenever an existing `uid:`
+     * block was also present the payload was UID-mode, so Craft set the new entry's
+     * uid to the literal string "newN" (not a valid UUID) and the block was silently
+     * DROPPED — accepting an `added` block never landed it on canonical. Generating
+     * a real UUID per new block removes that footgun entirely; display order still
+     * comes from `sortOrder`.
      *
      * @param list<OrderedMatrixBlock> $ordered
      * @param MatrixCanonicalDraftMap $currentByCanonicalUid
@@ -180,33 +183,15 @@ class MergeService extends Component
     {
         $entries = [];
         $sortOrder = [];
-        $newCount = 0;
 
         foreach ($ordered as $block) {
             $existing = $currentByCanonicalUid[$block['uid']] ?? null;
-            if ($existing !== null) {
-                $key = 'uid:' . $existing['draftEntryUid'];
-                $sortOrder[] = $existing['draftEntryUid'];
-                $entries[$key] = $block['payload'];
-            } else {
-                $key = 'new' . ++$newCount;
-                $sortOrder[] = $key;
-                $entries[$key] = $block['payload'];
-            }
+            $uid = $existing !== null ? $existing['draftEntryUid'] : StringHelper::UUID();
+            $sortOrder[] = $uid;
+            $entries['uid:' . $uid] = $block['payload'];
         }
 
-        // Re-key so existing uid:… entries precede newN keys (Craft Matrix detection).
-        $existingEntries = [];
-        $newEntries = [];
-        foreach ($entries as $key => $payload) {
-            if (str_starts_with($key, 'uid:')) {
-                $existingEntries[$key] = $payload;
-            } else {
-                $newEntries[$key] = $payload;
-            }
-        }
-
-        return ['entries' => $existingEntries + $newEntries, 'sortOrder' => $sortOrder];
+        return ['entries' => $entries, 'sortOrder' => $sortOrder];
     }
 
     /** @param string[] $fieldAtoms "field:<handle>" atom keys */

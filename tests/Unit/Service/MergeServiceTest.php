@@ -260,7 +260,9 @@ class MergeServiceTest extends TestCase
         $this->assertSame(['B', 'A'], array_column($result, 'uid'));
     }
 
-    public function testBuildMatrixSetValueExistingFirstKeepsUidMode(): void
+    private const UUID_RE = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
+
+    public function testBuildMatrixSetValueKeysExistingByDraftUid(): void
     {
         $ordered = [
             ['uid' => 'CANON', 'payload' => ['type' => 'text']],
@@ -272,22 +274,26 @@ class MergeServiceTest extends TestCase
 
         $value = MergeService::buildMatrixSetValue($ordered, $currentByCanonicalUid);
 
+        // Existing block keyed by its draft entry uid; new block gets a fresh UUID.
         $this->assertArrayHasKey('uid:draft-uid-1', $value['entries']);
-        $this->assertArrayHasKey('new1', $value['entries']);
-        $this->assertSame(['draft-uid-1', 'new1'], $value['sortOrder']);
-        // First entries key is UID-shaped → Craft stays in UID mode.
-        $this->assertStringStartsWith('uid:', array_key_first($value['entries']));
+        $this->assertSame('draft-uid-1', $value['sortOrder'][0]);
+        $this->assertMatchesRegularExpression(self::UUID_RE, $value['sortOrder'][1]);
+        $this->assertArrayHasKey('uid:' . $value['sortOrder'][1], $value['entries']);
+        // Every key is uid:-shaped → Craft stays in UID mode and never drops a block.
+        foreach (array_keys($value['entries']) as $key) {
+            $this->assertStringStartsWith('uid:', $key);
+        }
     }
 
-    public function testBuildMatrixSetValueNewBlockFirstStillKeepsExistingFirstInMap(): void
+    public function testBuildMatrixSetValueNewBlockGetsRealUuidNotNewN(): void
     {
-        // Regression for the silent data-loss bug: a NEW block sorts FIRST.
-        // Craft only inspects the first entries key to pick UID vs ID mode, so
-        // the existing block MUST still be the first key in the entries map even
-        // though it is second in display order.
+        // Regression for the silent data-loss bug: an accepted `added` block used
+        // to be keyed "newN", which Craft assigned as the literal uid in UID-mode
+        // (when any existing block was present) and then DROPPED. It must now get a
+        // real UUID so Craft persists it. Display order from the ordered list.
         $ordered = [
             ['uid' => 'NEWBLK', 'payload' => ['type' => 'text']],   // displayed first
-            ['uid' => 'CANON', 'payload' => ['type' => 'text']],    // existing, displayed second
+            ['uid' => 'CANON', 'payload' => ['type' => 'text']],    // existing, second
         ];
         $currentByCanonicalUid = [
             'CANON' => ['draftEntryUid' => 'draft-uid-1'],
@@ -295,17 +301,16 @@ class MergeServiceTest extends TestCase
 
         $value = MergeService::buildMatrixSetValue($ordered, $currentByCanonicalUid);
 
-        $this->assertSame(['new1', 'draft-uid-1'], $value['sortOrder']);
-        // But the entries MAP leads with the UID-shaped key so Craft keeps UID
-        // mode and does not drop the existing block.
-        $this->assertStringStartsWith('uid:', array_key_first($value['entries']));
-        $this->assertSame(
-            ['uid:draft-uid-1', 'new1'],
-            array_keys($value['entries']),
-        );
+        // No "newN" keys anywhere — all uid:-shaped.
+        foreach (array_keys($value['entries']) as $key) {
+            $this->assertStringStartsWith('uid:', $key);
+            $this->assertStringNotContainsString('new', $key);
+        }
+        $this->assertMatchesRegularExpression(self::UUID_RE, $value['sortOrder'][0]);
+        $this->assertSame('draft-uid-1', $value['sortOrder'][1]);
     }
 
-    public function testBuildMatrixSetValueAllNewBlocks(): void
+    public function testBuildMatrixSetValueAllNewBlocksGetDistinctUuids(): void
     {
         $ordered = [
             ['uid' => 'N1', 'payload' => ['type' => 'text']],
@@ -314,8 +319,13 @@ class MergeServiceTest extends TestCase
 
         $value = MergeService::buildMatrixSetValue($ordered, []);
 
-        $this->assertSame(['new1', 'new2'], array_keys($value['entries']));
-        $this->assertSame(['new1', 'new2'], $value['sortOrder']);
+        $this->assertCount(2, $value['entries']);
+        $this->assertCount(2, $value['sortOrder']);
+        foreach ($value['sortOrder'] as $uid) {
+            $this->assertMatchesRegularExpression(self::UUID_RE, $uid);
+            $this->assertArrayHasKey('uid:' . $uid, $value['entries']);
+        }
+        $this->assertNotSame($value['sortOrder'][0], $value['sortOrder'][1]);
     }
 
     private function fieldDiff(array $config): FieldDiff
