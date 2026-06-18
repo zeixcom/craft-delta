@@ -132,6 +132,7 @@ Users with none of the plugin permissions still see the read-only diff. Admins h
 | Show Unchanged Fields | Off | Whether unchanged fields are shown by default. |
 | Enable Review Mode | On | Show **Start Review** and the accept/reject/apply controls. Off = read-only diff. |
 | Enable Workflow | On | Show the submit-for-review workflow (and its endpoints). Off = v1.1 behavior. |
+| Enable Preview | On | Show the live draft preview beside the diff (sections with front-end URLs). Off drops the pane for everyone; reviewers can also hide it per-user. |
 
 ## Extending
 

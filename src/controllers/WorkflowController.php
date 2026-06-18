@@ -105,6 +105,10 @@ class WorkflowController extends Controller
             $result = $plugin->diff->compare($canonical, $draft);
         }
 
+        $previewUrl = ($draft instanceof Entry && $plugin->getSettings()->enablePreview)
+            ? $this->draftPreviewUrl($canonical, $draft, $user)
+            : null;
+
         return $this->renderTemplate('craft-delta/review', [
             'title' => $canonical->title ?? ('#' . $review->canonicalEntryId),
             'review' => $review,
@@ -118,6 +122,7 @@ class WorkflowController extends Controller
             // isn't a wall of "no changes" rows; a toggle reveals unchanged fields.
             'showUnchanged' => $plugin->getSettings()->defaultShowUnchanged,
             'entryUrl' => $canonical->getCpEditUrl(),
+            'previewUrl' => $previewUrl,
             'isReviewer' => $plugin->workflow->canReview($user, $review),
             'entryId' => $review->canonicalEntryId,
             'siteId' => $canonical->siteId,
@@ -125,6 +130,34 @@ class WorkflowController extends Controller
             'canonicalUpdatedAt' => $canonical->dateUpdated?->format(\DateTimeInterface::ATOM),
             'sourceUpdatedAt' => $draft?->dateUpdated?->format(\DateTimeInterface::ATOM),
         ]);
+    }
+
+    /**
+     * A tokenized front-end URL that renders the DRAFT (not the live canonical),
+     * for the side-by-side review preview — null when the section has no URLs.
+     * The token is minted directly because PreviewController::actionPreview only
+     * requires a valid token, not the session authorization that minting through
+     * the CP's preview/create-token action would.
+     */
+    private function draftPreviewUrl(Entry $canonical, Entry $draft, User $user): ?string
+    {
+        $base = $draft->getUrl();
+        if ($base === null) {
+            return null;
+        }
+
+        $token = Craft::$app->getTokens()->createPreviewToken([
+            'preview/preview', [
+                'elementType' => Entry::class,
+                'canonicalId' => $canonical->id,
+                'siteId' => $canonical->siteId,
+                'draftId' => $draft->draftId,
+                'revisionId' => null,
+                'userId' => $user->id,
+            ],
+        ]);
+
+        return $token !== false ? UrlHelper::urlWithToken($base, $token) : null;
     }
 
     public function actionSubmit(): Response

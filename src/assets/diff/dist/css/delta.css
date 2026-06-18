@@ -1001,12 +1001,10 @@ button.delta-field-header {
 }
 
 [data-atom-id].delta-atom-state-accepted {
-    border-left: var(--delta-accent) solid var(--delta-add-border);
     background: var(--delta-add-bg);
 }
 
 [data-atom-id].delta-atom-state-rejected {
-    border-left: var(--delta-accent) solid var(--delta-del-border);
     background: var(--delta-del-bg);
 }
 
@@ -1019,10 +1017,6 @@ button.delta-field-header {
 [data-atom-id].delta-atom-stepper-focus {
     outline: 2px solid var(--delta-link);
     outline-offset: 2px;
-}
-
-[data-atom-id].delta-atom-state-pending {
-    border-left: var(--delta-accent) solid var(--delta-border);
 }
 
 /* ─── Workflow toolbar ─── */
@@ -1326,7 +1320,6 @@ button.delta-field-header {
 .delta-comment-replies {
     margin-left: 16px;
     padding-left: 12px;
-    border-left: 2px solid var(--hairline-color, #e3e5e8);
 }
 
 .delta-field-headerbar .delta-comment-trigger,
@@ -1355,10 +1348,81 @@ button.delta-field-header {
     top: var(--delta-review-sticky-top, 0px);
 }
 
+/* View-controls row above the diff: changed-only toggle + show-preview button. */
 .delta-review-filter {
-    display: inline-flex;
+    display: flex;
     align-items: center;
+    gap: 12px;
     margin-bottom: 12px;
+}
+
+/* The show-preview button is a .btn, whose display beats the [hidden] attribute —
+   restore [hidden] with a more specific selector so it actually collapses. */
+[data-preview-show][hidden] {
+    display: none;
+}
+
+/* Live draft preview beside the diff. Two columns when the entry has a URL;
+   the diff column gets minmax(0,…) so wide diff content can't blow out the grid. */
+.delta-review-layout--split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 42%);
+    gap: 20px;
+    align-items: start;
+}
+
+/* Stick the preview below the sticky header (--delta-review-sticky-top is kept
+   in sync by review.twig) so it stays in view while scrolling the diff. The bar
+   sits above a flex-filling iframe. */
+.delta-review-preview {
+    position: sticky;
+    top: var(--delta-review-sticky-top, 0px);
+    height: calc(100vh - var(--delta-review-sticky-top, 0px) - 24px);
+    min-height: 420px;
+    display: flex;
+    flex-direction: column;
+}
+
+.delta-review-preview-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.delta-review-preview-label {
+    font-size: var(--delta-font-md);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--delta-text-muted, var(--delta-text-muted-fallback));
+}
+
+.delta-review-preview-actions {
+    display: inline-flex;
+    gap: 6px;
+}
+
+.delta-review-preview-frame {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    border: 1px solid var(--delta-review-bar-border);
+    border-radius: var(--large-border-radius, 8px);
+    background: #fff;
+}
+
+/* A side-by-side split gets cramped on narrow viewports — stack instead. */
+@media (max-width: 1100px) {
+    .delta-review-layout--split {
+        grid-template-columns: 1fr;
+    }
+
+    .delta-review-preview {
+        position: static;
+        height: 70vh;
+    }
 }
 
 /* Marks a published/declined/withdrawn review unmistakable instead of a misleading empty diff. */

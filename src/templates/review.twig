@@ -60,14 +60,38 @@
             } %}
 
             {% set startChangedOnly = not (showUnchanged is defined and showUnchanged) %}
-            <div class="delta-review-body{{ startChangedOnly ? ' delta-changed-only' : '' }}" data-review-body>
-                {% if result.hasChanges() %}
-                    <label class="delta-filter-toggle delta-review-filter">
-                        <input type="checkbox" data-review-changed-only{{ startChangedOnly ? ' checked' : '' }}>
-                        {{ deltaKeys.changedOnly|t('craft-delta') }}
-                    </label>
+            {% set hasPreview = previewUrl is defined and previewUrl %}
+            <div class="delta-review-layout{{ hasPreview ? ' delta-review-layout--split' : '' }}" data-review-layout>
+                <div class="delta-review-body{{ startChangedOnly ? ' delta-changed-only' : '' }}" data-review-body>
+                    {% if result.hasChanges() or hasPreview %}
+                        <div class="delta-review-filter">
+                            {% if result.hasChanges() %}
+                                <label class="delta-filter-toggle">
+                                    <input type="checkbox" data-review-changed-only{{ startChangedOnly ? ' checked' : '' }}>
+                                    {{ deltaKeys.changedOnly|t('craft-delta') }}
+                                </label>
+                            {% endif %}
+                            {% if hasPreview %}
+                                <button type="button" class="btn small" data-preview-show hidden>{{ deltaKeys.showPreview|t('craft-delta') }}</button>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    {% include 'craft-delta/_diff-fields' with { result: result, reviewMode: reviewMode } %}
+                </div>
+                {% if hasPreview %}
+                    {# Live draft preview (tokenized front-end render) beside the diff,
+                       so reviewers see the rendered page, not only field changes. #}
+                    <aside class="delta-review-preview" data-review-preview>
+                        <div class="delta-review-preview-bar">
+                            <span class="delta-review-preview-label">{{ 'Preview'|t('app') }}</span>
+                            <span class="delta-review-preview-actions">
+                                <a class="btn small" href="{{ previewUrl }}" target="_blank" rel="noopener">{{ deltaKeys.openInWindow|t('craft-delta') }}</a>
+                                <button type="button" class="btn small" data-preview-hide aria-label="{{ deltaKeys.hidePreview|t('craft-delta') }}" title="{{ deltaKeys.hidePreview|t('craft-delta') }}">&times;</button>
+                            </span>
+                        </div>
+                        <iframe class="delta-review-preview-frame" src="{{ previewUrl }}" title="{{ 'Preview'|t('app') }}"></iframe>
+                    </aside>
                 {% endif %}
-                {% include 'craft-delta/_diff-fields' with { result: result, reviewMode: reviewMode } %}
             </div>
 
             {% include 'craft-delta/_review-discussion' with { workflow: workflow, isReviewer: isReviewer } %}
@@ -126,6 +150,26 @@
                     changedOnlyCb.addEventListener('change', function () {
                         reviewBody.classList.toggle('delta-changed-only', changedOnlyCb.checked);
                     });
+                }
+
+                // Preview pane: per-user hide/show, remembered across reviews in
+                // localStorage. "Open in new window" is a plain target=_blank link
+                // (full desktop width), so it needs no JS.
+                var layout = root.querySelector('[data-review-layout]');
+                var previewPane = root.querySelector('[data-review-preview]');
+                if (layout && previewPane) {
+                    var showBtn = root.querySelector('[data-preview-show]');
+                    var hideBtn = previewPane.querySelector('[data-preview-hide]');
+                    var KEY = 'deltaReviewPreviewHidden';
+                    var setHidden = function (hidden) {
+                        layout.classList.toggle('delta-review-layout--split', !hidden);
+                        previewPane.hidden = hidden;
+                        if (showBtn) { showBtn.hidden = !hidden; }
+                        try { hidden ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch (e) {}
+                    };
+                    try { if (localStorage.getItem(KEY) === '1') { setHidden(true); } } catch (e) {}
+                    if (hideBtn) { hideBtn.addEventListener('click', function () { setHidden(true); }); }
+                    if (showBtn) { showBtn.addEventListener('click', function () { setHidden(false); }); }
                 }
 
                 // Keep the sticky tab section headers flush below the sticky

@@ -62,3 +62,13 @@
         on: settings.enableReviewMode,
     }) }}
 </div>
+
+<div class="field">
+    {{ forms.lightswitchField({
+        label: deltaKeys.enablePreview|t('craft-delta'),
+        instructions: deltaKeys.enablePreviewInstructions|t('craft-delta'),
+        id: 'enablePreview',
+        name: 'enablePreview',
+        on: settings.enablePreview,
+    }) }}
+</div>

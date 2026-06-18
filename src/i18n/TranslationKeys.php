@@ -56,6 +56,9 @@ final class TranslationKeys
     public const OPTIONAL_NOTE_FOR_AUTHOR = 'workflow.optionalNoteForAuthor';
     public const SCHEDULE_FAILED = 'error.scheduleFailed';
     public const REVIEW_MODE_UNAVAILABLE = 'review.modeUnavailable';
+    public const SHOW_PREVIEW = 'review.showPreview';
+    public const HIDE_PREVIEW = 'review.hidePreview';
+    public const OPEN_IN_WINDOW = 'review.openInWindow';
     public const NO_CHANGES_BETWEEN_REVISIONS = 'diff.noChangesBetweenRevisions';
     public const REV_NUM_CREATOR = 'diff.revNumCreator';
     public const UNKNOWN = 'ui.unknown';
@@ -83,6 +86,8 @@ final class TranslationKeys
     public const REVIEW_OF_REF = 'review.ofRef';
     public const ENABLE_REVIEW_MODE = 'settings.enableReviewMode';
     public const ENABLE_REVIEW_MODE_INSTRUCTIONS = 'settings.enableReviewModeInstructions';
+    public const ENABLE_PREVIEW = 'settings.enablePreview';
+    public const ENABLE_PREVIEW_INSTRUCTIONS = 'settings.enablePreviewInstructions';
     public const ALSO_DELETE_SOURCE_DRAFT = 'review.alsoDeleteSourceDraft';
     public const PERMISSION_SUBMIT_DRAFTS = 'permission.submitDrafts';
     public const PERMISSION_REVIEW_DRAFTS = 'permission.reviewDrafts';

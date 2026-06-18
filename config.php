@@ -26,6 +26,10 @@ return [
     // Submit-for-review workflow (Submit button, workflow toolbar + endpoints).
     'enableWorkflow' => true,
 
+    // Live draft preview beside the diff on the review page (sections with URLs).
+    // False drops the preview pane everywhere; reviewers can also hide it per-user.
+    'enablePreview' => true,
+
     /**
      * Override the notification email templates with your own.
      *
