@@ -1051,6 +1051,9 @@ button.delta-field-header {
 
 .delta-reviewer-pill {
     display: inline-block;
+    /* Own spacing so pills don't touch outside the flex roster (dashboard
+       table cell, slideout meta). In the roster this just adds to its gap. */
+    margin: 0 4px 4px 0;
     padding: 2px 8px;
     border-radius: 999px;
     font-size: 12px;

@@ -88,6 +88,12 @@ final class TranslationKeys
     public const ENABLE_REVIEW_MODE_INSTRUCTIONS = 'settings.enableReviewModeInstructions';
     public const ENABLE_PREVIEW = 'settings.enablePreview';
     public const ENABLE_PREVIEW_INSTRUCTIONS = 'settings.enablePreviewInstructions';
+    public const APPROVAL_POLICY = 'settings.approvalPolicy';
+    public const APPROVAL_POLICY_INSTRUCTIONS = 'settings.approvalPolicyInstructions';
+    public const APPROVAL_ANY = 'settings.approvalAny';
+    public const APPROVAL_ALL = 'settings.approvalAll';
+    public const APPROVAL_COUNT = 'settings.approvalCount';
+    public const APPROVALS_REQUIRED = 'settings.approvalsRequired';
     public const ALSO_DELETE_SOURCE_DRAFT = 'review.alsoDeleteSourceDraft';
     public const PERMISSION_SUBMIT_DRAFTS = 'permission.submitDrafts';
     public const PERMISSION_REVIEW_DRAFTS = 'permission.reviewDrafts';

@@ -10,7 +10,10 @@ Inline revision diffing and a submit-for-review workflow for Craft CMS 5. Compar
 
 ## Installation
 
+Delta is a proprietary plugin hosted in a private repository — it isn't on public Packagist. Point Composer at the repo (you need read access to it), then require and install:
+
 ```bash
+composer config repositories.craft-delta vcs https://github.com/zeixcom/craft-delta.git
 composer require zeixcom/craft-delta
 php craft plugin/install craft-delta
 ```
@@ -76,7 +79,7 @@ Toggle the whole workflow with **Settings → Plugins → Craft Delta → Enable
 
 **Reviewing.** Reviews happen on a dedicated full-page workspace at `/admin/delta-review?reviewId=N` — reachable from the **Reviews** dashboard, the notification emails, or the **Open review** link in the diff slideout. (The slideout and the `delta-compare` full page are diff-only; the review apparatus lives on this page.) The page shows the reviewers' verdicts and current round, the diff with inline comments, the general discussion, plus:
 
-- **Approve** — records an approval verdict. A single approval moves the review to **Approved**. To ask for changes instead of approving, leave a comment — there's no separate "request changes" verdict.
+- **Approve** — records an approval verdict. By default a single approval moves the review to **Approved**; with the **Approval policy** setting you can instead require all assigned reviewers, or at least a set number. To ask for changes instead of approving, leave a comment — there's no separate "request changes" verdict.
 - **Accept / reject per change** — for reviewers with **Apply review-mode changes**, accept/reject controls and a live "decided" counter are shown on each change; **Apply N accepted** publishes only the accepted ones.
 - **Decline** — terminal; the author keeps the draft and receives your optional note by email.
 
@@ -135,6 +138,7 @@ Users with none of the plugin permissions still see the read-only diff. Admins h
 | Enable Review Mode | On | Show **Start Review** and the accept/reject/apply controls. Off = read-only diff. |
 | Enable Workflow | On | Show the submit-for-review workflow (and its endpoints). Off = v1.1 behavior. |
 | Enable Preview | On | Show the live draft preview beside the diff (sections with front-end URLs). Off drops the pane for everyone; reviewers can also hide it per-user. |
+| Approval policy | Any one reviewer | How many approvals move a review to **Approved**: any one reviewer, all assigned reviewers, or at least a set number (clamped to the number assigned). |
 
 ## Extending
 

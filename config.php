@@ -26,6 +26,13 @@ return [
     // Submit-for-review workflow (Submit button, workflow toolbar + endpoints).
     'enableWorkflow' => true,
 
+    // How many approvals move a review to "approved":
+    //   'any'   — one reviewer approving is enough (default)
+    //   'all'   — every assigned reviewer must approve
+    //   'count' — at least `approvalsRequired`, clamped to the number assigned
+    'approvalPolicy' => 'any',
+    'approvalsRequired' => 2, // only used when approvalPolicy is 'count'
+
     // Live draft preview beside the diff on the review page (sections with URLs).
     // False drops the preview pane everywhere; reviewers can also hide it per-user.
     'enablePreview' => true,

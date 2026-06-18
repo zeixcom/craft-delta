@@ -20,6 +20,7 @@ use zeixcom\craftdelta\helpers\UserName;
 use zeixcom\craftdelta\i18n\TranslationKeys;
 use zeixcom\craftdelta\models\Review;
 use zeixcom\craftdelta\models\ReviewReviewer;
+use zeixcom\craftdelta\models\Settings;
 use zeixcom\craftdelta\Permissions;
 use zeixcom\craftdelta\queue\jobs\ApplyScheduledDraft;
 use zeixcom\craftdelta\records\ReviewRecord;
@@ -57,19 +58,31 @@ class WorkflowService extends Component
     ];
 
     /**
-     * Derive a review's overall state from its current round's reviewer verdicts.
-     * Pure + static so the rule is unit-testable without a kernel.
+     * Derive a review's overall state from its current round's reviewer verdicts,
+     * under the configured approval policy. Pure + static so the rule is
+     * unit-testable without a kernel. Reviewers who want changes leave comments
+     * and decline or hold off approving — there is no "request changes" verdict.
      *
-     * Any one "approved" passes the review; otherwise it stays open. (Reviewers
-     * who want changes leave comments and decline or hold off approving.)
-     *
-     * @param string[] $verdicts Current-round verdict strings.
+     * @param string[] $verdicts Current-round verdict strings (one per assigned
+     *                           reviewer, including those still pending).
+     * @param string $policy One of Settings::APPROVAL_ANY|APPROVAL_ALL|APPROVAL_COUNT.
+     * @param int $approvalsRequired Used only for the 'count' policy.
      */
-    public static function deriveState(array $verdicts): string
+    public static function deriveState(array $verdicts, string $policy = Settings::APPROVAL_ANY, int $approvalsRequired = 1): string
     {
-        return in_array(ReviewReviewer::VERDICT_APPROVED, $verdicts, true)
-            ? Review::STATE_APPROVED
-            : Review::STATE_OPEN;
+        $approved = count(array_filter($verdicts, static fn(string $v) => $v === ReviewReviewer::VERDICT_APPROVED));
+        if ($approved === 0) {
+            return Review::STATE_OPEN;
+        }
+
+        // Can't need more approvals than there are assigned reviewers.
+        $needed = match ($policy) {
+            Settings::APPROVAL_ALL => count($verdicts),
+            Settings::APPROVAL_COUNT => min($approvalsRequired, count($verdicts)),
+            default => 1,
+        };
+
+        return $approved >= max(1, $needed) ? Review::STATE_APPROVED : Review::STATE_OPEN;
     }
 
     public function getByDraftId(int $draftId): ?Review
@@ -470,10 +483,15 @@ class WorkflowService extends Component
 
     private function recomputeState(int $reviewId, int $round): void
     {
-        $state = self::deriveState(ReviewReviewerRecord::find()
-            ->select(['verdict'])
-            ->where(['reviewId' => $reviewId, 'round' => $round])
-            ->column());
+        $settings = $this->delta()->getSettings();
+        $state = self::deriveState(
+            ReviewReviewerRecord::find()
+                ->select(['verdict'])
+                ->where(['reviewId' => $reviewId, 'round' => $round])
+                ->column(),
+            $settings->approvalPolicy,
+            $settings->approvalsRequired,
+        );
 
         $attrs = ['state' => $state, 'dateUpdated' => $this->now()];
         if ($state !== Review::STATE_APPROVED) {

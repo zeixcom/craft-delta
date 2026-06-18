@@ -8,6 +8,11 @@ use craft\base\Model;
 
 class Settings extends Model
 {
+    /** Approval policies for deriving a review's state from its reviewers' verdicts. */
+    public const APPROVAL_ANY = 'any';
+    public const APPROVAL_ALL = 'all';
+    public const APPROVAL_COUNT = 'count';
+
     public int $diffContext = 3;
     public int $maxFieldLength = 50000;
     public bool $defaultShowUnchanged = false;
@@ -21,6 +26,17 @@ class Settings extends Model
      * enableReviewMode and the Apply review-mode changes permission.
      */
     public bool $enableWorkflow = true;
+
+    /**
+     * How many approvals move a review to "approved":
+     * `any` (one reviewer), `all` (every assigned reviewer), or `count` (at least
+     * `approvalsRequired`, clamped to the number of assigned reviewers). Default
+     * `any` preserves the original single-approval behaviour.
+     */
+    public string $approvalPolicy = self::APPROVAL_ANY;
+
+    /** Approvals needed when approvalPolicy is `count`. Ignored for `any`/`all`. */
+    public int $approvalsRequired = 2;
 
     /**
      * Show the live draft preview beside the diff on the review page (for entries
@@ -49,6 +65,8 @@ class Settings extends Model
             ...parent::defineRules(),
             [['diffContext'], 'integer', 'min' => 0, 'max' => 20],
             [['maxFieldLength'], 'integer', 'min' => 1000],
+            [['approvalPolicy'], 'in', 'range' => [self::APPROVAL_ANY, self::APPROVAL_ALL, self::APPROVAL_COUNT]],
+            [['approvalsRequired'], 'integer', 'min' => 1, 'max' => 20],
         ];
     }
 }

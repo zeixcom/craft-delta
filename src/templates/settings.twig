@@ -60,15 +60,51 @@
         id: 'enableReviewMode',
         name: 'enableReviewMode',
         on: settings.enableReviewMode,
+        toggle: 'delta-reviewmode-settings',
     }) }}
 </div>
 
-<div class="field">
-    {{ forms.lightswitchField({
-        label: deltaKeys.enablePreview|t('craft-delta'),
-        instructions: deltaKeys.enablePreviewInstructions|t('craft-delta'),
-        id: 'enablePreview',
-        name: 'enablePreview',
-        on: settings.enablePreview,
-    }) }}
+{# Preview + approval settings are shown/hidden by the Enable Review Mode switch
+   above (its `toggle` targets this container). #}
+<div id="delta-reviewmode-settings" class="{{ settings.enableReviewMode ? '' : 'hidden' }}">
+    <div class="field">
+        {{ forms.lightswitchField({
+            label: deltaKeys.enablePreview|t('craft-delta'),
+            instructions: deltaKeys.enablePreviewInstructions|t('craft-delta'),
+            id: 'enablePreview',
+            name: 'enablePreview',
+            on: settings.enablePreview,
+        }) }}
+    </div>
+
+    <div class="field">
+        {{ forms.selectField({
+            label: deltaKeys.approvalPolicy|t('craft-delta'),
+            instructions: deltaKeys.approvalPolicyInstructions|t('craft-delta'),
+            id: 'approvalPolicy',
+            name: 'approvalPolicy',
+            value: settings.approvalPolicy,
+            options: [
+                { value: 'any', label: deltaKeys.approvalAny|t('craft-delta') },
+                { value: 'all', label: deltaKeys.approvalAll|t('craft-delta') },
+                { value: 'count', label: deltaKeys.approvalCount|t('craft-delta') },
+            ],
+            toggle: true,
+            targetPrefix: 'delta-approval-',
+        }) }}
+    </div>
+
+    <div id="delta-approval-count" class="field {{ settings.approvalPolicy == 'count' ? '' : 'hidden' }}">
+        {{ forms.textField({
+            label: deltaKeys.approvalsRequired|t('craft-delta'),
+            id: 'approvalsRequired',
+            name: 'approvalsRequired',
+            value: settings.approvalsRequired,
+            type: 'number',
+            min: 1,
+            max: 20,
+            size: 5,
+            errors: settings.getErrors('approvalsRequired'),
+        }) }}
+    </div>
 </div>

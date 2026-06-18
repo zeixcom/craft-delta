@@ -7,6 +7,7 @@ namespace zeixcom\craftdelta\tests\Unit\Service;
 use PHPUnit\Framework\TestCase;
 use zeixcom\craftdelta\models\Review;
 use zeixcom\craftdelta\models\ReviewReviewer;
+use zeixcom\craftdelta\models\Settings;
 use zeixcom\craftdelta\services\WorkflowService;
 
 /**
@@ -51,5 +52,39 @@ class WorkflowServiceTest extends TestCase
         // review, otherwise it stays open.
         $this->assertSame(Review::STATE_OPEN, WorkflowService::deriveState(['changes_requested', 'pending']));
         $this->assertSame(Review::STATE_APPROVED, WorkflowService::deriveState(['changes_requested', ReviewReviewer::VERDICT_APPROVED]));
+    }
+
+    public function testAllPolicyNeedsEveryAssignedReviewer(): void
+    {
+        // One of two approved is not enough under "all".
+        $this->assertSame(Review::STATE_OPEN, WorkflowService::deriveState(
+            [ReviewReviewer::VERDICT_APPROVED, ReviewReviewer::VERDICT_PENDING],
+            Settings::APPROVAL_ALL,
+        ));
+        $this->assertSame(Review::STATE_APPROVED, WorkflowService::deriveState(
+            [ReviewReviewer::VERDICT_APPROVED, ReviewReviewer::VERDICT_APPROVED],
+            Settings::APPROVAL_ALL,
+        ));
+    }
+
+    public function testCountPolicyNeedsAtLeastN(): void
+    {
+        // Require 2: one approval stays open, two flips to approved.
+        $this->assertSame(Review::STATE_OPEN, WorkflowService::deriveState(
+            [ReviewReviewer::VERDICT_APPROVED, ReviewReviewer::VERDICT_PENDING, ReviewReviewer::VERDICT_PENDING],
+            Settings::APPROVAL_COUNT,
+            2,
+        ));
+        $this->assertSame(Review::STATE_APPROVED, WorkflowService::deriveState(
+            [ReviewReviewer::VERDICT_APPROVED, ReviewReviewer::VERDICT_APPROVED, ReviewReviewer::VERDICT_PENDING],
+            Settings::APPROVAL_COUNT,
+            2,
+        ));
+        // Requiring more than the assigned reviewer count clamps to that count.
+        $this->assertSame(Review::STATE_APPROVED, WorkflowService::deriveState(
+            [ReviewReviewer::VERDICT_APPROVED, ReviewReviewer::VERDICT_APPROVED],
+            Settings::APPROVAL_COUNT,
+            3,
+        ));
     }
 }
