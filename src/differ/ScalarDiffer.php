@@ -4,106 +4,65 @@ declare(strict_types=1);
 
 namespace zeixcom\craftdelta\differ;
 
+use DateTime;
+use Money\Money;
+use zeixcom\craftdelta\helpers\DiffHtml;
+
 /**
- * Simple before → after diff for scalar values.
+ * @phpstan-import-type DiffStats from \zeixcom\craftdelta\types\ArrayTypes
+ * @phpstan-import-type ScalarFieldValue from \zeixcom\craftdelta\types\ArrayTypes
  */
 class ScalarDiffer implements DifferInterface
 {
     public function diff(mixed $oldValue, mixed $newValue): ?string
     {
-        $old = $this->normalize($oldValue);
-        $new = $this->normalize($newValue);
-
-        if ($old === $new) {
+        if ($this->normalize($oldValue) === $this->normalize($newValue)) {
             return null;
         }
 
-        $oldDisplay = $this->display($oldValue);
-        $newDisplay = $this->display($newValue);
-
-        return sprintf(
-            '<span class="delta-del">%s</span> → <span class="delta-ins">%s</span>',
-            htmlspecialchars($oldDisplay, ENT_QUOTES, 'UTF-8'),
-            htmlspecialchars($newDisplay, ENT_QUOTES, 'UTF-8'),
-        );
+        return DiffHtml::scalarChange($this->display($oldValue), $this->display($newValue));
     }
 
+    /** @return DiffStats */
     public function getStats(mixed $oldValue, mixed $newValue): array
     {
-        $old = $this->normalize($oldValue);
-        $new = $this->normalize($newValue);
-
-        if ($old === $new) {
-            return ['additions' => 0, 'deletions' => 0];
-        }
-
-        return [
-            'additions' => 1,
-            'deletions' => 1,
-        ];
+        return $this->normalize($oldValue) === $this->normalize($newValue)
+            ? ['additions' => 0, 'deletions' => 0]
+            : ['additions' => 1, 'deletions' => 1];
     }
 
-    /**
-     * Normalize a value to a comparable string representation.
-     */
+    /** @param ScalarFieldValue $value */
     private function normalize(mixed $value): string
     {
-        if ($value === null) {
-            return '';
-        }
-
-        if (is_bool($value)) {
-            return $value ? '1' : '0';
-        }
-
-        if ($value instanceof \DateTime) {
-            return $value->format('Y-m-d H:i:s');
-        }
-
-        if ($value instanceof \Money\Money) {
-            return $value->getAmount() . ' ' . $value->getCurrency()->getCode();
-        }
-
-        if (is_object($value)) {
-            if (method_exists($value, '__toString')) {
-                return (string)$value;
-            }
-            return json_encode($value, JSON_UNESCAPED_UNICODE) ?: get_class($value);
-        }
-
-        return (string)$value;
+        return match (true) {
+            $value === null => '',
+            is_bool($value) => $value ? '1' : '0',
+            $value instanceof DateTime => $value->format('Y-m-d H:i:s'),
+            $value instanceof Money => $value->getAmount() . ' ' . $value->getCurrency()->getCode(),
+            is_object($value) => $this->stringifyObject($value, false),
+            default => (string)$value,
+        };
     }
 
-    /**
-     * Format a value for user-facing display in the diff output.
-     */
+    /** @param ScalarFieldValue $value */
     private function display(mixed $value): string
     {
-        if ($value === null || $value === '') {
-            return '(empty)';
-        }
+        return match (true) {
+            $value === null, $value === '' => '(empty)',
+            is_bool($value) => $value ? 'Yes' : 'No',
+            $value instanceof DateTime => $value->format('M j, Y g:ia'),
+            $value instanceof Money => number_format((int)$value->getAmount() / 100, 2) . ' ' . $value->getCurrency()->getCode(),
+            is_object($value) => $this->stringifyObject($value, true),
+            default => (string)$value,
+        };
+    }
 
-        if (is_bool($value)) {
-            return $value ? 'Yes' : 'No';
+    private function stringifyObject(object $value, bool $pretty): string
+    {
+        if (method_exists($value, '__toString')) {
+            return (string)$value;
         }
-
-        if ($value instanceof \DateTime) {
-            return $value->format('M j, Y g:ia');
-        }
-
-        if ($value instanceof \Money\Money) {
-            $amount = (int)$value->getAmount();
-            $currency = $value->getCurrency()->getCode();
-            return number_format($amount / 100, 2) . ' ' . $currency;
-        }
-
-        if (is_object($value)) {
-            if (method_exists($value, '__toString')) {
-                return (string)$value;
-            }
-            return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: get_class($value);
-        }
-
-        return (string)$value;
+        $flags = JSON_UNESCAPED_UNICODE | ($pretty ? JSON_PRETTY_PRINT : 0);
+        return json_encode($value, $flags) ?: $value::class;
     }
 }

@@ -7,47 +7,28 @@ namespace zeixcom\craftdelta\models;
 use craft\base\Model;
 
 /**
- * Full diff result comparing two revisions.
+ * @phpstan-import-type AggregateDiffStats from \zeixcom\craftdelta\types\ArrayTypes
  */
 class DiffResult extends Model
 {
-    /**
-     * @var FieldDiff[]
-     */
+    /** @var FieldDiff[] */
     public array $fieldDiffs = [];
 
-    public ?int $olderRevisionId = null;
-    public ?int $newerRevisionId = null;
-    public ?int $olderRevisionNum = null;
-    public ?int $newerRevisionNum = null;
-
-    /**
-     * Get aggregate stats across all field diffs.
-     */
+    /** @return AggregateDiffStats */
     public function getStats(): array
     {
-        $totalAdded = 0;
-        $totalRemoved = 0;
-        $fieldsChanged = 0;
-
+        $fieldsChanged = $additions = $deletions = 0;
         foreach ($this->fieldDiffs as $diff) {
-            if ($diff->hasChanges) {
-                $fieldsChanged++;
-                $totalAdded += $diff->stats['additions'] ?? 0;
-                $totalRemoved += $diff->stats['deletions'] ?? 0;
+            if (!$diff->hasChanges) {
+                continue;
             }
+            $fieldsChanged++;
+            $additions += $diff->stats['additions'];
+            $deletions += $diff->stats['deletions'];
         }
-
-        return [
-            'fieldsChanged' => $fieldsChanged,
-            'additions' => $totalAdded,
-            'deletions' => $totalRemoved,
-        ];
+        return ['fieldsChanged' => $fieldsChanged, 'additions' => $additions, 'deletions' => $deletions];
     }
 
-    /**
-     * Whether any fields have changes.
-     */
     public function hasChanges(): bool
     {
         foreach ($this->fieldDiffs as $diff) {
@@ -55,7 +36,6 @@ class DiffResult extends Model
                 return true;
             }
         }
-
         return false;
     }
 }

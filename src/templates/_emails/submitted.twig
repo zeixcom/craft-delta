@@ -1,0 +1,12 @@
+{% autoescape false %}
+{{ deltaKeys.emailHiName|t('craft-delta', { name: reviewer.friendlyName }) }}
+
+{{ deltaKeys.emailAuthorSubmitted|t('craft-delta', { author: author.friendlyName }) }}
+
+  {{ entry.title }}
+  {{ url }}
+
+{{ deltaKeys.emailOpenToReview|t('craft-delta') }}
+
+{{ deltaKeys.emailSignature|t('craft-delta') }}
+{% endautoescape %}

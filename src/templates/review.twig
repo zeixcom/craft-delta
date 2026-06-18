@@ -1,0 +1,195 @@
+{% extends '_layouts/cp.twig' %}
+
+{% do view.registerAssetBundle('zeixcom\\craftdelta\\assets\\diff\\DiffAsset') %}
+
+{% set fullPageForm = false %}
+{% set selectedSubnavItem = null %}
+
+{% set crumbs = [
+    { label: deltaKeys.workflowReviewsTitle|t('craft-delta'), url: cpUrl('delta-reviews') },
+] %}
+
+{% block content %}
+    {# Everything lives inside .delta-review-page so workflow.js resolves its
+       root (toolbar, atom triggers, comments) against one container. #}
+    <div class="delta-review-page{{ workflow.isTerminal() ? ' delta-review-page--closed' : '' }}" id="delta-review-root">
+        {% if workflow.isTerminal() %}
+            {# Closed review: lead with the outcome so it can't be mistaken for an
+               empty active review (a granular apply leaves the draft, so the diff
+               can be empty). Status + who/when + a link to the entry, with the
+               comment thread read-only below. #}
+            <div class="delta-review-closed-banner" data-review-id="{{ workflow.id }}">
+                <span class="delta-review-closed-status">
+                    <span class="status {{ workflow.statusColor() }}"></span>
+                    {{ workflow.statusLabel() }}
+                </span>
+                {% if workflow.appliedAt %}
+                    <span class="delta-review-closed-date">{{ workflow.appliedAt|datetime('short') }}</span>
+                {% endif %}
+                {% if workflow.reviewers %}
+                    <span class="delta-review-roster">
+                        <span class="delta-review-roster-label">{{ deltaKeys.workflowReviewers|t('craft-delta') }}:</span>
+                        {% for r in workflow.reviewers %}
+                            <span class="delta-reviewer-pill delta-reviewer-pill--{{ r.verdict }}">{{ r.userName ?? ('#' ~ r.userId) }}</span>
+                        {% endfor %}
+                    </span>
+                {% endif %}
+                {% if entryUrl is defined and entryUrl %}
+                    <a class="btn delta-review-closed-link" href="{{ entryUrl }}">{{ deltaKeys.workflowOpenEntry|t('craft-delta') }}</a>
+                {% endif %}
+            </div>
+
+            {% if workflow.isDeclined() and workflow.decisionNote %}
+                <blockquote class="delta-review-closed-note">{{ workflow.decisionNote|nl2br }}</blockquote>
+            {% endif %}
+
+            {% include 'craft-delta/_review-discussion' with { workflow: workflow, isReviewer: isReviewer } %}
+        {% elseif result is null %}
+            <p class="zilch">{{ workflow.statusLabel() }}</p>
+        {% else %}
+            {% include 'craft-delta/_review-header' with {
+                result: result,
+                reviewMode: reviewMode,
+                workflow: workflow,
+                isReviewer: isReviewer,
+                entryId: entryId,
+                siteId: siteId,
+                sourceRef: sourceRef,
+                canonicalUpdatedAt: canonicalUpdatedAt,
+                sourceUpdatedAt: sourceUpdatedAt,
+            } %}
+
+            {% set startChangedOnly = not (showUnchanged is defined and showUnchanged) %}
+            {% set hasPreview = previewUrl is defined and previewUrl %}
+            <div class="delta-review-layout{{ hasPreview ? ' delta-review-layout--split' : '' }}" data-review-layout>
+                <div class="delta-review-body{{ startChangedOnly ? ' delta-changed-only' : '' }}" data-review-body>
+                    {% if result.hasChanges() or hasPreview %}
+                        <div class="delta-review-filter">
+                            {% if result.hasChanges() %}
+                                <label class="delta-filter-toggle">
+                                    <input type="checkbox" data-review-changed-only{{ startChangedOnly ? ' checked' : '' }}>
+                                    {{ deltaKeys.changedOnly|t('craft-delta') }}
+                                </label>
+                            {% endif %}
+                            {% if hasPreview %}
+                                <button type="button" class="btn small" data-preview-show hidden>{{ deltaKeys.showPreview|t('craft-delta') }}</button>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    {% include 'craft-delta/_diff-fields' with { result: result, reviewMode: reviewMode } %}
+                </div>
+                {% if hasPreview %}
+                    {# Live draft preview (tokenized front-end render) beside the diff,
+                       so reviewers see the rendered page, not only field changes. #}
+                    <aside class="delta-review-preview" data-review-preview>
+                        <div class="delta-review-preview-bar">
+                            <span class="delta-review-preview-label">{{ 'Preview'|t('app') }}</span>
+                            <span class="delta-review-preview-actions">
+                                <a class="btn small" href="{{ previewUrl }}" target="_blank" rel="noopener">{{ deltaKeys.openInWindow|t('craft-delta') }}</a>
+                                <button type="button" class="btn small" data-preview-hide aria-label="{{ deltaKeys.hidePreview|t('craft-delta') }}" title="{{ deltaKeys.hidePreview|t('craft-delta') }}">&times;</button>
+                            </span>
+                        </div>
+                        <iframe class="delta-review-preview-frame" src="{{ previewUrl }}" title="{{ 'Preview'|t('app') }}"></iframe>
+                    </aside>
+                {% endif %}
+            </div>
+
+            {% include 'craft-delta/_review-discussion' with { workflow: workflow, isReviewer: isReviewer } %}
+        {% endif %}
+    </div>
+
+    {% js %}
+        (function () {
+            // DiffAsset injects Craft.Delta._keys (the i18n map) at POS_END.
+            // This block is server-rendered and can run before that inline
+            // script executes, so wait for _keys — enter()/comment rendering
+            // dereference it synchronously and would otherwise throw.
+            function wire() {
+                if (typeof Craft === 'undefined' || !Craft.Delta || !Craft.Delta._keys) {
+                    window.setTimeout(wire, 30);
+                    return;
+                }
+                mountReview();
+            }
+
+            function mountReview() {
+                var root = document.getElementById('delta-review-root');
+                if (!root) { return; }
+
+                // Replicate the wiring delta.js runs after an AJAX diff load, since
+                // here the diff is server-rendered into the page rather than fetched.
+                Craft.Delta.mode = 'fullpage';
+                if (Craft.Delta.bindFieldToggles) { Craft.Delta.bindFieldToggles(root); }
+                if (Craft.Delta.bindTabNav) { Craft.Delta.bindTabNav(root); }
+
+                var wfToolbar = root.querySelector('.delta-workflow-toolbar');
+                if (wfToolbar && Craft.Delta.mountWorkflowToolbar) {
+                    Craft.Delta.mountWorkflowToolbar($(wfToolbar));
+                } else if (Craft.Delta.reviewComments) {
+                    // Closed reviews have no toolbar; mount the (read-only) comment
+                    // thread off the status banner, which carries data-review-id.
+                    var idCarrier = root.querySelector('[data-review-id]');
+                    if (idCarrier) { Craft.Delta.reviewComments.mount($(idCarrier)); }
+                }
+
+                var reviewToolbar = root.querySelector('[data-review-toolbar]');
+                if (reviewToolbar && Craft.Delta.reviewMode) {
+                    if (reviewToolbar.dataset.autoReview === '1' && Craft.Delta.reviewMode.enter) {
+                        // Always-on accept/reject for reviewers who can apply. enter()
+                        // calls loadFromStorage(), so prior decisions resume here too —
+                        // no separate checkForPriorState() banner needed.
+                        Craft.Delta.reviewMode.enter(reviewToolbar);
+                    } else if (Craft.Delta.reviewMode.checkForPriorState) {
+                        Craft.Delta.reviewMode.checkForPriorState(reviewToolbar);
+                    }
+                }
+
+                var changedOnlyCb = root.querySelector('[data-review-changed-only]');
+                var reviewBody = root.querySelector('[data-review-body]');
+                if (changedOnlyCb && reviewBody) {
+                    changedOnlyCb.addEventListener('change', function () {
+                        reviewBody.classList.toggle('delta-changed-only', changedOnlyCb.checked);
+                    });
+                }
+
+                // Preview pane: per-user hide/show, remembered across reviews in
+                // localStorage. "Open in new window" is a plain target=_blank link
+                // (full desktop width), so it needs no JS.
+                var layout = root.querySelector('[data-review-layout]');
+                var previewPane = root.querySelector('[data-review-preview]');
+                if (layout && previewPane) {
+                    var showBtn = root.querySelector('[data-preview-show]');
+                    var hideBtn = previewPane.querySelector('[data-preview-hide]');
+                    var KEY = 'deltaReviewPreviewHidden';
+                    var setHidden = function (hidden) {
+                        layout.classList.toggle('delta-review-layout--split', !hidden);
+                        previewPane.hidden = hidden;
+                        if (showBtn) { showBtn.hidden = !hidden; }
+                        try { hidden ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch (e) {}
+                    };
+                    try { if (localStorage.getItem(KEY) === '1') { setHidden(true); } } catch (e) {}
+                    if (hideBtn) { hideBtn.addEventListener('click', function () { setHidden(true); }); }
+                    if (showBtn) { showBtn.addEventListener('click', function () { setHidden(false); }); }
+                }
+
+                // Keep the sticky tab section headers flush below the sticky
+                // header: its height changes (buttons wrap, the apply row
+                // appears), so track it and expose it as --delta-review-sticky-top.
+                var header = root.querySelector('.delta-review-header');
+                if (header) {
+                    var syncStickyTop = function () {
+                        root.style.setProperty('--delta-review-sticky-top', header.offsetHeight + 'px');
+                    };
+                    syncStickyTop();
+                    if (window.ResizeObserver) {
+                        new ResizeObserver(syncStickyTop).observe(header);
+                    } else {
+                        window.addEventListener('resize', syncStickyTop);
+                    }
+                }
+            }
+
+            wire();
+        })();
+    {% endjs %}
+{% endblock %}

@@ -1,0 +1,14 @@
+{% autoescape false %}
+{{ deltaKeys.emailHiName|t('craft-delta', { name: author.friendlyName }) }}
+
+{% if scheduledFor %}
+{{ deltaKeys.emailScheduledPublishAt|t('craft-delta', { when: scheduledFor|datetime('full') }) }}
+{% else %}
+{{ deltaKeys.emailBodyPublished|t('craft-delta') }}
+{% endif %}
+
+  {{ entry.title }}
+  {{ url }}
+
+{{ deltaKeys.emailSignature|t('craft-delta') }}
+{% endautoescape %}

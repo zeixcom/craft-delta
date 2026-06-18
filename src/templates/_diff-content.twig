@@ -2,9 +2,18 @@
    Parameters:
      - diffHtml:   the raw diff HTML or JSON string
      - fieldType:  the fully-qualified field class name (used to detect Matrix/Table)
+     - nested:     true when rendered inside a Matrix block's sub-fields. Nested
+                   Matrix-in-Matrix blocks must NOT emit their own atom-ids or
+                   accept/reject controls: they aren't individually applicable
+                   (the server only offers top-level atoms, and accepting the
+                   parent "modified" block already copies the whole block,
+                   nested Matrix included). Emitting them would surface buttons
+                   whose atoms fail validation as "stale".
 #}
 
 {% set fieldClass = fieldType|split('\\')|last %}
+{% set isNested = nested ?? false %}
+{% set atomsEnabled = (reviewMode is defined and reviewMode) and not isNested %}
 
 {% if fieldClass in ['Matrix'] and diffHtml starts with '[' %}
     {% set changes = diffHtml|json_decode %}
@@ -13,15 +22,14 @@
             {% if change.type in ['added', 'removed', 'modified'] %}
                 {% set blockClass = {added: 'delta-block-added', removed: 'delta-block-removed', modified: 'delta-block-modified'} %}
                 {% set blockIcon = {added: '+', removed: '-', modified: '&bull;'} %}
-                <div class="delta-block {{ blockClass[change.type] }}">
+                <div class="delta-block {{ blockClass[change.type] }}"
+                     {% if not isNested %}data-atom-id="matrix-block:{{ fieldHandle }}:{{ change.blockUid }}:{{ change.type }}"{% endif %}>
                     {% if change.fieldChanges is defined and change.fieldChanges is iterable %}
                         <button type="button" class="delta-block-toggle" aria-expanded="true">
-                            <svg class="delta-block-chevron" viewBox="0 0 16 16" fill="currentColor">
-                                <path d="M4.427 7.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 7H4.604a.25.25 0 00-.177.427z"/>
-                            </svg>
+                            {% include 'craft-delta/_chevron' with { class: 'delta-block-chevron' } only %}
                             <span class="delta-block-icon">{{ blockIcon[change.type]|raw }}</span>
-                            <span class="delta-block-type">{{ change.blockType ?? 'Block' }}</span>
-                            <span class="delta-block-summary">{{ change.summary ?? '' }}</span>
+                            <span class="delta-block-type">{{ change.blockType ?? deltaKeys.block|t('craft-delta') }}</span>
+                            <span class="delta-block-summary">{{ change.summary|default('')|e }}</span>
                         </button>
                         <div class="delta-block-subfields">
                             {% for fc in change.fieldChanges %}
@@ -30,7 +38,10 @@
                                     {% if fc.diffHtml is defined and fc.diffHtml is not null %}
                                         {% include 'craft-delta/_diff-content' with {
                                             diffHtml: fc.diffHtml,
-                                            fieldType: fc.fieldType ?? ''
+                                            fieldType: fc.fieldType ?? '',
+                                            fieldHandle: fieldHandle,
+                                            reviewMode: reviewMode ?? false,
+                                            nested: true
                                         } only %}
                                     {% endif %}
                                 </div>
@@ -38,20 +49,26 @@
                         </div>
                     {% else %}
                         <span class="delta-block-icon">{{ blockIcon[change.type]|raw }}</span>
-                        <span class="delta-block-type">{{ change.blockType ?? 'Block' }}</span>
-                        <span class="delta-block-summary">{{ change.summary ?? '' }}</span>
+                        <span class="delta-block-type">{{ change.blockType ?? deltaKeys.block|t('craft-delta') }}</span>
+                        <span class="delta-block-summary">{{ change.summary|default('')|e }}</span>
+                    {% endif %}
+                    {% if atomsEnabled %}
+                        {% include 'craft-delta/_atom-actions' only %}
                     {% endif %}
                 </div>
             {% elseif change.type == 'reordered' %}
-                <div class="delta-block delta-block-reordered">
+                <div class="delta-block delta-block-reordered"{% if not isNested %} data-atom-id="matrix-reorder:{{ fieldHandle }}"{% endif %}>
                     <span class="delta-block-icon">&harr;</span>
-                    <span>{{ 'Blocks were reordered'|t('craft-delta') }}</span>
+                    <span>{{ deltaKeys.blocksReordered|t('craft-delta') }}</span>
+                    {% if atomsEnabled %}
+                        {% include 'craft-delta/_atom-actions' only %}
+                    {% endif %}
                 </div>
             {% endif %}
         {% endfor %}
     {% else %}
         <div class="delta-field-body-padded delta-error">
-            {{ 'Unable to parse structured diff.'|t('craft-delta') }}
+            {{ deltaKeys.unableParseStructuredDiff|t('craft-delta') }}
         </div>
     {% endif %}
 
@@ -124,15 +141,15 @@
         </table>
     {% else %}
         <div class="delta-field-body-padded delta-error">
-            {{ 'Unable to parse table diff.'|t('craft-delta') }}
+            {{ deltaKeys.unableParseTableDiff|t('craft-delta') }}
         </div>
     {% endif %}
 
 {% elseif diffHtml starts with '<table' %}
-    {{ diffHtml|raw }}
+    {{ diffHtml|delta_purify_diff }}
 
 {% else %}
     <div class="delta-field-body-padded">
-        {{ diffHtml|raw }}
+        {{ diffHtml|delta_purify_diff }}
     </div>
 {% endif %}

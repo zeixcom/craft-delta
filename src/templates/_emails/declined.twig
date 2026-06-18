@@ -1,0 +1,18 @@
+{% autoescape false %}
+{{ deltaKeys.emailHiName|t('craft-delta', { name: author.friendlyName }) }}
+
+{{ deltaKeys.emailBodyDeclined|t('craft-delta') }}
+
+  {{ entry.title }}
+  {{ url }}
+
+{% if note %}
+{{ deltaKeys.emailReviewerNote|t('craft-delta') }}
+
+{{ note }}
+{% endif %}
+
+{{ deltaKeys.emailBodyReviewClosed|t('craft-delta') }}
+
+{{ deltaKeys.emailSignature|t('craft-delta') }}
+{% endautoescape %}

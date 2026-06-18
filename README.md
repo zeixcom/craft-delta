@@ -1,57 +1,153 @@
 # Craft Delta
 
-Inline revision diffing for Craft CMS 5. Compare any two revisions, drafts, or the current version of an entry and see exactly what changed — word-level for text, block-level for Matrix, and value-level for everything else.
+Inline revision diffing and a submit-for-review workflow for Craft CMS 5. Compare any two revisions, drafts, or the current version of an entry and see exactly what changed — word-level for text, block-level for Matrix, value-level for everything else — then accept changes selectively or route drafts through review before they publish.
 
 ## Requirements
 
 - Craft CMS 5.8+
 - PHP 8.2+
+- *(Optional)* [CKEditor](https://plugins.craftcms.com/ckeditor) — enables rich-text diffing for CKEditor fields. Without it, Plain Text fields are still word-diffed.
 
 ## Installation
 
+Delta is a proprietary plugin hosted in a private repository — it isn't on public Packagist. Point Composer at the repo (you need read access to it), then require and install:
+
 ```bash
+composer config repositories.craft-delta vcs https://github.com/zeixcom/craft-delta.git
 composer require zeixcom/craft-delta
 php craft plugin/install craft-delta
 ```
 
 ## Features
 
-- **Word-level text diffing** for Plain Text and CKEditor fields
-- **Matrix diffing** — added, removed, modified, and reordered blocks
-- **Relational field diffing** — Entries, Assets, Categories, Tags, Users
-- **Table field diffing** — row and cell-level changes
-- **Option field diffing** — Dropdowns, Radios, Checkboxes, Multi-select
-- **Scalar diffing** — Numbers, Dates, Lightswitches, Colors, Money, etc.
-- **Draft comparison** — compare drafts against revisions or the current version
-- **Multisite support** — diffs are site-aware
-- **"Changed only" filter** — toggle unchanged fields on/off
-- **Diff summary stats** — fields changed, additions/deletions
-- **Translations** — English, German, French, Spanish, Italian, Dutch, Portuguese, Polish
+**Diffing**
+
+- Word-level text diffing for Plain Text and CKEditor fields
+- Matrix diffing — added, removed, modified, and reordered blocks
+- Relational diffing — Entries, Assets, Categories, Tags, Users (asset diffs show thumbnails, filenames, and metadata)
+- Table, Option (Dropdown / Radio / Checkboxes / Multi-select / Button Group), and scalar diffing (Number, Date, Lightswitch, Color, Money, Country, Time, Link, Icon, Range, JSON, …)
+- Site-aware diffs, a **Changed only** filter, and summary stats (fields changed, additions/deletions)
+
+**Review Mode**
+
+- Accept or reject each change individually — per field and per Matrix block, with reordering as its own decision — then publish only the accepted changes as a new revision
+- Keyboard-driven stepper (`J`/`K` to move, `A`/`R` to decide); decisions persist in `localStorage` and resume across browser restarts; stale-edit detection if canonical changes mid-review
+
+**Submit-for-review workflow** (v2.0+)
+
+- Authors submit a draft to one or more reviewers; reviewers **approve** or **decline** (with an optional note). To ask for changes, a reviewer comments instead of approving; the author revises the draft in place, or withdraws and resubmits it as a new round.
+- Approved reviews publish wholesale — immediately or scheduled via a queued job — or granularly through Review Mode
+- A **Reviews** dashboard in the CP nav (assigned to me / my submissions / all for admins) and a **Workflow** status column on entry index pages
+- A **live draft preview** beside the diff on the review page (sections with front-end URLs) — toggleable globally, hideable per reviewer
+- Email notifications on every transition, sent in the recipient's preferred language
+- Section-agnostic permissions that compose with Craft's native section access
+- `EVENT_AFTER_SUBMIT`, `EVENT_AFTER_APPROVE`, `EVENT_AFTER_DECLINE`, `EVENT_AFTER_WITHDRAW`, and `EVENT_AFTER_PUBLISH` events for third-party integration
+
+**Platform**
+
+- Translations: English, German, French, Spanish, Italian, Dutch, Portuguese, Polish
+- Pluggable differ architecture for custom field types
 
 ## Usage
 
-Open any entry with at least one revision. A **"Compare Revisions"** button appears in the sidebar. Click it to open the diff slideout.
+### Comparing revisions
 
-Use the two dropdowns to select which versions to compare — Current, any draft, or any revision. The diff loads automatically when you change the selection.
+Open any entry that has at least one revision (or a published draft). A **Compare Revisions** button appears in the editor sidebar — click it to open the diff slideout.
 
-- Click the **swap** button to reverse the comparison direction
-- Toggle **"Changed only"** to hide unchanged fields
+- Pick the two versions with the dropdowns — Current, any draft, or any revision. The diff loads automatically when the selection changes.
+- Reverse direction with the **swap** button; hide unchanged fields with **Changed only**.
+- **Open full page** shows the same diff as a standalone page. Like the slideout, it only needs view access to the entry's section.
 
-## Settings
+### Review Mode
 
-Configure under **Settings > Plugins > Craft Delta**:
+Review Mode runs on the dedicated **review page** (`/admin/delta-review?reviewId=N`), reached by submitting a draft for review (see [Submit-for-review workflow](#submit-for-review-workflow)) — the diff slideout and the `delta-compare` full page are diff-only. It requires the **Apply review-mode changes** permission and the *Enable Review Mode* setting.
+
+For a reviewer who can apply, the review page auto-enters Review Mode: each changed field gains **✓ Accept** / **✗ Reject** controls, and Matrix blocks get them per block. Use **J / K** to step between changes and **A / R** to decide, then click **Apply N accepted** (in the header, beside a live "decided" counter) to publish the accepted changes as a new revision — rejected changes are dropped. With Review Mode off, the page shows verdicts and comments only.
+
+When the source is a draft, an **Also delete source draft** checkbox appears next to Apply:
+
+- **Unchecked (default):** the source draft is kept. Because canonical now matches it for everything you accepted, re-opening the diff shows only what you *didn't* accept — the draft becomes a queue of leftover changes.
+- **Checked:** the source draft is deleted after a successful publish.
+
+Decisions live in browser `localStorage` until you Apply or Cancel. If the canonical entry changes mid-review, you're prompted to start over.
+
+### Submit-for-review workflow
+
+Toggle the whole workflow with **Settings → Plugins → Craft Delta → Enable Workflow** (on by default). With it off, the plugin behaves like v1.1 — diff and Review Mode only.
+
+**Submitting (author).** An author with **Submit drafts for review** sees a **Submit for review** button on a published draft. Clicking it asks them to choose one or more reviewers (only eligible reviewers are listed — see [Permissions & access](#permissions--access)). Each requested reviewer gets an email linking to the review, and the draft shows an **In review** status.
+
+**Reviewing.** Reviews happen on a dedicated full-page workspace at `/admin/delta-review?reviewId=N` — reachable from the **Reviews** dashboard, the notification emails, or the **Open review** link in the diff slideout. (The slideout and the `delta-compare` full page are diff-only; the review apparatus lives on this page.) The page shows the reviewers' verdicts and current round, the diff with inline comments, the general discussion, plus:
+
+- **Approve** — records an approval verdict. By default a single approval moves the review to **Approved**; with the **Approval policy** setting you can instead require all assigned reviewers, or at least a set number. To ask for changes instead of approving, leave a comment — there's no separate "request changes" verdict.
+- **Accept / reject per change** — for reviewers with **Apply review-mode changes**, accept/reject controls and a live "decided" counter are shown on each change; **Apply N accepted** publishes only the accepted ones.
+- **Decline** — terminal; the author keeps the draft and receives your optional note by email.
+
+Comments are anchored inline under the change they're about (or posted to the general discussion), with one level of replies and resolve/unresolve.
+
+For sections with front-end URLs, a **live draft preview** pane renders beside the diff so reviewers can see the rendered draft as they read the changes. Turn it off globally with the **Enable Preview** setting; each reviewer can also hide it for themselves.
+
+**Iterating (author).** A submitted draft isn't locked, so the author can keep revising it while the review is open — reviewers see the updated diff. To pull the request back, the author clicks **Withdraw** (the request goes inactive); resubmitting the same draft through the normal Submit-for-review path re-opens the review in a new **round**.
+
+**Publishing.** Once approved, **Publish** (now) and **Schedule for…** (later, via a queued job) appear for the reviewer and the author. Publishing additionally requires Craft's native save permission on the entry, so a review-only role can't push content live. Scheduling is rescinded automatically if the review is declined or withdrawn — either reverts it out of the approved state.
+
+A submitted draft is **not** locked. If the author keeps editing, a scheduled apply publishes whatever the draft contains at apply time.
+
+A **withdrawn** request can simply be resubmitted — the review re-opens with a new round. **Declined** is terminal for that draft; to start over after a decline, duplicate the draft and submit the copy. Deleting a draft cancels its active review.
+
+The **Reviews** item in the CP nav opens a dashboard listing reviews awaiting your verdict, your own submissions, and (for admins) all reviews.
+
+#### What a granular (partial) apply does to the workflow
+
+Applying accepted changes through Review Mode **is** the review decision, so the review is **closed as Published** — recorded with the reviewer and a timestamp. This holds whether you accepted every change or only some: a partial apply **finalizes** the review rather than leaving it open for a second pass.
+
+The rejected changes aren't lost. The source draft is left untouched and becomes a record of what was declined — re-opening the diff afterward shows only the changes you didn't accept (canonical now matches the draft for everything that was). Tick **Also delete source draft** before applying to discard those leftovers instead; the closed review is kept as an audit record either way.
+
+> **Design note — why a partial apply closes the review.** A reviewer who applies has made their call, so the review concludes the same way a wholesale publish does. The plugin does **not** support iterative apply (apply some now, keep the review open, apply more later) — for iteration, decline the review (or just comment and hold off approving) and let the author revise and resubmit a new round. Implemented in `WorkflowService::resolveByReview()`, called from `DiffController::actionApply()`.
+
+### Permissions & access
+
+Craft Delta keeps the **workflow role** (three plugin permissions) separate from **entry access** (Craft's native section permissions). The plugin permissions are section-agnostic — grant section access through each user's normal groups.
+
+Plugin permissions live under **Settings → Users → User Groups → Permissions → Craft Delta**:
+
+| Permission | Key | Grants |
+|---|---|---|
+| Submit drafts for review | `craftdelta-submitDraft` | The **Submit for review** button on the holder's own drafts. |
+| Review submitted drafts | `craftdelta-reviewDraft` | Being assignable as a reviewer, plus the Approve / Decline verdicts. |
+| Apply review-mode changes | `craftdelta-applyReview` | Entering Review Mode and publishing — the per-change accept/reject on the review page **and the wholesale Publish / Schedule of an approved review**. Native entry save rights alone are not enough. |
+
+Section access is **not** handled by the plugin. Give each role the native Craft section permissions for the sections they work in, for example:
+
+- **Authors** — View / Create / Save entries.
+- **Reviewers** — View entries, **View other authors' drafts** (`viewPeerEntryDrafts`) so they can open an assigned draft, and Save entries (including other authors') to publish them. A reviewer who publishes also needs the **Apply review-mode changes** plugin permission — without it they can Approve but not Publish.
+
+The reviewer dropdown only lists users who hold **Review submitted drafts** *and* can view peer drafts in the draft's section, so an assignee can always open what they're given.
+
+Users with none of the plugin permissions still see the read-only diff. Admins have everything implicitly.
+
+### Settings
+
+**Settings → Plugins → Craft Delta:**
 
 | Setting | Default | Description |
-|---------|---------|-------------|
-| Diff Context Lines | 3 | Unchanged lines shown around changes |
-| Max Field Length | 50,000 | Characters before showing a simplified diff |
-| Show Unchanged Fields | Off | Show unchanged fields by default |
+|---|---|---|
+| Diff Context Lines | 3 | Unchanged lines shown around a change (0–20). |
+| Max Field Length | 50,000 | Character count above which a field falls back to a simplified diff (min 1,000). |
+| Show Unchanged Fields | Off | Whether unchanged fields are shown by default. |
+| Enable Review Mode | On | Show the per-change accept/reject/apply controls on the review page. Off = the review page shows verdicts + comments only. |
+| Enable Workflow | On | Show the submit-for-review workflow (and its endpoints). Off = v1.1 behavior. |
+| Enable Preview | On | Show the live draft preview beside the diff (sections with front-end URLs). Off drops the pane for everyone; reviewers can also hide it per-user. |
+| Approval policy | Any one reviewer | How many approvals move a review to **Approved**: any one reviewer, all assigned reviewers, or at least a set number (clamped to the number assigned). |
 
 ## Extending
 
-Register custom differs for third-party field types:
+### Custom field differs
+
+Register a differ for a third-party field type:
 
 ```php
+use yii\base\Event;
 use zeixcom\craftdelta\services\FieldDiffService;
 use zeixcom\craftdelta\events\RegisterDiffersEvent;
 
@@ -64,12 +160,81 @@ Event::on(
 );
 ```
 
-Custom differs must implement `zeixcom\craftdelta\differ\DifferInterface`.
+A differ implements `zeixcom\craftdelta\differ\DifferInterface`:
+
+- `diff(mixed $old, mixed $new): ?string` — the HTML diff, or `null` when unchanged
+- `getStats(mixed $old, mixed $new): array{additions: int, deletions: int}`
+
+Field types without a registered differ fall back to the scalar differ.
+
+### Custom email templates
+
+The five notification emails ship with bundled plain-text templates. To use your own, map the email key to a template in your site `templates/` folder via `config/craft-delta.php`:
+
+```php
+// config/craft-delta.php
+return [
+    'emailTemplates' => [
+        'submitted' => 'emails/delta/submitted',
+        'approved'  => 'emails/delta/approved',
+        'declined'  => 'emails/delta/declined',
+        'published' => 'emails/delta/published',
+        'comment'   => 'emails/delta/comment',
+    ],
+];
+```
+
+Each key is optional — omit one, or point it at a template that doesn't exist, and that email keeps its bundled default. Templates render as plain text in the recipient's preferred language. The variables passed to each:
+
+| Key | Sent to | Variables |
+|---|---|---|
+| `submitted` | the reviewer | `reviewer` (User), `author` (User), `entry` (Entry draft), `url` (review page) |
+| `approved` | the author | `author` (User), `entry` (Entry draft), `url` (review page), `note` (always null) |
+| `declined` | the author | `author` (User), `entry` (Entry draft), `url` (review page), `note` (reviewer's decline note, or null) |
+| `published` | the author | `author` (User), `entry` (Entry draft), `url` (entry edit page), `scheduledFor` (`DateTime` when scheduled, else null) |
+| `comment` | the other participant | `author` (User recipient), `entry` (Entry), `url` (review page), `commenter` (name), `comment` (body) |
+
+A starter `config.php` with every setting and these variable references is included in the plugin root — copy it to `config/craft-delta.php`. (All plugin settings can be overridden there per environment, not just email templates.)
+
+### Workflow events
+
+`WorkflowService` fires events carrying the affected `Review` model as `$event->review` — hook them for custom notifications, audit logging, or syncing to external systems:
+
+| Constant | Fires after |
+|---|---|
+| `WorkflowService::EVENT_AFTER_SUBMIT` | a draft is submitted for review |
+| `WorkflowService::EVENT_AFTER_APPROVE` | a reviewer records an approval verdict |
+| `WorkflowService::EVENT_AFTER_DECLINE` | a reviewer declines (terminal) |
+| `WorkflowService::EVENT_AFTER_WITHDRAW` | the author withdraws (terminal) |
+| `WorkflowService::EVENT_AFTER_PUBLISH` | the draft is published — immediately, scheduled, *or* via a granular Review Mode apply |
+
+```php
+use yii\base\Event;
+use zeixcom\craftdelta\services\WorkflowService;
+use zeixcom\craftdelta\events\WorkflowEvent;
+
+Event::on(
+    WorkflowService::class,
+    WorkflowService::EVENT_AFTER_PUBLISH,
+    function (WorkflowEvent $event) {
+        $review = $event->review; // zeixcom\craftdelta\models\Review
+        // $review->state, $review->round, $review->canonicalEntryId, …
+    }
+);
+```
+
+## Development
+
+- Unit tests: `composer test` (PHPUnit). Static analysis: `composer phpstan`. Code style: `composer check-cs` / `composer fix-cs`.
+- End-to-end smoke commands (against a configured dev environment):
+  - `php craft craft-delta/smoke/matrix-apply` — Matrix add/apply round-trip
+  - `php craft craft-delta/smoke/matrix-add-remove` — Matrix add + remove round-trip
+  - `php craft craft-delta/smoke/setup-workflow-users` — provision `delta.author` / `delta.reviewer` fixtures for a manual workflow walkthrough
 
 ## Roadmap
 
-Extend the plugin with the most popular third-party field types like NEO, Hyper, etc.
+Extend coverage to popular third-party field types (Neo, Hyper, …).
 
 ## License
 
-Proprietary — see [LICENSE.md](LICENSE.md)
+Proprietary — see [LICENSE.md](LICENSE.md).

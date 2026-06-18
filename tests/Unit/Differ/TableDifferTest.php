@@ -74,7 +74,6 @@ class TableDifferTest extends TestCase
         $this->assertSame('modified', $changes[0]['type']);
         $this->assertSame(1, $changes[0]['row']);
 
-        // Cell-level diff
         $cells = $changes[0]['cells'];
         $this->assertCount(1, $cells);
         $this->assertSame('col2', $cells[0]['col']);
@@ -113,11 +112,9 @@ class TableDifferTest extends TestCase
         $changes = json_decode($result, true);
         $this->assertCount(2, $changes);
 
-        // Row 2 modified
         $this->assertSame('modified', $changes[0]['type']);
         $this->assertSame(2, $changes[0]['row']);
 
-        // Row 3 removed
         $this->assertSame('removed', $changes[1]['type']);
         $this->assertSame(3, $changes[1]['row']);
     }

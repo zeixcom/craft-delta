@@ -1,13 +1,16 @@
-{# Diff result — rendered inside the toolbar's result container #}
+{# Diff result — rendered inside the slideout / delta-compare result container.
+   Diff-only: the review workflow (verdict, comments, accept/reject) now lives on
+   the dedicated /admin/delta-review page. When the draft under view has a review,
+   a slim banner links there. #}
 
 {% set stats = result.getStats() %}
 
 <div class="delta-stats" data-stats>
     <span>
         {%- if stats.fieldsChanged == 1 -%}
-            {{ '1 field changed'|t('craft-delta') }}
+            {{ deltaKeys.oneFieldChanged|t('craft-delta') }}
         {%- else -%}
-            {{ '{count} fields changed'|t('craft-delta', { count: stats.fieldsChanged }) }}
+            {{ deltaKeys.countFieldsChanged|t('craft-delta', { count: stats.fieldsChanged }) }}
         {%- endif -%}
     </span>
     {% if stats.additions > 0 %}
@@ -18,29 +21,22 @@
     {% endif %}
 </div>
 
-{% if result.hasChanges() %}
-    {% set grouped = result.fieldDiffs|group('tabName') %}
-
-    {# Attributes (title/slug) — no tab header #}
-    {% if grouped[''] is defined %}
-        {% for diff in grouped[''] %}
-            {% include 'craft-delta/_field-diff' with { diff: diff } %}
-        {% endfor %}
-    {% endif %}
-
-    {# Custom fields grouped by tab #}
-    {% for tabName, diffs in grouped %}
-        {% if tabName != '' %}
-            <div class="delta-tab-group" data-tab="{{ tabName }}">
-                <div class="delta-tab-header">{{ tabName }}</div>
-                {% for diff in diffs %}
-                    {% include 'craft-delta/_field-diff' with { diff: diff } %}
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endfor %}
-{% else %}
-    <div class="delta-empty">
-        <p>{{ 'No changes between these revisions.'|t('craft-delta') }}</p>
+{% if workflow is defined and workflow %}
+    <div class="delta-review-link-banner">
+        <span class="delta-review-link-status">
+            <span class="status {{ workflow.statusColor() }}"></span>
+            {{ workflow.statusLabel() }}
+        </span>
+        <span class="delta-review-link-meta">
+            {{ deltaKeys.workflowRound|t('craft-delta', { round: workflow.round }) }}
+            {% for r in workflow.reviewers %}
+                <span class="delta-reviewer-pill delta-reviewer-pill--{{ r.verdict }}">{{ r.userName ?? ('#' ~ r.userId) }}</span>
+            {% endfor %}
+        </span>
+        <a class="btn small delta-review-link-open" href="{{ cpUrl('delta-review', { reviewId: workflow.id }) }}">
+            {{ deltaKeys.workflowOpenReview|t('craft-delta') }} &nearr;
+        </a>
     </div>
 {% endif %}
+
+{% include 'craft-delta/_diff-fields' with { result: result, reviewMode: false } %}

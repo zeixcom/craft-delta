@@ -1,37 +1,110 @@
-{# Plugin settings page #}
-
 {% import '_includes/forms.twig' as forms %}
 
-{{ forms.textField({
-    first: true,
-    label: 'Diff Context Lines'|t('craft-delta'),
-    instructions: 'Number of unchanged lines to show around changes.'|t('craft-delta'),
-    id: 'diffContext',
-    name: 'diffContext',
-    value: settings.diffContext,
-    type: 'number',
-    min: 0,
-    max: 20,
-    size: 5,
-    errors: settings.getErrors('diffContext'),
-}) }}
+<h2 class="first">{{ deltaKeys.generalSettings|t('craft-delta') }}</h2>
 
-{{ forms.textField({
-    label: 'Max Field Length'|t('craft-delta'),
-    instructions: 'Maximum characters before showing a simplified diff. Prevents performance issues on very large fields.'|t('craft-delta'),
-    id: 'maxFieldLength',
-    name: 'maxFieldLength',
-    value: settings.maxFieldLength,
-    type: 'number',
-    min: 1000,
-    size: 10,
-    errors: settings.getErrors('maxFieldLength'),
-}) }}
+<div class="field">
+    {{ forms.lightswitchField({
+        label: deltaKeys.enableReviewWorkflow|t('craft-delta'),
+        instructions: deltaKeys.enableReviewWorkflowInstructions|t('craft-delta'),
+        id: 'enableWorkflow',
+        name: 'enableWorkflow',
+        on: settings.enableWorkflow,
+    }) }}
+</div>
 
+<div class="field">
+    {{ forms.textField({
+        first: true,
+        label: deltaKeys.diffContextLines|t('craft-delta'),
+        instructions: deltaKeys.diffContextLinesInstructions|t('craft-delta'),
+        id: 'diffContext',
+        name: 'diffContext',
+        value: settings.diffContext,
+        type: 'number',
+        min: 0,
+        max: 20,
+        size: 5,
+        errors: settings.getErrors('diffContext'),
+    }) }}
+</div>
+
+<div class="field">
+    {{ forms.textField({
+        label: deltaKeys.maxFieldLength|t('craft-delta'),
+        instructions: deltaKeys.maxFieldLengthInstructions|t('craft-delta'),
+        id: 'maxFieldLength',
+        name: 'maxFieldLength',
+        value: settings.maxFieldLength,
+        type: 'number',
+        min: 1000,
+        size: 10,
+        errors: settings.getErrors('maxFieldLength'),
+    }) }}
+</div>
+
+
+<div class="field">
+    {{ forms.lightswitchField({
+        label: deltaKeys.showUnchangedFields|t('craft-delta'),
+        instructions: deltaKeys.showUnchangedFieldsInstructions|t('craft-delta'),
+        id: 'defaultShowUnchanged',
+        name: 'defaultShowUnchanged',
+        on: settings.defaultShowUnchanged,
+    }) }}
+</div>
+
+<div class="field">
 {{ forms.lightswitchField({
-    label: 'Show Unchanged Fields'|t('craft-delta'),
-    instructions: 'Show unchanged fields by default in the diff view.'|t('craft-delta'),
-    id: 'defaultShowUnchanged',
-    name: 'defaultShowUnchanged',
-    on: settings.defaultShowUnchanged,
-}) }}
+        label: deltaKeys.enableReviewMode|t('craft-delta'),
+        instructions: deltaKeys.enableReviewModeInstructions|t('craft-delta'),
+        id: 'enableReviewMode',
+        name: 'enableReviewMode',
+        on: settings.enableReviewMode,
+        toggle: 'delta-reviewmode-settings',
+    }) }}
+</div>
+
+{# Preview + approval settings are shown/hidden by the Enable Review Mode switch
+   above (its `toggle` targets this container). #}
+<div id="delta-reviewmode-settings" class="{{ settings.enableReviewMode ? '' : 'hidden' }}">
+    <div class="field">
+        {{ forms.lightswitchField({
+            label: deltaKeys.enablePreview|t('craft-delta'),
+            instructions: deltaKeys.enablePreviewInstructions|t('craft-delta'),
+            id: 'enablePreview',
+            name: 'enablePreview',
+            on: settings.enablePreview,
+        }) }}
+    </div>
+
+    <div class="field">
+        {{ forms.selectField({
+            label: deltaKeys.approvalPolicy|t('craft-delta'),
+            instructions: deltaKeys.approvalPolicyInstructions|t('craft-delta'),
+            id: 'approvalPolicy',
+            name: 'approvalPolicy',
+            value: settings.approvalPolicy,
+            options: [
+                { value: 'any', label: deltaKeys.approvalAny|t('craft-delta') },
+                { value: 'all', label: deltaKeys.approvalAll|t('craft-delta') },
+                { value: 'count', label: deltaKeys.approvalCount|t('craft-delta') },
+            ],
+            toggle: true,
+            targetPrefix: 'delta-approval-',
+        }) }}
+    </div>
+
+    <div id="delta-approval-count" class="field {{ settings.approvalPolicy == 'count' ? '' : 'hidden' }}">
+        {{ forms.textField({
+            label: deltaKeys.approvalsRequired|t('craft-delta'),
+            id: 'approvalsRequired',
+            name: 'approvalsRequired',
+            value: settings.approvalsRequired,
+            type: 'number',
+            min: 1,
+            max: 20,
+            size: 5,
+            errors: settings.getErrors('approvalsRequired'),
+        }) }}
+    </div>
+</div>
