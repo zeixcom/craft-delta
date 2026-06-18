@@ -44,6 +44,14 @@
     --delta-text-muted-fallback: #5d6f7d;
     --delta-text-fallback: #2c3e50;
     --delta-link: var(--link-color, #1a8eff);
+    /* Palette aliases — values reused across this file, with the Craft-scale
+       fallback defined once here instead of repeated at every call site. */
+    --delta-white: #fff;
+    --delta-hairline: var(--hairline-color, #e3e5e8);
+    --delta-gray-100: var(--gray-100, #e8eaed);
+    --delta-gray-500: var(--gray-500, #7b8794);
+    --delta-gray-600: var(--gray-600, #59667d);
+    --delta-gray-700: var(--gray-700, #3f4a5a);
     --delta-font-xs: 10px;
     --delta-font-sm: 11px;
     --delta-font-md: 12px;
@@ -816,7 +824,7 @@ button.delta-field-header {
     border-radius: var(--delta-radius-md);
     cursor: pointer;
     background: var(--delta-compare-bg);
-    color: #fff;
+    color: var(--delta-white);
     transition: background 0.15s;
 }
 
@@ -845,7 +853,7 @@ button.delta-field-header {
     transition: background 0.15s, color 0.15s;
 }
 
-#delta-submit-btn:hover { background: var(--delta-compare-bg); color: #fff; }
+#delta-submit-btn:hover { background: var(--delta-compare-bg); color: var(--delta-white); }
 
 .delta-workflow-status {
     margin: 10px 0 0;
@@ -854,8 +862,8 @@ button.delta-field-header {
     font-size: var(--delta-font-sm);
     font-weight: 600;
     text-align: center;
-    background: var(--gray-100, #e8eaed);
-    color: var(--gray-700, #3f4a5a);
+    background: var(--delta-gray-100);
+    color: var(--delta-gray-700);
 }
 
 .delta-error {
@@ -989,14 +997,14 @@ button.delta-field-header {
 .delta-atom-actions button.delta-atom-accept.is-active,
 .delta-atom-actions .btn.delta-atom-accept.is-active {
     background-color: var(--delta-add-border);
-    color: #fff;
+    color: var(--delta-white);
     font-weight: 700;
 }
 
 .delta-atom-actions button.delta-atom-reject.is-active,
 .delta-atom-actions .btn.delta-atom-reject.is-active {
     background-color: var(--delta-del-border);
-    color: #fff;
+    color: var(--delta-white);
     font-weight: 700;
 }
 
@@ -1038,7 +1046,7 @@ button.delta-field-header {
 
 .delta-review-roster-label {
     font-weight: 600;
-    color: var(--gray-600, #59667d);
+    color: var(--delta-gray-600);
 }
 
 .delta-reviewer-pill {
@@ -1046,8 +1054,8 @@ button.delta-field-header {
     padding: 2px 8px;
     border-radius: 999px;
     font-size: 12px;
-    background: var(--gray-100, #e8eaed);
-    color: var(--gray-700, #3f4a5a);
+    background: var(--delta-gray-100);
+    color: var(--delta-gray-700);
 }
 
 .delta-reviewer-pill--approved {
@@ -1056,7 +1064,7 @@ button.delta-field-header {
 }
 
 .delta-reviewer-pill--pending {
-    background: var(--gray-100, #e8eaed);
+    background: var(--delta-gray-100);
 }
 
 /* Each dashboard section is its own <table>; pin column widths so they line up across sections instead of auto-sizing. */
@@ -1069,7 +1077,7 @@ button.delta-field-header {
 
 .delta-review-round {
     margin-left: auto;
-    color: var(--gray-500, #7b8794);
+    color: var(--delta-gray-500);
     font-size: 12px;
 }
 
@@ -1084,7 +1092,7 @@ button.delta-field-header {
 [data-wf-action="approve"].btn.submit {
     background-image: none;
     background-color: #2e7d32 !important;
-    color: #fff;
+    color: var(--delta-white);
 }
 
 [data-wf-action="approve"].btn.submit:not(.disabled):hover,
@@ -1092,7 +1100,7 @@ button.delta-field-header {
 [data-wf-action="approve"].btn.submit:not(.disabled):active {
     background-image: none !important;
     background-color: #1b5e20 !important;
-    color: #fff;
+    color: var(--delta-white);
 }
 
 .delta-review-header.delta-review-header--approved {
@@ -1140,9 +1148,9 @@ button.delta-field-header {
 .delta-assignee {
     max-height: 220px;
     overflow-y: auto;
-    border: 1px solid var(--hairline-color, #e3e5e8);
+    border: 1px solid var(--delta-hairline);
     border-radius: var(--delta-radius, 4px);
-    background: #fff;
+    background: var(--delta-white);
 }
 
 .delta-assignee-option {
@@ -1151,7 +1159,7 @@ button.delta-field-header {
     gap: 8px;
     padding: 7px 12px;
     cursor: pointer;
-    border-bottom: 1px solid var(--hairline-color, #e3e5e8);
+    border-bottom: 1px solid var(--delta-hairline);
 }
 
 .delta-assignee-option:last-child { border-bottom: none; }
@@ -1162,7 +1170,7 @@ button.delta-field-header {
 .delta-assignee-empty {
     margin: 0;
     padding: 10px 12px;
-    color: var(--gray-500, #7b8794);
+    color: var(--delta-gray-500);
     font-style: italic;
 }
 
@@ -1188,7 +1196,7 @@ button.delta-field-header {
 .delta-comments-outdated summary {
     cursor: pointer;
     font-size: 13px;
-    color: var(--gray-600, #59667d);
+    color: var(--delta-gray-600);
 }
 
 .delta-comment-list {
@@ -1198,7 +1206,7 @@ button.delta-field-header {
 .delta-comment-empty {
     margin: 0;
     font-size: 13px;
-    color: var(--gray-500, #7b8794);
+    color: var(--delta-gray-500);
     font-style: italic;
 }
 
@@ -1210,9 +1218,8 @@ button.delta-field-header {
     margin-top: 8px;
 }
 
-.delta-comment-compose textarea { align-self: stretch; }
-
 .delta-comment-compose textarea {
+    align-self: stretch;
     min-height: 56px;
     resize: vertical;
 }
@@ -1226,9 +1233,9 @@ button.delta-field-header {
 }
 
 .delta-comment-trigger.is-open {
-    background: var(--delta-link, #0b69ff);
-    color: #fff;
-    border-color: var(--delta-link, #0b69ff);
+    background: var(--delta-link);
+    color: var(--delta-white);
+    border-color: var(--delta-link);
 }
 
 .delta-comment-trigger-icon {
@@ -1244,8 +1251,8 @@ button.delta-field-header {
     height: 16px;
     padding: 0 4px;
     border-radius: 999px;
-    background: var(--delta-link, #0b69ff);
-    color: #fff;
+    background: var(--delta-link);
+    color: var(--delta-white);
     font-size: 10px;
     font-weight: 700;
     line-height: 16px;
@@ -1257,12 +1264,12 @@ button.delta-field-header {
     padding: 10px 12px;
     border: 1px solid var(--delta-review-bar-border);
     border-radius: var(--delta-radius, 4px);
-    background: #fff;
+    background: var(--delta-white);
 }
 
 .delta-comment-item {
     padding: 8px 0;
-    border-bottom: 1px solid var(--hairline-color, #e3e5e8);
+    border-bottom: 1px solid var(--delta-hairline);
 }
 
 .delta-comment-item:last-child {
@@ -1294,7 +1301,7 @@ button.delta-field-header {
 }
 
 .delta-comment-round {
-    color: var(--gray-500, #7b8794);
+    color: var(--delta-gray-500);
 }
 
 .delta-comment-body {
@@ -1410,7 +1417,7 @@ button.delta-field-header {
     width: 100%;
     border: 1px solid var(--delta-review-bar-border);
     border-radius: var(--large-border-radius, 8px);
-    background: #fff;
+    background: var(--delta-white);
 }
 
 /* A side-by-side split gets cramped on narrow viewports — stack instead. */
@@ -1547,7 +1554,7 @@ button.delta-field-header {
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
-    color: var(--gray-500, #7b8794);
+    color: var(--delta-gray-500);
 }
 
 .delta-review-link-open {
