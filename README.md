@@ -32,12 +32,13 @@ php craft plugin/install craft-delta
 
 **Submit-for-review workflow** (v2.0+)
 
-- Authors submit a draft to one or more reviewers; reviewers approve, request changes with a note, or decline. Authors revise and re-request (a new review round) or withdraw.
+- Authors submit a draft to one or more reviewers; reviewers **approve** or **decline** (with an optional note). To ask for changes, a reviewer comments instead of approving; the author revises the draft in place, or withdraws and resubmits it as a new round.
 - Approved reviews publish wholesale — immediately or scheduled via a queued job — or granularly through Review Mode
 - A **Reviews** dashboard in the CP nav (assigned to me / my submissions / all for admins) and a **Workflow** status column on entry index pages
+- A **live draft preview** beside the diff on the review page (sections with front-end URLs) — toggleable globally, hideable per reviewer
 - Email notifications on every transition, sent in the recipient's preferred language
 - Section-agnostic permissions that compose with Craft's native section access
-- `EVENT_AFTER_SUBMIT`, `EVENT_AFTER_APPROVE`, `EVENT_AFTER_CHANGES_REQUESTED`, `EVENT_AFTER_DECLINE`, `EVENT_AFTER_REREQUEST`, `EVENT_AFTER_WITHDRAW`, and `EVENT_AFTER_PUBLISH` events for third-party integration
+- `EVENT_AFTER_SUBMIT`, `EVENT_AFTER_APPROVE`, `EVENT_AFTER_DECLINE`, `EVENT_AFTER_WITHDRAW`, and `EVENT_AFTER_PUBLISH` events for third-party integration
 
 **Platform**
 
@@ -75,16 +76,17 @@ Toggle the whole workflow with **Settings → Plugins → Craft Delta → Enable
 
 **Reviewing.** Reviews happen on a dedicated full-page workspace at `/admin/delta-review?reviewId=N` — reachable from the **Reviews** dashboard, the notification emails, or the **Open review** link in the diff slideout. (The slideout and the `delta-compare` full page are diff-only; the review apparatus lives on this page.) The page shows the reviewers' verdicts and current round, the diff with inline comments, the general discussion, plus:
 
-- **Approve** — records an approval verdict. One approval (with no outstanding change requests) moves the review to **Approved**; a single **Request changes** from any reviewer blocks it.
-- **Request changes** — sends the author a note and moves the review to **Changes requested**.
+- **Approve** — records an approval verdict. A single approval moves the review to **Approved**. To ask for changes instead of approving, leave a comment — there's no separate "request changes" verdict.
 - **Accept / reject per change** — for reviewers with **Apply review-mode changes**, accept/reject controls and a live "decided" counter are shown on each change; **Apply N accepted** publishes only the accepted ones.
 - **Decline** — terminal; the author keeps the draft and receives your optional note by email.
 
 Comments are anchored inline under the change they're about (or posted to the general discussion), with one level of replies and resolve/unresolve.
 
-**Iterating (author).** When changes are requested, the author revises the draft and clicks **Re-request review** — the same reviewers are asked again in a new **round**. The author can also **Withdraw** the request at any time while it's active.
+For sections with front-end URLs, a **live draft preview** pane renders beside the diff so reviewers can see the rendered draft as they read the changes. Turn it off globally with the **Enable Preview** setting; each reviewer can also hide it for themselves.
 
-**Publishing.** Once approved, **Publish** (now) and **Schedule for…** (later, via a queued job) appear for the reviewer and the author. Publishing additionally requires Craft's native save permission on the entry, so a review-only role can't push content live. Scheduling is rescinded automatically if a reviewer subsequently requests changes or the review is declined/withdrawn.
+**Iterating (author).** A submitted draft isn't locked, so the author can keep revising it while the review is open — reviewers see the updated diff. To pull the request back, the author clicks **Withdraw** (the request goes inactive); resubmitting the same draft through the normal Submit-for-review path re-opens the review in a new **round**.
+
+**Publishing.** Once approved, **Publish** (now) and **Schedule for…** (later, via a queued job) appear for the reviewer and the author. Publishing additionally requires Craft's native save permission on the entry, so a review-only role can't push content live. Scheduling is rescinded automatically if the review is declined or withdrawn — either reverts it out of the approved state.
 
 A submitted draft is **not** locked. If the author keeps editing, a scheduled apply publishes whatever the draft contains at apply time.
 
@@ -98,7 +100,7 @@ Applying accepted changes through Review Mode **is** the review decision, so the
 
 The rejected changes aren't lost. The source draft is left untouched and becomes a record of what was declined — re-opening the diff afterward shows only the changes you didn't accept (canonical now matches the draft for everything that was). Tick **Also delete source draft** before applying to discard those leftovers instead; the closed review is kept as an audit record either way.
 
-> **Design note — why a partial apply closes the review.** A reviewer who applies has made their call, so the review concludes the same way a wholesale publish does. The plugin does **not** support iterative apply (apply some now, keep the review open, apply more later) — for iteration, use **Request changes** and let the author re-request a new round. Implemented in `WorkflowService::resolveByReview()`, called from `DiffController::actionApply()`.
+> **Design note — why a partial apply closes the review.** A reviewer who applies has made their call, so the review concludes the same way a wholesale publish does. The plugin does **not** support iterative apply (apply some now, keep the review open, apply more later) — for iteration, decline the review (or just comment and hold off approving) and let the author revise and resubmit a new round. Implemented in `WorkflowService::resolveByReview()`, called from `DiffController::actionApply()`.
 
 ### Permissions & access
 
@@ -109,7 +111,7 @@ Plugin permissions live under **Settings → Users → User Groups → Permissio
 | Permission | Key | Grants |
 |---|---|---|
 | Submit drafts for review | `craftdelta-submitDraft` | The **Submit for review** button on the holder's own drafts. |
-| Review submitted drafts | `craftdelta-reviewDraft` | Being assignable as a reviewer, plus the Approve / Request changes / Decline verdicts. |
+| Review submitted drafts | `craftdelta-reviewDraft` | Being assignable as a reviewer, plus the Approve / Decline verdicts. |
 | Apply review-mode changes | `craftdelta-applyReview` | Entering Review Mode and publishing accepted changes — both standalone Review Mode and the per-change accept/reject on the review page. |
 
 Section access is **not** handled by the plugin. Give each role the native Craft section permissions for the sections they work in, for example:

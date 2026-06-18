@@ -1103,6 +1103,23 @@ button.delta-field-header {
     color: var(--delta-white);
 }
 
+/* Decline is the negative verdict — red mirrors the green Approve so the pair
+   reads at a glance. The quiet "reverse an approval" variant (.delta-btn-quiet,
+   shown once already approved) stays understated, so it's excluded. */
+[data-wf-action="decline"].btn:not(.delta-btn-quiet) {
+    background-image: none;
+    background-color: #c62828 !important;
+    color: var(--delta-white);
+}
+
+[data-wf-action="decline"].btn:not(.delta-btn-quiet):not(.disabled):hover,
+[data-wf-action="decline"].btn:not(.delta-btn-quiet):not(.disabled):focus,
+[data-wf-action="decline"].btn:not(.delta-btn-quiet):not(.disabled):active {
+    background-image: none !important;
+    background-color: #b71c1c !important;
+    color: var(--delta-white);
+}
+
 .delta-review-header.delta-review-header--approved {
     padding: 16px 18px;
 }
