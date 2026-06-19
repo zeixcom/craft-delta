@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.1 - 2026-06-19
+
+Maintenance release — no functional changes from 2.1.0.
+
 ## 2.1.0 - 2026-06-19
 
 Reworks the **Reviews dashboard** into a native Craft index and tightens the review queue.
