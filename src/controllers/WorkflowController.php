@@ -63,13 +63,9 @@ class WorkflowController extends Controller
             $selected = $keys[0] ?? 'assigned';
         }
 
-        // Non-terminal counts for the sidebar source badges (same filter the table applies).
-        $reviews = Delta::getInstance()->workflow->getReviewsForDashboard($user);
+        // Badge count per visible bucket — the same visibility rules the table uses.
         foreach ($buckets as &$bucket) {
-            $bucket['count'] = count(array_filter(
-                $reviews[$bucket['key']] ?? [],
-                static fn(Review $r) => !$r->isTerminal(),
-            ));
+            $bucket['count'] = count($this->visibleReviews($user, $bucket['key']));
         }
         unset($bucket);
 
@@ -81,8 +77,7 @@ class WorkflowController extends Controller
 
     /**
      * JSON feed for the reviews dashboard's Vue admin table (one bucket at a
-     * time). Terminal reviews (published / declined / withdrawn) are filtered
-     * out so the queue only shows what still needs attention.
+     * time). Visibility rules per bucket live in visibleReviews().
      */
     public function actionTableData(): Response
     {
@@ -92,7 +87,7 @@ class WorkflowController extends Controller
 
         $request = Craft::$app->getRequest();
         $page = max(1, (int)$request->getParam('page', 1));
-        $limit = max(1, (int)$request->getParam('per_page', 50));
+        $limit = min(100, max(1, (int)$request->getParam('per_page', 50)));
         $search = trim((string)$request->getParam('search', ''));
         $sortField = (string)$request->getParam('sort.0.field', '');
         $sortDir = $request->getParam('sort.0.direction') === 'desc' ? SORT_DESC : SORT_ASC;
@@ -104,9 +99,9 @@ class WorkflowController extends Controller
             $bucket = $allowed[0] ?? 'assigned';
         }
 
-        $reviews = Delta::getInstance()->workflow->getReviewsForDashboard($user)[$bucket] ?? [];
-        $reviews = array_filter($reviews, static fn(Review $r) => !$r->isTerminal());
-        $rows = array_map($this->tableRow(...), $reviews);
+        $reviews = $this->visibleReviews($user, $bucket);
+        $titles = $this->entryTitles($reviews); // one batched query, not getEntryById per row
+        $rows = array_map(fn(Review $r) => $this->tableRow($r, $titles), $reviews);
 
         if ($search !== '') {
             $needle = mb_strtolower($search);
@@ -114,9 +109,10 @@ class WorkflowController extends Controller
                 str_contains(mb_strtolower($r['title']), $needle) || str_contains(mb_strtolower($r['statusLabel']), $needle));
         }
 
+        // Status sorts by workflow-state rank, not the localized label text.
         $sortKey = match ($sortField) {
             '__slot:title' => 'title',
-            'statusCell' => 'statusLabel',
+            'statusCell' => 'statusRank',
             'round' => 'round',
             default => null,
         };
@@ -127,6 +123,9 @@ class WorkflowController extends Controller
 
         $rows = array_values($rows);
         $total = count($rows);
+        // Clamp the page so a stale/over-range page (e.g. after a search shrinks
+        // the result set) returns the last page instead of an empty slice.
+        $page = min($page, max(1, (int)ceil($total / $limit)));
         $rows = array_slice($rows, ($page - 1) * $limit, $limit);
 
         return $this->asSuccess(data: [
@@ -166,15 +165,80 @@ class WorkflowController extends Controller
     }
 
     /**
-     * One admin-table row for a review. Status + reviewer pills are pre-rendered
-     * HTML (shown via column callbacks); `statusLabel` backs search/sort only.
+     * Reviews to show for a bucket. Actionable queues hide terminal reviews;
+     * 'assigned' further narrows to reviews still awaiting THIS user's verdict
+     * (matching the CP nav badge). The admin 'all' bucket shows everything so it
+     * stays a complete audit view.
      *
+     * @return list<Review>
+     */
+    private function visibleReviews(User $user, string $bucket): array
+    {
+        $reviews = Delta::getInstance()->workflow->getReviewsForBucket($user, $bucket);
+        if ($bucket === 'all') {
+            return array_values($reviews);
+        }
+        $reviews = array_filter($reviews, static fn(Review $r) => !$r->isTerminal());
+        if ($bucket === 'assigned') {
+            $reviews = array_filter($reviews, fn(Review $r) => $this->awaitingVerdict($r, (int)$user->id));
+        }
+        return array_values($reviews);
+    }
+
+    /** Does this user still owe a verdict on the review's current round? */
+    private function awaitingVerdict(Review $review, int $userId): bool
+    {
+        foreach ($review->reviewers as $reviewer) {
+            if ($reviewer->userId === $userId) {
+                return $reviewer->verdict === ReviewReviewer::VERDICT_PENDING;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Batch-load canonical entry titles for a set of reviews in one query.
+     *
+     * @param list<Review> $reviews
+     * @return array<int, string> canonicalEntryId => title
+     */
+    private function entryTitles(array $reviews): array
+    {
+        $ids = array_values(array_unique(array_map(static fn(Review $r) => $r->canonicalEntryId, $reviews)));
+        if ($ids === []) {
+            return [];
+        }
+        $titles = [];
+        foreach (Entry::find()->id($ids)->status(null)->all() as $entry) {
+            $titles[(int)$entry->id] = (string)$entry->title;
+        }
+        return $titles;
+    }
+
+    /** Stable workflow-state ordering for the Status column (locale-independent). */
+    private function statusRank(Review $review): int
+    {
+        return match ($review->state) {
+            Review::STATE_OPEN => 0,
+            Review::STATE_APPROVED => 1,
+            Review::STATE_PUBLISHED => 2,
+            Review::STATE_DECLINED => 3,
+            Review::STATE_CANCELLED => 4,
+            default => 5,
+        };
+    }
+
+    /**
+     * One admin-table row for a review. Status + reviewer pills are pre-rendered
+     * HTML (shown via column callbacks); `statusLabel` backs search, `statusRank`
+     * backs the Status sort.
+     *
+     * @param array<int, string> $titles canonicalEntryId => title
      * @return array<string, mixed>
      */
-    private function tableRow(Review $review): array
+    private function tableRow(Review $review, array $titles): array
     {
-        $canonical = Craft::$app->getEntries()->getEntryById($review->canonicalEntryId);
-        $title = $canonical?->title ?? ('#' . $review->canonicalEntryId);
+        $title = $titles[$review->canonicalEntryId] ?? ('#' . $review->canonicalEntryId);
 
         $pills = '';
         foreach ($review->reviewers as $reviewer) {
@@ -189,6 +253,7 @@ class WorkflowController extends Controller
             'url' => UrlHelper::cpUrl('delta-review', ['reviewId' => $review->id]),
             'statusCell' => '<span class="status ' . htmlspecialchars($review->statusColor()) . '"></span>' . htmlspecialchars($review->statusLabel()),
             'statusLabel' => $review->statusLabel(),
+            'statusRank' => $this->statusRank($review),
             'round' => $review->round,
             'reviewers' => trim($pills),
         ];
