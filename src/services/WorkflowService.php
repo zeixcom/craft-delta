@@ -106,11 +106,44 @@ class WorkflowService extends Component
      */
     public function getReviewsForDashboard(User $user): array
     {
-        $submitted = array_map(
-            $this->modelFromRecord(...),
-            ReviewRecord::find()->where(['submittedBy' => $user->id])->orderBy(['dateUpdated' => SORT_DESC])->all(),
-        );
+        return [
+            'assigned' => $this->getReviewsForBucket($user, 'assigned'),
+            'submitted' => $this->getReviewsForBucket($user, 'submitted'),
+            'all' => $this->getReviewsForBucket($user, 'all'),
+        ];
+    }
 
+    /**
+     * One dashboard bucket only, so callers that need a single tab don't pay for
+     * the others (notably the admin 'all' 200-row load).
+     *
+     * @return list<Review>
+     */
+    public function getReviewsForBucket(User $user, string $bucket): array
+    {
+        return match ($bucket) {
+            'assigned' => $this->assignedReviews($user),
+            'submitted' => array_map(
+                $this->modelFromRecord(...),
+                ReviewRecord::find()->where(['submittedBy' => $user->id])->orderBy(['dateUpdated' => SORT_DESC])->all(),
+            ),
+            'all' => $user->admin
+                ? array_map(
+                    $this->modelFromRecord(...),
+                    ReviewRecord::find()->orderBy(['dateUpdated' => SORT_DESC])->limit(200)->all(),
+                )
+                : [],
+            default => [],
+        };
+    }
+
+    /**
+     * Reviews where the user is a current-round reviewer of a still-active review.
+     *
+     * @return list<Review>
+     */
+    private function assignedReviews(User $user): array
+    {
         $assigned = [];
         $seen = [];
         /** @var ReviewReviewerRecord $row */
@@ -124,17 +157,7 @@ class WorkflowService extends Component
                 $seen[$row->reviewId] = true;
             }
         }
-
-        return [
-            'assigned' => $assigned,
-            'submitted' => $submitted,
-            'all' => $user->admin
-                ? array_map(
-                    $this->modelFromRecord(...),
-                    ReviewRecord::find()->orderBy(['dateUpdated' => SORT_DESC])->limit(200)->all(),
-                )
-                : [],
-        ];
+        return $assigned;
     }
 
     public function countAwaitingVerdict(User $user): int

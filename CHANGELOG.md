@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.1.0 - 2026-06-19
+
+Reworks the **Reviews dashboard** into a native Craft index and tightens the review queue.
+
+### Added
+
+- The Reviews dashboard (`/admin/delta-reviews`) is now a native Craft element-style index: a left **source sidebar** (Awaiting my verdict / My submissions / All reviews, each with a count badge) drives a single sortable, searchable, paginated table, replacing the three stacked tables.
+
+### Changed
+
+- **Awaiting my verdict** now lists only reviews still awaiting *your* verdict (pending in the current round), so it matches the control-panel nav badge.
+- The actionable queues (Awaiting my verdict / My submissions) hide concluded reviews (published / declined / withdrawn); the admin **All reviews** source keeps the full audit history.
+- The Status column sorts by workflow state rather than by the localized label text.
+
+### Fixed
+
+- Reviewer pills stay on a single line and truncate long names with an ellipsis (full name on hover) instead of wrapping into a multi-line blob.
+
+### Performance
+
+- Dashboard rows batch-load their entry titles in a single query instead of one lookup per row, and the table fetches only the requested source bucket instead of computing all three.
+
 ## 2.0.0 - 2026-06-18
 
 Major release: adds an inline **Review Mode** and a multi-reviewer **submit-for-review workflow** on top of the v1.x diff viewer.

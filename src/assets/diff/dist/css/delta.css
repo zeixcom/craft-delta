@@ -1059,6 +1059,14 @@ button.delta-field-header {
     font-size: 12px;
     background: var(--delta-gray-100);
     color: var(--delta-gray-700);
+    /* Keep each pill on a single line; truncate long names with an ellipsis
+       (full name in the title tooltip) so a narrow column can't balloon the
+       pill into a multi-line blob. */
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: top;
 }
 
 .delta-reviewer-pill--approved {
