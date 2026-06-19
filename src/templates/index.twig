@@ -1,55 +1,54 @@
 {% extends "_layouts/cp" %}
 
+{% do view.registerAssetBundle('craft\\web\\assets\\admintable\\AdminTableAsset') %}
 {% do view.registerAssetBundle('zeixcom\\craftdelta\\assets\\diff\\DiffAsset') %}
 
 {% set title = deltaKeys.workflowReviewsTitle|t('craft-delta') %}
 
-{% block content %}
-    {% set sections = [
-        { heading: deltaKeys.workflowAssignedToMe|t('craft-delta'), rows: assigned },
-        { heading: deltaKeys.workflowMySubmissions|t('craft-delta'), rows: submitted },
-    ] %}
-    {% if isAdmin %}
-        {% set sections = sections|merge([{ heading: deltaKeys.workflowAllReviews|t('craft-delta'), rows: all }]) %}
-    {% endif %}
-
-    {% set anyRows = false %}
-    {% for s in sections %}{% if s.rows|length %}{% set anyRows = true %}{% endif %}{% endfor %}
-
-    {% if not anyRows %}
-        <p class="zilch">{{ deltaKeys.workflowNoReviews|t('craft-delta') }}</p>
-    {% endif %}
-
-    {% for s in sections %}
-        {% if s.rows|length %}
-            <h2>{{ s.heading }}</h2>
-            <table class="data fullwidth delta-reviews-table">
-                <thead>
-                    <tr>
-                        <th>{{ deltaKeys.workflowColEntry|t('craft-delta') }}</th>
-                        <th>{{ deltaKeys.workflowColStatus|t('craft-delta') }}</th>
-                        <th>{{ deltaKeys.workflowColRound|t('craft-delta') }}</th>
-                        <th>{{ deltaKeys.workflowReviewers|t('craft-delta') }}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in s.rows %}
-                        {% set r = row.review %}
-                        <tr>
-                            <td>
-                                <a href="{{ cpUrl('delta-review', { reviewId: r.id }) }}">{{ row.title }}</a>
-                            </td>
-                            <td><span class="status {{ r.statusColor() }}"></span>{{ r.statusLabel() }}</td>
-                            <td>{{ r.round }}</td>
-                            <td>
-                                {% for rv in r.reviewers %}
-                                    <span class="delta-reviewer-pill delta-reviewer-pill--{{ rv.verdict }}">{{ rv.userName ?? ('#' ~ rv.userId) }}</span>
-                                {% endfor %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% endif %}
-    {% endfor %}
+{% block sidebar %}
+    <nav aria-label="{{ title }}">
+        <ul>
+            {% for b in buckets %}
+                {% set selected = b.key == selectedBucket %}
+                <li>
+                    <a class="{% if selected %}sel{% elseif b.count %}has-badge{% endif %}" href="{{ cpUrl('delta-reviews', { bucket: b.key }) }}">
+                        <span class="label">{{ b.label }}</span>
+                        {% if not selected and b.count %}
+                            <span class="badge" aria-hidden="true">{{ b.count }}</span>
+                        {% endif %}
+                    </a>
+                </li>
+            {% endfor %}
+        </ul>
+    </nav>
 {% endblock %}
+
+{% block content %}
+    <div id="delta-reviews-table"></div>
+{% endblock %}
+
+{% js %}
+(() => {
+    const bucket = {{ selectedBucket|json_encode|raw }};
+
+    const columns = [
+        { name: '__slot:title', title: {{ deltaKeys.workflowColEntry|t('craft-delta')|json_encode|raw }}, sortField: true },
+        { name: 'statusCell', title: {{ deltaKeys.workflowColStatus|t('craft-delta')|json_encode|raw }}, sortField: true, callback: (v) => v },
+        { name: 'round', title: {{ deltaKeys.workflowColRound|t('craft-delta')|json_encode|raw }}, sortField: true },
+        { name: 'reviewers', title: {{ deltaKeys.workflowReviewers|t('craft-delta')|json_encode|raw }}, callback: (v) => v },
+    ];
+
+    new Craft.VueAdminTable({
+        columns,
+        container: '#delta-reviews-table',
+        fullPane: false,
+        tableDataEndpoint: 'craft-delta/workflow/table-data',
+        search: true,
+        emptyMessage: {{ deltaKeys.workflowNoReviews|t('craft-delta')|json_encode|raw }},
+        onQueryParams: (params) => {
+            params.bucket = bucket;
+            return params;
+        },
+    });
+})();
+{% endjs %}

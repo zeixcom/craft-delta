@@ -7,6 +7,7 @@ namespace zeixcom\craftdelta\controllers;
 use Craft;
 use craft\elements\Entry;
 use craft\elements\User;
+use craft\helpers\AdminTable;
 use craft\helpers\DateTimeHelper;
 use craft\helpers\UrlHelper;
 use craft\web\Controller;
@@ -53,22 +54,144 @@ class WorkflowController extends Controller
     public function actionIndex(): Response
     {
         $this->requireCpRequest();
+        $user = $this->requireDashboardUser();
 
+        $buckets = $this->availableBuckets($user);
+        $keys = array_column($buckets, 'key');
+        $selected = (string)Craft::$app->getRequest()->getParam('bucket', $keys[0] ?? 'assigned');
+        if (!in_array($selected, $keys, true)) {
+            $selected = $keys[0] ?? 'assigned';
+        }
+
+        // Non-terminal counts for the sidebar source badges (same filter the table applies).
+        $reviews = Delta::getInstance()->workflow->getReviewsForDashboard($user);
+        foreach ($buckets as &$bucket) {
+            $bucket['count'] = count(array_filter(
+                $reviews[$bucket['key']] ?? [],
+                static fn(Review $r) => !$r->isTerminal(),
+            ));
+        }
+        unset($bucket);
+
+        return $this->renderTemplate('craft-delta/index', [
+            'buckets' => $buckets,
+            'selectedBucket' => $selected,
+        ]);
+    }
+
+    /**
+     * JSON feed for the reviews dashboard's Vue admin table (one bucket at a
+     * time). Terminal reviews (published / declined / withdrawn) are filtered
+     * out so the queue only shows what still needs attention.
+     */
+    public function actionTableData(): Response
+    {
+        $this->requireCpRequest();
+        $this->requireAcceptsJson();
+        $user = $this->requireDashboardUser();
+
+        $request = Craft::$app->getRequest();
+        $page = max(1, (int)$request->getParam('page', 1));
+        $limit = max(1, (int)$request->getParam('per_page', 50));
+        $search = trim((string)$request->getParam('search', ''));
+        $sortField = (string)$request->getParam('sort.0.field', '');
+        $sortDir = $request->getParam('sort.0.direction') === 'desc' ? SORT_DESC : SORT_ASC;
+
+        // Gate the requested bucket by permission; fall back to the safe default.
+        $bucket = (string)$request->getParam('bucket', 'assigned');
+        $allowed = array_column($this->availableBuckets($user), 'key');
+        if (!in_array($bucket, $allowed, true)) {
+            $bucket = $allowed[0] ?? 'assigned';
+        }
+
+        $reviews = Delta::getInstance()->workflow->getReviewsForDashboard($user)[$bucket] ?? [];
+        $reviews = array_filter($reviews, static fn(Review $r) => !$r->isTerminal());
+        $rows = array_map($this->tableRow(...), $reviews);
+
+        if ($search !== '') {
+            $needle = mb_strtolower($search);
+            $rows = array_filter($rows, static fn(array $r) =>
+                str_contains(mb_strtolower($r['title']), $needle) || str_contains(mb_strtolower($r['statusLabel']), $needle));
+        }
+
+        $sortKey = match ($sortField) {
+            '__slot:title' => 'title',
+            'statusCell' => 'statusLabel',
+            'round' => 'round',
+            default => null,
+        };
+        if ($sortKey !== null) {
+            usort($rows, static fn(array $a, array $b) =>
+                $sortDir === SORT_DESC ? ($b[$sortKey] <=> $a[$sortKey]) : ($a[$sortKey] <=> $b[$sortKey]));
+        }
+
+        $rows = array_values($rows);
+        $total = count($rows);
+        $rows = array_slice($rows, ($page - 1) * $limit, $limit);
+
+        return $this->asSuccess(data: [
+            'pagination' => AdminTable::paginationLinks($page, $total, $limit),
+            'data' => $rows,
+        ]);
+    }
+
+    private function requireDashboardUser(): User
+    {
         $user = Craft::$app->getUser()->getIdentity();
         if (!$user || (!$user->admin && !$user->can(Permissions::SUBMIT) && !$user->can(Permissions::REVIEW))) {
             throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NOT_AUTHORIZED));
         }
+        return $user;
+    }
 
-        $plugin = Delta::getInstance();
-        $data = $plugin->workflow->getReviewsForDashboard($user);
-        $rows = fn(array $reviews) => array_map($this->dashboardRow(...), $reviews);
+    /**
+     * The dashboard tabs this user may see: assigned (reviewers), submitted
+     * (authors), all (admins). Same gating as the Entries-index sources.
+     *
+     * @return array<int, array{key: string, label: string}>
+     */
+    private function availableBuckets(User $user): array
+    {
+        $buckets = [];
+        if ($user->admin || $user->can(Permissions::REVIEW)) {
+            $buckets[] = ['key' => 'assigned', 'label' => Craft::t('craft-delta', TranslationKeys::WORKFLOW_ASSIGNED_TO_ME)];
+        }
+        if ($user->admin || $user->can(Permissions::SUBMIT)) {
+            $buckets[] = ['key' => 'submitted', 'label' => Craft::t('craft-delta', TranslationKeys::WORKFLOW_MY_SUBMISSIONS)];
+        }
+        if ($user->admin) {
+            $buckets[] = ['key' => 'all', 'label' => Craft::t('craft-delta', TranslationKeys::WORKFLOW_ALL_REVIEWS)];
+        }
+        return $buckets;
+    }
 
-        return $this->renderTemplate('craft-delta/index', [
-            'assigned' => $rows($data['assigned']),
-            'submitted' => $rows($data['submitted']),
-            'all' => $rows($data['all']),
-            'isAdmin' => $user->admin,
-        ]);
+    /**
+     * One admin-table row for a review. Status + reviewer pills are pre-rendered
+     * HTML (shown via column callbacks); `statusLabel` backs search/sort only.
+     *
+     * @return array<string, mixed>
+     */
+    private function tableRow(Review $review): array
+    {
+        $canonical = Craft::$app->getEntries()->getEntryById($review->canonicalEntryId);
+        $title = $canonical?->title ?? ('#' . $review->canonicalEntryId);
+
+        $pills = '';
+        foreach ($review->reviewers as $reviewer) {
+            $name = $reviewer->userName ?? ('#' . $reviewer->userId);
+            $pills .= '<span class="delta-reviewer-pill delta-reviewer-pill--' . htmlspecialchars($reviewer->verdict) . '">'
+                . htmlspecialchars($name) . '</span> ';
+        }
+
+        return [
+            'id' => $review->id,
+            'title' => $title,
+            'url' => UrlHelper::cpUrl('delta-review', ['reviewId' => $review->id]),
+            'statusCell' => '<span class="status ' . htmlspecialchars($review->statusColor()) . '"></span>' . htmlspecialchars($review->statusLabel()),
+            'statusLabel' => $review->statusLabel(),
+            'round' => $review->round,
+            'reviewers' => trim($pills),
+        ];
     }
 
     /**
@@ -383,16 +506,6 @@ class WorkflowController extends Controller
             return $this->failure(TranslationKeys::WORKFLOW_ACTION_FAILED);
         }
         return $this->asJson(['success' => true, 'review' => $this->reviewPayload($handler($plugin, $review, $user, $note))]);
-    }
-
-    /** @return array{review: Review, title: string} */
-    private function dashboardRow(Review $review): array
-    {
-        $canonical = Craft::$app->getEntries()->getEntryById($review->canonicalEntryId);
-        return [
-            'review' => $review,
-            'title' => $canonical?->title ?? ('#' . $review->canonicalEntryId),
-        ];
     }
 
     private function assertCanView(Delta $plugin, Review $review, User $user): void
