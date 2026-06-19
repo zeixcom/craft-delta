@@ -243,8 +243,8 @@ class WorkflowController extends Controller
         $pills = '';
         foreach ($review->reviewers as $reviewer) {
             $name = $reviewer->userName ?? ('#' . $reviewer->userId);
-            $pills .= '<span class="delta-reviewer-pill delta-reviewer-pill--' . htmlspecialchars($reviewer->verdict) . '">'
-                . htmlspecialchars($name) . '</span> ';
+            $pills .= '<span class="delta-reviewer-pill delta-reviewer-pill--' . htmlspecialchars($reviewer->verdict) . '"'
+                . ' title="' . htmlspecialchars($name) . '">' . htmlspecialchars($name) . '</span> ';
         }
 
         return [
