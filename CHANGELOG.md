@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Diff support for popular third-party field types, resolved through `FieldDiffService`'s differ map (unmapped types still fall back to a scalar value diff):
+  - **TinyMCE** (`spicyweb/craft-tinymce`) → word-level HTML diff (reuses `HtmlDiffer`).
+  - **Code** (`nystudio107/craft-code-field`) → word-level text diff (reuses `TextDiffer`).
+  - **Neo** (`spicyweb/craft-neo`) → block-level diff (added / removed / modified / reordered, including nesting-level changes) with recursive sub-field diffs, via a new `NeoDiffer`.
+- Third-party field classes are referenced only as `::class` map keys, so the integrations stay optional (no new Composer dependencies).
+
+### Notes
+
+- Neo blocks render **read-only** in Review Mode (no per-block accept/reject) and apply via publish; per-block granular apply remains Matrix-only for now.
+
 ## 2.1.1 - 2026-06-19
 
 Maintenance release — no functional changes from 2.1.0.

@@ -13,9 +13,15 @@
 
 {% set fieldClass = fieldType|split('\\')|last %}
 {% set isNested = nested ?? false %}
-{% set atomsEnabled = (reviewMode is defined and reviewMode) and not isNested %}
+{% set isMatrix = fieldClass in ['Matrix'] %}
+{# Neo emits the same block-diff JSON as Matrix and renders through this branch,
+   but read-only: per-block accept uses Matrix-only `matrix-block:` atoms, so Neo
+   blocks carry no atom-ids or accept/reject controls. #}
+{% set isNeo = fieldType == 'benf\\neo\\Field' %}
+{% set blockAtoms = isMatrix and not isNested %}
+{% set atomsEnabled = (reviewMode is defined and reviewMode) and blockAtoms %}
 
-{% if fieldClass in ['Matrix'] and diffHtml starts with '[' %}
+{% if (isMatrix or isNeo) and diffHtml starts with '[' %}
     {% set changes = diffHtml|json_decode %}
     {% if changes is iterable %}
         {% for change in changes %}
@@ -23,7 +29,7 @@
                 {% set blockClass = {added: 'delta-block-added', removed: 'delta-block-removed', modified: 'delta-block-modified'} %}
                 {% set blockIcon = {added: '+', removed: '-', modified: '&bull;'} %}
                 <div class="delta-block {{ blockClass[change.type] }}"
-                     {% if not isNested %}data-atom-id="matrix-block:{{ fieldHandle }}:{{ change.blockUid }}:{{ change.type }}"{% endif %}>
+                     {% if blockAtoms %}data-atom-id="matrix-block:{{ fieldHandle }}:{{ change.blockUid }}:{{ change.type }}"{% endif %}>
                     {% if change.fieldChanges is defined and change.fieldChanges is iterable %}
                         <button type="button" class="delta-block-toggle" aria-expanded="true">
                             {% include 'craft-delta/_chevron' with { class: 'delta-block-chevron' } only %}
@@ -57,7 +63,7 @@
                     {% endif %}
                 </div>
             {% elseif change.type == 'reordered' %}
-                <div class="delta-block delta-block-reordered"{% if not isNested %} data-atom-id="matrix-reorder:{{ fieldHandle }}"{% endif %}>
+                <div class="delta-block delta-block-reordered"{% if blockAtoms %} data-atom-id="matrix-reorder:{{ fieldHandle }}"{% endif %}>
                     <span class="delta-block-icon">&harr;</span>
                     <span>{{ deltaKeys.blocksReordered|t('craft-delta') }}</span>
                     {% if atomsEnabled %}

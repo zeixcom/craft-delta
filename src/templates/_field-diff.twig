@@ -1,6 +1,9 @@
+{# Block fields (Matrix, Neo) offer per-block atoms instead of a whole-field
+   atom — and Neo is read-only for now — so neither gets a field-level atom. #}
+{% set isBlockField = (diff.fieldType ends with '\\Matrix') or (diff.fieldType == 'benf\\neo\\Field') %}
 <div class="delta-field{{ not diff.hasChanges ? ' delta-field-unchanged' : '' }}"
      data-field-handle="{{ diff.fieldHandle }}"
-     {% if diff.hasChanges and not (diff.fieldType ends with '\\Matrix') %}data-atom-id="field:{{ diff.fieldHandle }}"{% endif %}>
+     {% if diff.hasChanges and not isBlockField %}data-atom-id="field:{{ diff.fieldHandle }}"{% endif %}>
     <div class="delta-field-headerbar">
         <button class="delta-field-header"
                 type="button"
@@ -9,7 +12,7 @@
             {% include 'craft-delta/_chevron' with { class: 'delta-field-chevron' } only %}
             <span class="delta-field-label">{{ diff.fieldLabel }}</span>
         </button>
-        {% if diff.hasChanges and not (diff.fieldType ends with '\\Matrix') and reviewMode is defined and reviewMode %}
+        {% if diff.hasChanges and not isBlockField and reviewMode is defined and reviewMode %}
             {% include 'craft-delta/_atom-actions' with { labelled: true } only %}
         {% endif %}
     </div>

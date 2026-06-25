@@ -7,3 +7,6 @@ parameters:
         - src
     ignoreErrors:
         - '#class craft\\ckeditor\\.*not found#i'
+        - '#class spicyweb\\tinymce\\.*not found#i'
+        - '#class nystudio107\\codefield\\.*not found#i'
+        - '#class benf\\neo\\.*not found#i'

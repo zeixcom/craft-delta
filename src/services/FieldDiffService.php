@@ -12,6 +12,7 @@ use zeixcom\craftdelta\Delta;
 use zeixcom\craftdelta\differ\DifferInterface;
 use zeixcom\craftdelta\differ\HtmlDiffer;
 use zeixcom\craftdelta\differ\MatrixDiffer;
+use zeixcom\craftdelta\differ\NeoDiffer;
 use zeixcom\craftdelta\differ\NestedFieldDiffInterface;
 use zeixcom\craftdelta\differ\OptionDiffer;
 use zeixcom\craftdelta\differ\RelationDiffer;
@@ -34,7 +35,11 @@ class FieldDiffService extends Component implements NestedFieldDiffInterface
         \craft\fields\Email::class => ScalarDiffer::class,
         \craft\fields\Url::class => ScalarDiffer::class,
         \craft\ckeditor\Field::class => HtmlDiffer::class,
+        // Third-party rich-text / code fields (optional plugins; keys are compile-time strings, inert when uninstalled)
+        \spicyweb\tinymce\fields\TinyMCE::class => HtmlDiffer::class,
+        \nystudio107\codefield\fields\Code::class => TextDiffer::class,
         \craft\fields\Matrix::class => MatrixDiffer::class,
+        \benf\neo\Field::class => NeoDiffer::class,
         \craft\fields\Table::class => TableDiffer::class,
         \craft\fields\Entries::class => RelationDiffer::class,
         \craft\fields\Assets::class => RelationDiffer::class,
@@ -132,6 +137,7 @@ class FieldDiffService extends Component implements NestedFieldDiffInterface
             TextDiffer::class => new TextDiffer($context),
             HtmlDiffer::class => new HtmlDiffer($context),
             MatrixDiffer::class => new MatrixDiffer($this),
+            NeoDiffer::class => new NeoDiffer($this),
             default => new $differClass(),
         };
     }
