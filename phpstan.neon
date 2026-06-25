@@ -10,3 +10,6 @@ parameters:
         - '#class spicyweb\\tinymce\\.*not found#i'
         - '#class nystudio107\\codefield\\.*not found#i'
         - '#class benf\\neo\\.*not found#i'
+        - '#class anvildev\\beacon\\.*not found#i'
+        - '#class nystudio107\\seomatic\\.*not found#i'
+        - '#class verbb\\hyper\\.*not found#i'

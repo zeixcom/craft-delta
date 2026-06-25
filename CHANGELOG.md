@@ -8,6 +8,8 @@
   - **TinyMCE** (`spicyweb/craft-tinymce`) → word-level HTML diff (reuses `HtmlDiffer`).
   - **Code** (`nystudio107/craft-code-field`) → word-level text diff (reuses `TextDiffer`).
   - **Neo** (`spicyweb/craft-neo`) → block-level diff (added / removed / modified / reordered, including nesting-level changes) with recursive sub-field diffs, via a new `NeoDiffer`.
+  - **Composite SEO/meta fields** — Beacon's `BeaconSeoField` and SEOmatic's `SeoSettings` → per-attribute diff (`title`, `description`, `canonical`, OG/Twitter tags, …) via a new generic `StructDiffer` that flattens any model/struct value to sorted `key: value` text and reuses `TextDiffer`.
+  - **Link fields** — Hyper's `HyperField` → per-link diff with friendly labels (`type`, `value`, `text`, `new window`, `aria`) via a new `LinkDiffer`.
 - Third-party field classes are referenced only as `::class` map keys, so the integrations stay optional (no new Composer dependencies).
 
 ### Notes

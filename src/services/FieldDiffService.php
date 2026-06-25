@@ -11,12 +11,14 @@ use craft\fields\Table;
 use zeixcom\craftdelta\Delta;
 use zeixcom\craftdelta\differ\DifferInterface;
 use zeixcom\craftdelta\differ\HtmlDiffer;
+use zeixcom\craftdelta\differ\LinkDiffer;
 use zeixcom\craftdelta\differ\MatrixDiffer;
 use zeixcom\craftdelta\differ\NeoDiffer;
 use zeixcom\craftdelta\differ\NestedFieldDiffInterface;
 use zeixcom\craftdelta\differ\OptionDiffer;
 use zeixcom\craftdelta\differ\RelationDiffer;
 use zeixcom\craftdelta\differ\ScalarDiffer;
+use zeixcom\craftdelta\differ\StructDiffer;
 use zeixcom\craftdelta\differ\TableDiffer;
 use zeixcom\craftdelta\differ\TextDiffer;
 use zeixcom\craftdelta\events\RegisterDiffersEvent;
@@ -62,6 +64,10 @@ class FieldDiffService extends Component implements NestedFieldDiffInterface
         \craft\fields\Icon::class => ScalarDiffer::class,
         \craft\fields\Range::class => ScalarDiffer::class,
         \craft\fields\Json::class => ScalarDiffer::class,
+        // Third-party composite/SEO fields (optional; per-attribute diff via flatten)
+        \anvildev\beacon\fields\BeaconSeoField::class => StructDiffer::class,
+        \nystudio107\seomatic\fields\SeoSettings::class => StructDiffer::class,
+        \verbb\hyper\fields\HyperField::class => LinkDiffer::class,
     ];
 
     /** @var array<class-string, DifferInterface> */
@@ -138,6 +144,8 @@ class FieldDiffService extends Component implements NestedFieldDiffInterface
             HtmlDiffer::class => new HtmlDiffer($context),
             MatrixDiffer::class => new MatrixDiffer($this),
             NeoDiffer::class => new NeoDiffer($this),
+            StructDiffer::class => new StructDiffer($this->getTextDiffer()),
+            LinkDiffer::class => new LinkDiffer($this->getTextDiffer()),
             default => new $differClass(),
         };
     }

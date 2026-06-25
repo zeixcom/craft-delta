@@ -7,7 +7,9 @@ namespace zeixcom\craftdelta\tests\Unit\Service;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use zeixcom\craftdelta\differ\HtmlDiffer;
+use zeixcom\craftdelta\differ\LinkDiffer;
 use zeixcom\craftdelta\differ\NeoDiffer;
+use zeixcom\craftdelta\differ\StructDiffer;
 use zeixcom\craftdelta\differ\TextDiffer;
 use zeixcom\craftdelta\services\FieldDiffService;
 
@@ -36,5 +38,24 @@ class FieldDiffServiceTest extends TestCase
         $map = (new ReflectionClass(FieldDiffService::class))->getDefaultProperties()['differMap'];
 
         self::assertSame(NeoDiffer::class, $map['benf\\neo\\Field'] ?? null);
+    }
+
+    /**
+     * Composite SEO/meta fields route to StructDiffer (per-attribute flatten),
+     * not the opaque ScalarDiffer fallback.
+     */
+    public function testCompositeSeoFieldsMapToStructDiffer(): void
+    {
+        $map = (new ReflectionClass(FieldDiffService::class))->getDefaultProperties()['differMap'];
+
+        self::assertSame(StructDiffer::class, $map['anvildev\\beacon\\fields\\BeaconSeoField'] ?? null);
+        self::assertSame(StructDiffer::class, $map['nystudio107\\seomatic\\fields\\SeoSettings'] ?? null);
+    }
+
+    public function testHyperFieldMapsToLinkDiffer(): void
+    {
+        $map = (new ReflectionClass(FieldDiffService::class))->getDefaultProperties()['differMap'];
+
+        self::assertSame(LinkDiffer::class, $map['verbb\\hyper\\fields\\HyperField'] ?? null);
     }
 }
