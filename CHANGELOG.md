@@ -12,6 +12,10 @@
   - **Link fields** — Hyper's `HyperField` → per-link diff with friendly labels (`type`, `value`, `text`, `new window`, `aria`) via a new `LinkDiffer`.
 - Third-party field classes are referenced only as `::class` map keys, so the integrations stay optional (no new Composer dependencies).
 
+### Changed
+
+- Matrix block accept/decline actions and comment triggers now sit in a top header bar beside the block toggle, matching field-level review UI.
+
 ### Notes
 
 - Neo blocks render **read-only** in Review Mode (no per-block accept/reject) and apply via publish; per-block granular apply remains Matrix-only for now.
