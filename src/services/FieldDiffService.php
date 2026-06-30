@@ -11,11 +11,14 @@ use craft\fields\Table;
 use zeixcom\craftdelta\Delta;
 use zeixcom\craftdelta\differ\DifferInterface;
 use zeixcom\craftdelta\differ\HtmlDiffer;
+use zeixcom\craftdelta\differ\LinkDiffer;
 use zeixcom\craftdelta\differ\MatrixDiffer;
+use zeixcom\craftdelta\differ\NeoDiffer;
 use zeixcom\craftdelta\differ\NestedFieldDiffInterface;
 use zeixcom\craftdelta\differ\OptionDiffer;
 use zeixcom\craftdelta\differ\RelationDiffer;
 use zeixcom\craftdelta\differ\ScalarDiffer;
+use zeixcom\craftdelta\differ\StructDiffer;
 use zeixcom\craftdelta\differ\TableDiffer;
 use zeixcom\craftdelta\differ\TextDiffer;
 use zeixcom\craftdelta\events\RegisterDiffersEvent;
@@ -34,7 +37,11 @@ class FieldDiffService extends Component implements NestedFieldDiffInterface
         \craft\fields\Email::class => ScalarDiffer::class,
         \craft\fields\Url::class => ScalarDiffer::class,
         \craft\ckeditor\Field::class => HtmlDiffer::class,
+        // Third-party rich-text / code fields (optional plugins; keys are compile-time strings, inert when uninstalled)
+        \spicyweb\tinymce\fields\TinyMCE::class => HtmlDiffer::class,
+        \nystudio107\codefield\fields\Code::class => TextDiffer::class,
         \craft\fields\Matrix::class => MatrixDiffer::class,
+        \benf\neo\Field::class => NeoDiffer::class,
         \craft\fields\Table::class => TableDiffer::class,
         \craft\fields\Entries::class => RelationDiffer::class,
         \craft\fields\Assets::class => RelationDiffer::class,
@@ -57,6 +64,10 @@ class FieldDiffService extends Component implements NestedFieldDiffInterface
         \craft\fields\Icon::class => ScalarDiffer::class,
         \craft\fields\Range::class => ScalarDiffer::class,
         \craft\fields\Json::class => ScalarDiffer::class,
+        // Third-party composite/SEO fields (optional; per-attribute diff via flatten)
+        \anvildev\beacon\fields\BeaconSeoField::class => StructDiffer::class,
+        \nystudio107\seomatic\fields\SeoSettings::class => StructDiffer::class,
+        \verbb\hyper\fields\HyperField::class => LinkDiffer::class,
     ];
 
     /** @var array<class-string, DifferInterface> */
@@ -132,6 +143,9 @@ class FieldDiffService extends Component implements NestedFieldDiffInterface
             TextDiffer::class => new TextDiffer($context),
             HtmlDiffer::class => new HtmlDiffer($context),
             MatrixDiffer::class => new MatrixDiffer($this),
+            NeoDiffer::class => new NeoDiffer($this),
+            StructDiffer::class => new StructDiffer($this->getTextDiffer()),
+            LinkDiffer::class => new LinkDiffer($this->getTextDiffer()),
             default => new $differClass(),
         };
     }

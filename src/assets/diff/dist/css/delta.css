@@ -553,10 +553,29 @@ button.delta-field-header {
     margin: 0;
     font-size: var(--delta-font-md);
     display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    border-bottom: 1px solid var(--delta-border);
+}
+
+.delta-block-headerbar {
+    display: flex;
+    align-items: center;
+    gap: var(--delta-radius-xl);
+    width: 100%;
+}
+
+.delta-block-headerbar > .delta-block-toggle,
+.delta-block-headerbar > .delta-block-heading {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.delta-block-heading {
+    display: flex;
     align-items: baseline;
     gap: var(--delta-radius-xl);
-    flex-wrap: wrap;
-    border-bottom: 1px solid var(--delta-border);
 }
 
 .delta-block:last-child { border-bottom: none; }
@@ -608,7 +627,7 @@ button.delta-field-header {
     display: flex;
     align-items: baseline;
     gap: var(--delta-radius-xl);
-    width: 100%;
+    width: auto;
     padding: 0;
     margin: 0;
     border: none;
@@ -1358,6 +1377,7 @@ button.delta-field-header {
 }
 
 .delta-field-headerbar .delta-comment-trigger,
+.delta-block-headerbar .delta-comment-trigger,
 .delta-block .delta-comment-trigger {
     flex-shrink: 0;
 }
