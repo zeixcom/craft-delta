@@ -30,13 +30,26 @@
                 {% set blockIcon = {added: '+', removed: '-', modified: '&bull;'} %}
                 <div class="delta-block {{ blockClass[change.type] }}"
                      {% if blockAtoms %}data-atom-id="matrix-block:{{ fieldHandle }}:{{ change.blockUid }}:{{ change.type }}"{% endif %}>
+                    <div class="delta-block-headerbar">
+                        {% if change.fieldChanges is defined and change.fieldChanges is iterable %}
+                            <button type="button" class="delta-block-toggle" aria-expanded="true">
+                                {% include 'craft-delta/_chevron' with { class: 'delta-block-chevron' } only %}
+                                <span class="delta-block-icon">{{ blockIcon[change.type]|raw }}</span>
+                                <span class="delta-block-type">{{ change.blockType ?? deltaKeys.block|t('craft-delta') }}</span>
+                                <span class="delta-block-summary">{{ change.summary|default('')|e }}</span>
+                            </button>
+                        {% else %}
+                            <div class="delta-block-heading">
+                                <span class="delta-block-icon">{{ blockIcon[change.type]|raw }}</span>
+                                <span class="delta-block-type">{{ change.blockType ?? deltaKeys.block|t('craft-delta') }}</span>
+                                <span class="delta-block-summary">{{ change.summary|default('')|e }}</span>
+                            </div>
+                        {% endif %}
+                        {% if atomsEnabled %}
+                            {% include 'craft-delta/_atom-actions' only %}
+                        {% endif %}
+                    </div>
                     {% if change.fieldChanges is defined and change.fieldChanges is iterable %}
-                        <button type="button" class="delta-block-toggle" aria-expanded="true">
-                            {% include 'craft-delta/_chevron' with { class: 'delta-block-chevron' } only %}
-                            <span class="delta-block-icon">{{ blockIcon[change.type]|raw }}</span>
-                            <span class="delta-block-type">{{ change.blockType ?? deltaKeys.block|t('craft-delta') }}</span>
-                            <span class="delta-block-summary">{{ change.summary|default('')|e }}</span>
-                        </button>
                         <div class="delta-block-subfields">
                             {% for fc in change.fieldChanges %}
                                 <div class="delta-block-subfield">
@@ -53,22 +66,19 @@
                                 </div>
                             {% endfor %}
                         </div>
-                    {% else %}
-                        <span class="delta-block-icon">{{ blockIcon[change.type]|raw }}</span>
-                        <span class="delta-block-type">{{ change.blockType ?? deltaKeys.block|t('craft-delta') }}</span>
-                        <span class="delta-block-summary">{{ change.summary|default('')|e }}</span>
-                    {% endif %}
-                    {% if atomsEnabled %}
-                        {% include 'craft-delta/_atom-actions' only %}
                     {% endif %}
                 </div>
             {% elseif change.type == 'reordered' %}
                 <div class="delta-block delta-block-reordered"{% if blockAtoms %} data-atom-id="matrix-reorder:{{ fieldHandle }}"{% endif %}>
-                    <span class="delta-block-icon">&harr;</span>
-                    <span>{{ deltaKeys.blocksReordered|t('craft-delta') }}</span>
-                    {% if atomsEnabled %}
-                        {% include 'craft-delta/_atom-actions' only %}
-                    {% endif %}
+                    <div class="delta-block-headerbar">
+                        <div class="delta-block-heading">
+                            <span class="delta-block-icon">&harr;</span>
+                            <span>{{ deltaKeys.blocksReordered|t('craft-delta') }}</span>
+                        </div>
+                        {% if atomsEnabled %}
+                            {% include 'craft-delta/_atom-actions' only %}
+                        {% endif %}
+                    </div>
                 </div>
             {% endif %}
         {% endfor %}

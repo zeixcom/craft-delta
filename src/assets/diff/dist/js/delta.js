@@ -501,7 +501,8 @@
       var blockToggles = container.querySelectorAll('.delta-block-toggle');
       blockToggles.forEach(function (toggle) {
         toggle.addEventListener('click', function () {
-          var block = toggle.parentElement;
+          var block = toggle.closest('.delta-block');
+          if (!block) { return; }
           block.classList.toggle('is-collapsed');
           var expanded = !block.classList.contains('is-collapsed');
           toggle.setAttribute('aria-expanded', String(expanded));

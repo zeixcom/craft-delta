@@ -456,9 +456,10 @@
                 }
 
                 var host = el.querySelector('.delta-field-headerbar')
+                    || el.querySelector('.delta-block-headerbar')
                     || el.querySelector('.delta-block-toggle')
                     || el;
-                if (host.classList.contains('delta-field-headerbar')) {
+                if (host.classList.contains('delta-field-headerbar') || host.classList.contains('delta-block-headerbar')) {
                     host.appendChild(trigger);
                 } else if (host === el) {
                     el.appendChild(trigger);
