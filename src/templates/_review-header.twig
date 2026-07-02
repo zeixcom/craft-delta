@@ -12,7 +12,8 @@
 {% set isReviewAuthor = workflow is defined and workflow and currentUser and (currentUser.id == workflow.submittedBy or currentUser.admin) %}
 {# When the reviewer can apply, "Granular review" is the entry into accept/reject,
    so the standalone "Start Review" button is suppressed. #}
-{% set showGranularReview = isReviewerActive and currentUser.can('craftdelta-applyReview') %}
+{% set canApplyReview = currentUser and currentUser.can('craftdelta-applyReview') %}
+{% set showGranularReview = isReviewerActive and canApplyReview %}
 {% set stats = result.getStats() %}
 {% set isApproved = workflow is defined and workflow and workflow.isApproved() %}
 
@@ -98,7 +99,10 @@
                     {% endfor %}
                     <span class="delta-review-round">{{ deltaKeys.workflowRound|t('craft-delta', { round: workflow.round }) }}</span>
                 </div>
-                {% if isReviewerActive or isReviewAuthor %}
+                {# actionPublish requires the applyReview permission on top of
+                   reviewer/author standing — a SUBMIT-only author would get a
+                   403 clicking this, so gate it here too. #}
+                {% if (isReviewerActive or isReviewAuthor) and canApplyReview %}
                     <div class="delta-workflow-actions delta-review-approved-primary" data-role="publish">
                         <button type="button" class="btn submit" data-wf-action="publish">{{ deltaKeys.workflowPublish|t('craft-delta') }}</button>
                         <button type="button" class="btn" data-wf-action="schedule">{{ deltaKeys.scheduleFor|t('craft-delta') }}</button>
@@ -113,9 +117,13 @@
         </div>
     {% endif %}
 
-    {# Accept/reject only makes sense when there's something to decide — a
-       0-change review otherwise shows a live "Apply 0 accepted" button. #}
-    {% if reviewMode is defined and reviewMode and stats.fieldsChanged > 0 %}
+    {# Accept/reject only makes sense when there's something to decide AND the
+       verdict isn't in yet. Once approved, the reviewer publishes wholesale, so
+       field-level toggling is locked — leaving it editable would be misleading
+       (a wholesale publish applies the whole draft regardless of accept/reject)
+       and contradicts having approved the entire draft. The diff below still
+       renders read-only for reference. #}
+    {% if reviewMode is defined and reviewMode and stats.fieldsChanged > 0 and not isApproved %}
         <div class="delta-review-toolbar"
              data-review-toolbar
              data-auto-review="{{ showGranularReview ? '1' : '' }}"
@@ -171,7 +179,7 @@
    entry's post date) in an overlay. Server-rendered so the forms macro pulls in
    the timepicker asset and initialises the picker; the workflow JS shows it on
    "Planen für…" and posts the chosen date/time. #}
-{% if isApproved and (isReviewerActive or isReviewAuthor) %}
+{% if isApproved and (isReviewerActive or isReviewAuthor) and canApplyReview %}
     <div id="delta-schedule-modal" class="modal delta-submit-modal delta-schedule-modal" style="display: none">
         <div class="body">
             <h2>{{ deltaKeys.scheduleFor|t('craft-delta') }}</h2>

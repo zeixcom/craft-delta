@@ -170,8 +170,18 @@
         };
 
         $toolbar.find('[data-wf-action]').on('click', function() {
-            var cfg = actions[this.getAttribute('data-wf-action')];
+            var action = this.getAttribute('data-wf-action');
+            var cfg = actions[action];
             if (!cfg) return;
+
+            // Backstop for the disabled-button gate: block Approve until every
+            // field decision is made. reviewMode.syncApproveGate normally keeps
+            // the button disabled; this covers the mount→enter race and any
+            // crafted click. Decline stays ungated (one bad field is enough).
+            if (action === 'approve' && Craft.Delta.reviewMode && !Craft.Delta.reviewMode.allDecided()) {
+                Craft.cp.displayError(Craft.t('craft-delta', Craft.Delta._keys.approveNeedsAllDecided));
+                return;
+            }
 
             var params = { reviewId: reviewId };
 

@@ -846,6 +846,8 @@
       this.focusedAtomId = null;
       this.showFocusRing = false;
       this.clearAtomStateClasses();
+      // active is now false, so this re-enables Approve (nothing left to gate).
+      this.syncApproveGate();
     },
 
     recordDecision: function (atomId, decision) {
@@ -953,6 +955,34 @@
       const cleanupEl = document.querySelector('[data-review-cleanup]');
       if (cleanupEl) {
         cleanupEl.hidden = accepted === 0;
+      }
+
+      this.syncApproveGate();
+    },
+
+    // Every changed field must be decided (accepted or rejected) before the
+    // whole-review Approve verdict is allowed — a reviewer shouldn't sign off
+    // while atoms are still pending. Only gates while review mode is active with
+    // atoms present; otherwise (no per-field flow) Approve stays open. Matches
+    // by atom KEY, not just count — a count comparison can be satisfied by
+    // stale localStorage decisions left over from before the draft was
+    // revised, decisions for atoms that no longer exist.
+    allDecided: function () {
+      const atoms = document.querySelectorAll('[data-atom-id]');
+      if (!this.active || atoms.length === 0) return true;
+      return Array.from(atoms).every((el) => el.getAttribute('data-atom-id') in this.state);
+    },
+
+    syncApproveGate: function () {
+      const btn = document.querySelector('[data-wf-action="approve"]');
+      if (!btn) return;
+      const block = !this.allDecided();
+      btn.disabled = block;
+      btn.classList.toggle('disabled', block);
+      if (block) {
+        btn.setAttribute('title', Craft.t('craft-delta', Craft.Delta._keys.approveNeedsAllDecided));
+      } else {
+        btn.removeAttribute('title');
       }
     },
 

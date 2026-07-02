@@ -24,12 +24,33 @@
 {% endblock %}
 
 {% block content %}
+    {% if statusOptions %}
+        <div class="delta-reviews-toolbar">
+            <label class="delta-status-filter">
+                <span class="delta-status-filter-label">{{ 'Status'|t('app') }}:</span>
+                <div class="select">
+                    <select data-delta-status>
+                        <option value="">{{ 'All'|t('app') }}</option>
+                        {% for opt in statusOptions %}
+                            <option value="{{ opt.value }}"{{ opt.value == selectedStatus ? ' selected' : '' }}>{{ opt.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </label>
+        </div>
+    {% endif %}
     <div id="delta-reviews-table"></div>
 {% endblock %}
+
+{% css %}
+.delta-reviews-toolbar { margin-bottom: 14px; }
+.delta-reviews-toolbar .delta-status-filter { display: inline-flex; align-items: center; gap: 8px; }
+{% endcss %}
 
 {% js %}
 (() => {
     const bucket = {{ selectedBucket|json_encode|raw }};
+    const status = {{ selectedStatus|json_encode|raw }};
 
     const columns = [
         { name: '__slot:title', title: {{ deltaKeys.workflowColEntry|t('craft-delta')|json_encode|raw }}, sortField: true },
@@ -47,8 +68,23 @@
         emptyMessage: {{ deltaKeys.workflowNoReviews|t('craft-delta')|json_encode|raw }},
         onQueryParams: (params) => {
             params.bucket = bucket;
+            if (status) { params.status = status; }
             return params;
         },
     });
+
+    // Status filter → full reload with the chosen status in the URL, mirroring
+    // how switching buckets reloads. The server re-filters the table feed and
+    // re-renders the (now selected) dropdown.
+    const statusSelect = document.querySelector('[data-delta-status]');
+    if (statusSelect) {
+        statusSelect.addEventListener('change', () => {
+            const url = new URL(window.location.href);
+            url.searchParams.set('bucket', bucket);
+            if (statusSelect.value) { url.searchParams.set('status', statusSelect.value); }
+            else { url.searchParams.delete('status'); }
+            window.location.href = url.toString();
+        });
+    }
 })();
 {% endjs %}

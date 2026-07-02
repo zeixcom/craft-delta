@@ -56,22 +56,40 @@ class WorkflowController extends Controller
         $this->requireCpRequest();
         $user = $this->requireDashboardUser();
 
+        $request = Craft::$app->getRequest();
         $buckets = $this->availableBuckets($user);
         $keys = array_column($buckets, 'key');
-        $selected = (string)Craft::$app->getRequest()->getParam('bucket', $keys[0] ?? 'assigned');
+        $selected = (string)$request->getParam('bucket', $keys[0] ?? 'assigned');
         if (!in_array($selected, $keys, true)) {
             $selected = $keys[0] ?? 'assigned';
         }
 
-        // Badge count per visible bucket — the same visibility rules the table uses.
+        // Badge count per visible bucket — the same visibility rules the table
+        // uses. Capture the selected bucket's reviews to derive its status filter.
+        $selectedReviews = [];
         foreach ($buckets as &$bucket) {
-            $bucket['count'] = count($this->visibleReviews($user, $bucket['key']));
+            $reviews = $this->visibleReviews($user, $bucket['key']);
+            $bucket['count'] = count($reviews);
+            if ($bucket['key'] === $selected) {
+                $selectedReviews = $reviews;
+            }
         }
         unset($bucket);
+
+        // Status sub-filter: only the statuses actually present in this bucket,
+        // so it never offers an empty filter and hides when there's nothing to
+        // narrow (e.g. the reviewer queue is all "in review").
+        $statusOptions = $this->statusOptions($selectedReviews);
+        $selectedStatus = (string)$request->getParam('status', '');
+        if (!in_array($selectedStatus, array_column($statusOptions, 'value'), true)) {
+            $selectedStatus = '';
+        }
 
         return $this->renderTemplate('craft-delta/index', [
             'buckets' => $buckets,
             'selectedBucket' => $selected,
+            'statusOptions' => $statusOptions,
+            'selectedStatus' => $selectedStatus,
         ]);
     }
 
@@ -100,6 +118,14 @@ class WorkflowController extends Controller
         }
 
         $reviews = $this->visibleReviews($user, $bucket);
+
+        // Optional status sub-filter from the dashboard dropdown. Any state the
+        // bucket doesn't contain simply yields no rows (harmless).
+        $status = (string)$request->getParam('status', '');
+        if ($status !== '') {
+            $reviews = array_filter($reviews, static fn(Review $r) => $r->state === $status);
+        }
+
         $titles = $this->entryTitles($reviews); // one batched query, not getEntryById per row
         $rows = array_map(fn(Review $r) => $this->tableRow($r, $titles), $reviews);
 
@@ -165,10 +191,12 @@ class WorkflowController extends Controller
     }
 
     /**
-     * Reviews to show for a bucket. Actionable queues hide terminal reviews;
-     * 'assigned' further narrows to reviews still awaiting THIS user's verdict
-     * (matching the CP nav badge). The admin 'all' bucket shows everything so it
-     * stays a complete audit view.
+     * Reviews to show for a bucket. 'assigned' (reviewer queue) shows only
+     * still-open reviews awaiting THIS user's verdict (matching the CP nav
+     * badge). 'submitted' (author) keeps declined reviews visible so an outcome
+     * never silently vanishes — a decline used to be email-only — while hiding
+     * published (shipped) and cancelled (self-withdrawn). The admin 'all' bucket
+     * shows everything so it stays a complete audit view.
      *
      * @return list<Review>
      */
@@ -178,11 +206,19 @@ class WorkflowController extends Controller
         if ($bucket === 'all') {
             return array_values($reviews);
         }
-        $reviews = array_filter($reviews, static fn(Review $r) => !$r->isTerminal());
         if ($bucket === 'assigned') {
-            $reviews = array_filter($reviews, fn(Review $r) => $this->awaitingVerdict($r, (int)$user->id));
+            return array_values(array_filter(
+                $reviews,
+                fn(Review $r) => !$r->isTerminal() && $this->awaitingVerdict($r, (int)$user->id),
+            ));
         }
-        return array_values($reviews);
+        // 'submitted' (author): hide outcomes that need no follow-up — published
+        // (shipped) and cancelled (author withdrew it) — but KEEP declined so
+        // the author still sees a rejected submission instead of it disappearing.
+        return array_values(array_filter(
+            $reviews,
+            static fn(Review $r) => !in_array($r->state, [Review::STATE_PUBLISHED, Review::STATE_CANCELLED], true),
+        ));
     }
 
     /** Does this user still owe a verdict on the review's current round? */
@@ -194,6 +230,49 @@ class WorkflowController extends Controller
             }
         }
         return false;
+    }
+
+    /**
+     * Distinct statuses present in a bucket's reviews, in a stable order, as
+     * {value,label} for the dashboard's status dropdown. Empty when fewer than
+     * two statuses are present (nothing worth filtering).
+     *
+     * @param list<Review> $reviews
+     * @return list<array{value: string, label: string}>
+     */
+    private function statusOptions(array $reviews): array
+    {
+        $present = array_unique(array_map(static fn(Review $r) => $r->state, $reviews));
+        if (count($present) < 2) {
+            return [];
+        }
+        $order = [
+            Review::STATE_OPEN,
+            Review::STATE_APPROVED,
+            Review::STATE_DECLINED,
+            Review::STATE_PUBLISHED,
+            Review::STATE_CANCELLED,
+        ];
+        $options = [];
+        foreach ($order as $state) {
+            if (in_array($state, $present, true)) {
+                $options[] = ['value' => $state, 'label' => $this->statusFilterLabel($state)];
+            }
+        }
+        return $options;
+    }
+
+    /** Bare status label for the filter dropdown (no "scheduled" nuance). */
+    private function statusFilterLabel(string $state): string
+    {
+        return match ($state) {
+            Review::STATE_OPEN => Craft::t('craft-delta', TranslationKeys::REVIEW_IN_REVIEW),
+            Review::STATE_APPROVED => Craft::t('craft-delta', TranslationKeys::APPROVED),
+            Review::STATE_DECLINED => Craft::t('craft-delta', TranslationKeys::REVIEW_DECLINED),
+            Review::STATE_CANCELLED => Craft::t('craft-delta', TranslationKeys::REVIEW_WITHDRAWN),
+            Review::STATE_PUBLISHED => Craft::t('craft-delta', TranslationKeys::REVIEW_PUBLISHED),
+            default => $state,
+        };
     }
 
     /**

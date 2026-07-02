@@ -19,6 +19,17 @@ class SmokeController extends Controller
 {
     private const SMOKE_DIR = __DIR__ . '/../../../tests/smoke';
 
+    /** Reviewer override for `prepare-review` (email or username); see actionPrepareReview(). */
+    public ?string $reviewer = null;
+
+    public function options($actionID): array
+    {
+        return match ($actionID) {
+            'prepare-review' => [...parent::options($actionID), 'reviewer'],
+            default => parent::options($actionID),
+        };
+    }
+
     public function beforeAction($action): bool
     {
         if (!parent::beforeAction($action)) {
@@ -64,6 +75,17 @@ class SmokeController extends Controller
     public function actionReviewCommentsSetup(): int
     {
         return $this->runScript('review-comments-setup-smoke.php');
+    }
+
+    /**
+     * Prepares a fresh review (draft with a few changed fields) assigned to a
+     * real reviewer — the admin by default — so it lands in that reviewer's
+     * "Assigned to me" queue for a hands-on walkthrough. Override the reviewer
+     * with `--reviewer=<email|username>`.
+     */
+    public function actionPrepareReview(): int
+    {
+        return $this->runScript('prepare-review-smoke.php');
     }
 
     public function actionReviewCommentsVerify(): int

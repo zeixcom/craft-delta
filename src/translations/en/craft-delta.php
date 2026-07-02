@@ -3,6 +3,7 @@
 return [
     'review.applyCountAccepted' => 'Apply {count} accepted',
     'review.decidedOfTotal' => '{decided} of {total} decided',
+    'review.approveNeedsAllDecided' => 'Decide every change before approving.',
     'diff.needTwoRevisions' => 'At least two revisions are needed to compare.',
     'diff.changedOnly' => 'Changed only',
     'ui.close' => 'Close',

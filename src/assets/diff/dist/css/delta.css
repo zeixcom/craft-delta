@@ -281,9 +281,6 @@
     position: sticky;
     top: var(--delta-toolbar-height);
     z-index: 5;
-    border-top: 1px solid var(--delta-border);
-    border-bottom: 1px solid var(--delta-border);
-    box-shadow: var(--delta-shadow-tab);
 }
 
 .delta-tab-header::before {
@@ -885,6 +882,13 @@ button.delta-field-header {
     color: var(--delta-gray-700);
 }
 
+/* The declined status doubles as a link to the review page (to read the
+   reviewer's note), so it needs block layout + no underline unlike a <p>. */
+a.delta-workflow-status {
+    display: block;
+    text-decoration: none;
+}
+
 .delta-error {
     color: var(--delta-mod-text);
     font-style: italic;
@@ -961,7 +965,6 @@ button.delta-field-header {
     display: flex;
     align-items: center;
     gap: var(--delta-radius-xl);
-    padding-right: var(--delta-radius-xl);
 }
 
 .delta-field-headerbar > .delta-field-header {
@@ -976,6 +979,7 @@ button.delta-field-header {
     border: 1px solid var(--delta-atom-btn-border);
     border-radius: var(--delta-radius-md, 6px);
     overflow: hidden;
+    margin-right: var(--delta-radius-xl);
 }
 
 .delta-atom-actions button.delta-atom-accept,

@@ -17,6 +17,7 @@ use craft\events\RegisterCpNavItemsEvent;
 use craft\events\RegisterElementTableAttributesEvent;
 use craft\events\RegisterUrlRulesEvent;
 use craft\events\RegisterUserPermissionsEvent;
+use craft\helpers\UrlHelper;
 use craft\services\UserPermissions;
 use craft\web\twig\variables\Cp;
 use craft\web\UrlManager;
@@ -130,7 +131,13 @@ class Delta extends Plugin
             $event->navItems[] = [
                 'url' => 'delta-reviews',
                 'label' => Craft::t('craft-delta', TranslationKeys::WORKFLOW_REVIEWS_TITLE),
-                'badgeCount' => $user->can(Permissions::REVIEW) ? $this->workflow->countAwaitingVerdict($user) : 0,
+                // Reviewers: reviews awaiting their verdict. Authors: their own
+                // approved-but-unpublished submissions ("ready to publish"), so
+                // an author gets an in-CP signal, not just the approval email.
+                // Admins can do both, so the counts sum (disjoint sets).
+                'badgeCount' =>
+                    ($user->can(Permissions::REVIEW) ? $this->workflow->countAwaitingVerdict($user) : 0)
+                    + ($user->can(Permissions::SUBMIT) ? $this->workflow->countApprovedForAuthor($user) : 0),
                 // Mask variant: the CP tints nav icons as monochrome glyphs,
                 // so the branded icon.svg (solid background) renders as a
                 // black square here.
@@ -249,10 +256,21 @@ class Delta extends Plugin
                 $section = $entry->getSection();
                 if ($user !== null && $section !== null && $user->can(Permissions::SUBMIT)) {
                     $wf = $this->workflow->getByDraftId((int)$entry->draftId);
-                    // A withdrawn review can be resubmitted (WorkflowService
-                    // re-opens it in place), so offer the button again.
-                    if ($wf === null || ($wf->state === Review::STATE_CANCELLED && $wf->appliedAt === null)) {
-                        $workflowHtml = '<button id="delta-submit-btn" type="button"'
+                    // A withdrawn OR declined review can be resubmitted
+                    // (WorkflowService re-opens it in place), so offer the
+                    // button again. For a decline, also link the reviewer's
+                    // note above the button so the author sees why before revising.
+                    $reopenable = $wf !== null
+                        && in_array($wf->state, [Review::STATE_CANCELLED, Review::STATE_DECLINED], true)
+                        && $wf->appliedAt === null;
+                    if ($wf === null || $reopenable) {
+                        $workflowHtml = $wf !== null && $wf->state === Review::STATE_DECLINED
+                            ? '<a class="delta-workflow-status delta-workflow-status--declined" href="'
+                                . htmlspecialchars(UrlHelper::cpUrl('delta-review', ['reviewId' => $wf->id])) . '">'
+                                . htmlspecialchars($wf->statusLabel())
+                                . '</a>'
+                            : '';
+                        $workflowHtml .= '<button id="delta-submit-btn" type="button"'
                             . ' data-draft-id="' . (int)$entry->draftId . '"'
                             . ' data-section-uid="' . htmlspecialchars($section->uid) . '">'
                             . htmlspecialchars(Craft::t('craft-delta', TranslationKeys::SUBMIT_FOR_REVIEW))

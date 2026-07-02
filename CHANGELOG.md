@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.2.2 - 2026-07-02
+
+### Added
+
+- A **declined** review can now be resubmitted, not just a withdrawn one — `submit()` reopens it in place (`round + 1`, decision fields reset) instead of rejecting it as "already exists". The entry sidebar shows a link to the reviewer's note directly above the "Submit for review" button, so the author can read why before revising.
+- `craft-delta/smoke/prepare-review`'s `--reviewer=<email|username>` override now actually works — it was documented but silently ignored.
+
+### Fixed
+
+- The review page's **Publish**/**Schedule** buttons now also require `craftdelta-applyReview`, not just reviewer/author standing. A submit-only author previously saw these buttons on their own approved review and got a 403 on click.
+- The author's "ready to publish" nav badge no longer counts already-**scheduled** approved reviews — a scheduled review publishes itself, so it's not waiting on anyone.
+- The review page's Approve gate ("decide every change before approving") now matches by live atom id instead of comparing counts, closing an edge case where stale `localStorage` decisions from before a draft revision could satisfy the gate without covering the current fields.
+
 ## 2.2.1 - 2026-07-02
 
 ### Changed

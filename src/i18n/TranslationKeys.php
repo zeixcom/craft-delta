@@ -12,6 +12,7 @@ final class TranslationKeys
 {
     public const APPLY_COUNT_ACCEPTED = 'review.applyCountAccepted';
     public const DECIDED_OF_TOTAL = 'review.decidedOfTotal';
+    public const APPROVE_NEEDS_ALL_DECIDED = 'review.approveNeedsAllDecided';
     public const NEED_TWO_REVISIONS = 'diff.needTwoRevisions';
     public const CHANGED_ONLY = 'diff.changedOnly';
     public const CLOSE = 'ui.close';
@@ -196,6 +197,7 @@ final class TranslationKeys
         return [
             self::APPLY_COUNT_ACCEPTED,
             self::DECIDED_OF_TOTAL,
+            self::APPROVE_NEEDS_ALL_DECIDED,
             self::NEED_TWO_REVISIONS,
             self::CHANGED_ONLY,
             self::CLOSE,
@@ -257,6 +259,7 @@ final class TranslationKeys
         return [
             'applyCountAccepted' => self::APPLY_COUNT_ACCEPTED,
             'decidedOfTotal' => self::DECIDED_OF_TOTAL,
+            'approveNeedsAllDecided' => self::APPROVE_NEEDS_ALL_DECIDED,
             'needTwoRevisions' => self::NEED_TWO_REVISIONS,
             'changedOnly' => self::CHANGED_ONLY,
             'close' => self::CLOSE,

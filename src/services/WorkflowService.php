@@ -173,6 +173,26 @@ class WorkflowService extends Component
         return $count;
     }
 
+    /**
+     * How many of this author's submissions are approved and waiting to be
+     * published — the author-side counterpart to countAwaitingVerdict(), used
+     * for the CP nav badge so authors get an in-CP "ready to publish" signal
+     * (not just the approval email). `approved` is non-terminal, so a published
+     * review (state `published`) is already excluded. A scheduled review
+     * (scheduledFor set) is excluded too — it will publish itself, so it's not
+     * waiting on anyone.
+     */
+    public function countApprovedForAuthor(User $user): int
+    {
+        return (int)ReviewRecord::find()
+            ->where([
+                'submittedBy' => $user->id,
+                'state' => Review::STATE_APPROVED,
+                'scheduledFor' => null,
+            ])
+            ->count();
+    }
+
     public function canSubmit(User $user, Entry $draft): bool
     {
         if (!$draft->getIsDraft()) {
@@ -226,9 +246,9 @@ class WorkflowService extends Component
     /**
      * Open a review on a draft, requesting one or more reviewers.
      *
-     * A withdrawn (cancelled, never-applied) review does not block: it is
-     * re-opened in place with a new round, so authors can pull a request back,
-     * revise, and resubmit the same draft. Declined stays terminal.
+     * A withdrawn (cancelled) or declined, never-applied review does not
+     * block: it is re-opened in place with a new round, so authors can pull a
+     * request back — or revise after a decline — and resubmit the same draft.
      *
      * @param int[] $reviewerIds
      */
@@ -241,8 +261,9 @@ class WorkflowService extends Component
         }
         $section = $draft->getSection() ?? throw new InvalidArgumentException('Draft has no section.');
 
+        $reopenableStates = [Review::STATE_CANCELLED, Review::STATE_DECLINED];
         $existing = $this->getByDraftId($draft->draftId);
-        if ($existing !== null && !($existing->state === Review::STATE_CANCELLED && $existing->appliedAt === null)) {
+        if ($existing !== null && !(in_array($existing->state, $reopenableStates, true) && $existing->appliedAt === null)) {
             throw new InvalidArgumentException('A review already exists for this draft.');
         }
 
@@ -262,10 +283,10 @@ class WorkflowService extends Component
             }
         }
 
-        $review = Craft::$app->getDb()->transaction(function() use ($draft, $section, $submittedBy, $reviewerIds, $existing) {
+        $review = Craft::$app->getDb()->transaction(function() use ($draft, $section, $submittedBy, $reviewerIds, $existing, $reopenableStates) {
             if ($existing !== null) {
-                // Re-open the withdrawn review in place (the unique draftId
-                // index forbids a second row). Conditional UPDATE so a
+                // Re-open the withdrawn/declined review in place (the unique
+                // draftId index forbids a second row). Conditional UPDATE so a
                 // concurrent submit/conclude can't double-reopen.
                 $round = $existing->round + 1;
                 if (ReviewRecord::updateAll(
@@ -278,7 +299,7 @@ class WorkflowService extends Component
                         'scheduledFor' => null,
                         'dateUpdated' => $this->now(),
                     ],
-                    ['id' => $existing->id, 'state' => Review::STATE_CANCELLED, 'appliedAt' => null],
+                    ['id' => $existing->id, 'state' => $reopenableStates, 'appliedAt' => null],
                 ) === 0) {
                     throw new InvalidArgumentException('A review already exists for this draft.');
                 }
@@ -311,6 +332,17 @@ class WorkflowService extends Component
 
     public function approve(Review $review, User $reviewer): Review
     {
+        $this->assertCanReview($reviewer, $review);
+        $this->assertActive($review);
+
+        // Idempotent: a reviewer who already approved this round re-clicking
+        // Approve is a no-op — no verdict rewrite, no dateUpdated bump, no
+        // re-fired event. A *different* reviewer approving an already-approved
+        // review still records their own verdict (the multi-reviewer case).
+        if ($this->reviewerVerdict($review, $reviewer) === ReviewReviewer::VERDICT_APPROVED) {
+            return $review;
+        }
+
         $wasApproved = $review->isApproved();
         $fresh = $this->recordVerdict($review, $reviewer, ReviewReviewer::VERDICT_APPROVED, null);
         // Tell the author their draft passed review — a distinct milestone from
@@ -605,11 +637,20 @@ class WorkflowService extends Component
         }
     }
 
+    /** This reviewer's current verdict for the review's round, or null if none. */
+    private function reviewerVerdict(Review $review, User $reviewer): ?string
+    {
+        $record = ReviewReviewerRecord::findOne([
+            'reviewId' => $review->id,
+            'userId' => $reviewer->id,
+            'round' => $review->round,
+        ]);
+        return $record?->verdict;
+    }
+
+    /** Caller (approve()) is responsible for assertCanReview()/assertActive() — recordVerdict() is its private helper, not a second entry point. */
     private function recordVerdict(Review $review, User $reviewer, string $verdict, ?string $note): Review
     {
-        $this->assertCanReview($reviewer, $review);
-        $this->assertActive($review);
-
         Craft::$app->getDb()->transaction(function() use ($review, $reviewer, $verdict, $note) {
             $this->writeVerdict($review->id, $review->round, $reviewer->id, $verdict, $note);
             $this->recomputeState($review->id, $review->round);
