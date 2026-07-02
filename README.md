@@ -89,7 +89,7 @@ For sections with front-end URLs, a **live draft preview** pane renders beside t
 
 **Iterating (author).** A submitted draft isn't locked, so the author can keep revising it while the review is open — reviewers see the updated diff. To pull the request back, the author clicks **Withdraw** (the request goes inactive); resubmitting the same draft through the normal Submit-for-review path re-opens the review in a new **round**.
 
-**Publishing.** Once approved, **Publish** (now) and **Schedule for…** (later, via a queued job) appear for the reviewer and the author. Publishing additionally requires Craft's native save permission on the entry, so a review-only role can't push content live. Scheduling is rescinded automatically if the review is declined or withdrawn — either reverts it out of the approved state.
+**Publishing.** Once approved, **Publish** (now) and **Schedule for…** (later, via a queued job) appear for the reviewer and the author. Publishing additionally requires Craft's native save permission on the entry, so a review-only role can't push content live. An approved review has a single back-out action — the author's **Withdraw**; a reviewer who now wants changes comments instead. Withdrawing rescinds any pending schedule and reverts the review out of the approved state.
 
 A submitted draft is **not** locked. If the author keeps editing, a scheduled apply publishes whatever the draft contains at apply time.
 

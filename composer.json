@@ -2,7 +2,7 @@
   "name": "zeixcom/craft-delta",
   "description": "Inline revision diffing for Craft CMS — see exactly what changed",
   "type": "craft-plugin",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "keywords": [
     "craft",
     "cms",

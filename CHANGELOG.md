@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.1 - 2026-07-02
+
+### Changed
+
+- Simplified the action row on an **approved** review: it now shows a single back-out button, the author's **Withdraw**. The reviewer's second back-out button was removed — it read as a near-duplicate of Withdraw and let a reviewer unilaterally kill an already-approved review. A reviewer who wants changes now leaves a comment instead.
+
 ## 2.2.0 - 2026-06-30
 
 ### Added

@@ -83,8 +83,9 @@
                 {# Approved: lay the toolbar out as a banner mirroring the closed-review
                    banner — status + roster on the left, Publish pushed right — so reviewed
                    and published read as one component. The verdict is settled, so the
-                   Approve button is dropped; Decline (reverse) + Withdraw demote to a quiet
-                   row beneath. Every wf-action button stays inside this toolbar so the JS
+                   Approve button is dropped, and only the author's Withdraw remains in a
+                   quiet row beneath — a reviewer who wants changes leaves a comment rather
+                   than a second back-out button. Every wf-action button stays inside this toolbar so the JS
                    (mountWorkflowToolbar) still binds them and reads its data-* prompts. #}
                 <span class="delta-review-closed-status">
                     <span class="status {{ workflow.statusColor() }}"></span>
@@ -103,14 +104,9 @@
                         <button type="button" class="btn" data-wf-action="schedule">{{ deltaKeys.scheduleFor|t('craft-delta') }}</button>
                     </div>
                 {% endif %}
-                {% if isReviewerActive or (isReviewAuthor and workflow.isActive()) %}
+                {% if isReviewAuthor and workflow.isActive() %}
                     <div class="delta-workflow-actions delta-review-approved-secondary" data-role="secondary">
-                        {% if isReviewerActive %}
-                            <button type="button" class="btn delta-btn-quiet" data-wf-action="decline">{{ deltaKeys.workflowDecline|t('craft-delta') }}</button>
-                        {% endif %}
-                        {% if isReviewAuthor and workflow.isActive() %}
-                            <button type="button" class="btn delta-btn-quiet" data-wf-action="withdraw">{{ deltaKeys.workflowWithdraw|t('craft-delta') }}</button>
-                        {% endif %}
+                        <button type="button" class="btn delta-btn-quiet" data-wf-action="withdraw">{{ deltaKeys.workflowWithdraw|t('craft-delta') }}</button>
                     </div>
                 {% endif %}
             {% endif %}
