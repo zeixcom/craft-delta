@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.3 - 2026-07-06
+
+### Fixed
+
+- `Install`'s migration (plugin install) unconditionally ran `CREATE TABLE` for all three review tables, so re-running it against a database where they already existed — plugin reinstall, or a migration-history mismatch after a DB restore — failed with `Base table or view already exists`. `safeUp()` now checks each table before creating it, matching the guard already used by `m260608_000000_review_tables` and `m260608_000002_review_comments`.
+
 ## 2.2.2 - 2026-07-02
 
 ### Added

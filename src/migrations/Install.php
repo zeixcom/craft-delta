@@ -10,9 +10,18 @@ class Install extends Migration
 {
     public function safeUp(): bool
     {
-        $this->createReviewsTable();
-        $this->createReviewersTable();
-        $this->createReviewCommentsTable();
+        if (!$this->db->schema->getTableSchema('{{%craftdelta_reviews}}')) {
+            $this->createReviewsTable();
+        }
+
+        if (!$this->db->schema->getTableSchema('{{%craftdelta_review_reviewers}}')) {
+            $this->createReviewersTable();
+        }
+
+        if (!$this->db->schema->getTableSchema('{{%craftdelta_review_comments}}')) {
+            $this->createReviewCommentsTable();
+        }
+
         return true;
     }
 
