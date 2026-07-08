@@ -48,6 +48,16 @@ class SmokeController extends Controller
     }
 
     /**
+     * Integration check for the review-feedback diff fixes: link changes inside
+     * CKEditor content surface even when the visible text is unchanged (#4), and
+     * an absent-vs-off lightswitch is not treated as a change (#9). Read-only.
+     */
+    public function actionDiffFixes(): int
+    {
+        return $this->runScript('diff-fixes-smoke.php');
+    }
+
+    /**
      * Runs the Matrix `added` + `removed` end-to-end smoke test. Seeds
      * canonical with 3 known blocks, then drafts a state where one is
      * removed and one new one is added, and verifies the apply.

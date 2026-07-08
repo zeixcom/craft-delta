@@ -863,6 +863,16 @@
       this.refreshAtomUi(atomId);
       this.refreshProgress();
       this.scheduleSave();
+
+      // on reject, open the atom's comment thread so the reviewer can explain it
+      var comments = Craft.Delta.reviewComments;
+      if (comments && comments.$root && comments.$root.length && typeof comments.openPanel === 'function') {
+        if (this.state[atomId] === 'rejected') {
+          comments.openPanel(atomId);
+        } else if (comments.openPanelAtomId === atomId) {
+          comments.closePanel();
+        }
+      }
     },
 
     showStepper: function () {
@@ -934,7 +944,6 @@
     refreshProgress: function () {
       const total = document.querySelectorAll('[data-atom-id]').length;
       const decided = Object.keys(this.state).length;
-      const accepted = Object.values(this.state).filter(function (v) { return v === 'accepted'; }).length;
 
       const progressEl = document.querySelector('[data-review-progress]');
       if (progressEl) {
@@ -944,6 +953,9 @@
         });
       }
 
+      // Apply reflects accepted atoms across ALL review sites (multi-site), so it
+      // stays available on a site where nothing local was accepted.
+      const accepted = this.acceptedCountAllSites();
       const applyBtn = document.querySelector('[data-action="apply"]');
       if (applyBtn) {
         applyBtn.textContent = Craft.t('craft-delta', Craft.Delta._keys.applyCountAccepted, { count: accepted });
@@ -958,6 +970,24 @@
       }
 
       this.syncApproveGate();
+    },
+
+    // Accepted-atom count for the apply button: this site plus, for a multi-site
+    // review, every other site's accepted atoms saved in localStorage.
+    acceptedCountAllSites: function () {
+      const self = this;
+      const local = Object.values(this.state).filter(function (v) { return v === 'accepted'; }).length;
+      const toolbar = document.querySelector('[data-review-toolbar]');
+      let reviewSites = null;
+      try { reviewSites = toolbar && toolbar.dataset.reviewSites ? JSON.parse(toolbar.dataset.reviewSites) : null; } catch (e) {}
+      if (!reviewSites || reviewSites.length <= 1) return local;
+
+      let count = 0;
+      reviewSites.forEach(function (s) {
+        const decisions = s.current ? self.state : self.readSiteDecisions(toolbar.dataset.entryId, s.siteId, toolbar.dataset.sourceRef);
+        count += (s.atoms || []).filter(function (a) { return decisions[a] === 'accepted'; }).length;
+      });
+      return count;
     },
 
     // Every changed field must be decided (accepted or rejected) before the
@@ -1099,19 +1129,6 @@
 
     apply: function () {
       const self = this;
-      const accepted = Object.entries(this.state)
-        .filter(function (kv) { return kv[1] === 'accepted'; })
-        .map(function (kv) { return kv[0]; });
-
-      if (accepted.length === 0) return;
-
-      const confirmed = confirm(Craft.t(
-        'craft-delta',
-        Craft.Delta._keys.publishAcceptedConfirm,
-        { count: accepted.length }
-      ));
-      if (!confirmed) return;
-
       const toolbar = document.querySelector('[data-review-toolbar]');
       if (!toolbar) {
         // The diff (and its toolbar) was replaced out from under us; nothing safe to apply against.
@@ -1122,29 +1139,98 @@
       const siteId = toolbar.dataset.siteId;
       const sourceRef = toolbar.dataset.sourceRef;
       const sourceUpdatedAt = toolbar.dataset.sourceUpdatedAt || '';
+
+      let reviewSites = null;
+      try {
+        reviewSites = toolbar.dataset.reviewSites ? JSON.parse(toolbar.dataset.reviewSites) : null;
+      } catch (e) { reviewSites = null; }
+
+      let perSite = null;
+      let singleAccepted = null;
+      let acceptedCount = 0;
+      if (reviewSites && reviewSites.length > 1) {
+        // Multi-site: gather each site's decisions (current from memory, others from
+        // localStorage) and require every site fully decided before applying, so an
+        // unvisited site's changes can't be silently dropped.
+        perSite = {};
+        const undecided = [];
+        reviewSites.forEach(function (s) {
+          const decisions = s.current ? self.state : self.readSiteDecisions(entryId, s.siteId, sourceRef);
+          const accepted = [];
+          let allDecided = true;
+          (s.atoms || []).forEach(function (atom) {
+            if (decisions[atom] === undefined) allDecided = false;
+            else if (decisions[atom] === 'accepted') accepted.push(atom);
+          });
+          if (!allDecided) undecided.push(s.name);
+          perSite[s.siteId] = accepted;
+          acceptedCount += accepted.length;
+        });
+        if (undecided.length) {
+          alert(Craft.t('craft-delta', Craft.Delta._keys.reviewSitesFirst, { sites: undecided.join(', ') }));
+          return;
+        }
+      } else {
+        singleAccepted = Object.entries(this.state)
+          .filter(function (kv) { return kv[1] === 'accepted'; })
+          .map(function (kv) { return kv[0]; });
+        acceptedCount = singleAccepted.length;
+      }
+
+      if (acceptedCount === 0) return;
+
+      const confirmed = confirm(Craft.t('craft-delta', Craft.Delta._keys.publishAcceptedConfirm, { count: acceptedCount }));
+      if (!confirmed) return;
+
+      // disable during the async apply so the OK-click isn't perceived as a no-op
+      const applyBtn = document.querySelector('[data-action="apply"]');
+      if (applyBtn) applyBtn.disabled = true;
+
       const deleteSourceCheckbox = document.querySelector('[data-delete-source-draft]');
       const deleteSourceDraft = !!(deleteSourceCheckbox && deleteSourceCheckbox.checked);
 
-      Craft.sendActionRequest('POST', 'craft-delta/diff/apply', {
-        data: {
-          entryId: parseInt(entryId, 10),
-          siteId: parseInt(siteId, 10),
-          sourceRef: sourceRef,
-          sourceUpdatedAt: sourceUpdatedAt,
-          acceptedAtoms: accepted,
-          deleteSourceDraft: deleteSourceDraft ? 1 : 0,
-        },
-      }).then(function (response) {
-        const data = response.data || {};
-        if (data.success) {
-          self.handleApplySuccess(data);
-        } else {
+      const payload = {
+        entryId: parseInt(entryId, 10),
+        sourceRef: sourceRef,
+        sourceUpdatedAt: sourceUpdatedAt,
+        deleteSourceDraft: deleteSourceDraft ? 1 : 0,
+      };
+      if (perSite) {
+        payload.perSite = perSite;
+      } else {
+        payload.siteId = parseInt(siteId, 10);
+        payload.acceptedAtoms = singleAccepted;
+      }
+
+      Craft.sendActionRequest('POST', 'craft-delta/diff/apply', { data: payload })
+        .then(function (response) {
+          const data = response.data || {};
+          if (data.success) {
+            if (reviewSites) {
+              reviewSites.forEach(function (s) {
+                try {
+                  localStorage.removeItem('craftdelta:review:' + (Craft.userId || '0') + ':' + entryId + ':' + s.siteId + ':' + sourceRef);
+                } catch (e) {}
+              });
+            }
+            self.handleApplySuccess(data);
+          } else {
+            self.handleApplyError(data);
+          }
+        }).catch(function (err) {
+          const data = (err && err.response && err.response.data) || {};
           self.handleApplyError(data);
-        }
-      }).catch(function (err) {
-        const data = (err && err.response && err.response.data) || {};
-        self.handleApplyError(data);
-      });
+        });
+    },
+
+    readSiteDecisions: function (entryId, siteId, sourceRef) {
+      const key = 'craftdelta:review:' + (Craft.userId || '0') + ':' + entryId + ':' + siteId + ':' + sourceRef;
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return (parsed && parsed.decisions) || {};
+      } catch (e) { return {}; }
     },
 
     handleApplySuccess: function (data) {
@@ -1157,6 +1243,8 @@
     },
 
     handleApplyError: function (data) {
+      const applyBtn = document.querySelector('[data-action="apply"]');
+      if (applyBtn) applyBtn.disabled = false;
       const banner = document.querySelector('[data-review-banner]');
       switch (data.errorCode) {
         case 'stale-atoms':

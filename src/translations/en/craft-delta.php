@@ -3,6 +3,8 @@
 return [
     'review.applyCountAccepted' => 'Apply {count} accepted',
     'review.decidedOfTotal' => '{decided} of {total} decided',
+    'review.otherSitesChanges' => 'This draft also has changes in {sites}. Those are not part of this review — review them separately before deleting the draft.',
+    'review.reviewSitesFirst' => 'Decide every change in these sites before applying: {sites}',
     'review.approveNeedsAllDecided' => 'Decide every change before approving.',
     'diff.needTwoRevisions' => 'At least two revisions are needed to compare.',
     'diff.changedOnly' => 'Changed only',

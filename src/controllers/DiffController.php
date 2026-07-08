@@ -177,8 +177,12 @@ class DiffController extends Controller
         }
 
         $request = Craft::$app->getRequest();
+        // Single-site apply sends `acceptedAtoms` for the current siteId; a
+        // multi-site apply sends `perSite` (siteId => atoms) for every reviewed site.
+        $perSiteParam = $request->getBodyParam('perSite');
         $acceptedAtoms = $request->getBodyParam('acceptedAtoms');
-        if (!is_array($acceptedAtoms) || $acceptedAtoms === []) {
+        $hasPerSite = is_array($perSiteParam) && $perSiteParam !== [];
+        if (!$hasPerSite && (!is_array($acceptedAtoms) || $acceptedAtoms === [])) {
             return $this->apply422('no-changes', TranslationKeys::NO_CHANGES_TO_APPLY);
         }
 
@@ -205,6 +209,20 @@ class DiffController extends Controller
             return $this->apply422('source-not-found', TranslationKeys::SOURCE_VERSION_NOT_FOUND);
         }
 
+        $atomsBySite = [];
+        if ($hasPerSite) {
+            foreach ($perSiteParam as $sid => $atoms) {
+                if (is_array($atoms) && $atoms !== []) {
+                    $atomsBySite[(int)$sid] = array_values($atoms);
+                }
+            }
+        } elseif (is_array($acceptedAtoms)) {
+            $atomsBySite[$siteId ?? (int)$canonical->siteId] = array_values($acceptedAtoms);
+        }
+        if ($atomsBySite === []) {
+            return $this->apply422('no-changes', TranslationKeys::NO_CHANGES_TO_APPLY);
+        }
+
         $sourceUpdatedAt = $request->getBodyParam('sourceUpdatedAt');
         if (is_string($sourceUpdatedAt) && $sourceUpdatedAt !== '') {
             $live = $source->dateUpdated?->format(\DateTimeInterface::ATOM);
@@ -223,6 +241,18 @@ class DiffController extends Controller
             throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NO_PERMISSION_DELETE_SOURCE_DRAFT));
         }
 
+        // never delete a draft that still has unreviewed changes in sites we're not applying
+        $keptForOtherSites = [];
+        if ($deleteSourceDraft && $sourceDraftId !== null) {
+            $keptForOtherSites = $plugin->diff->otherSitesWithChanges($canonical->id, $sourceDraftId, $siteId ?? $canonical->siteId);
+            foreach (array_keys($atomsBySite) as $appliedSid) {
+                unset($keptForOtherSites[$appliedSid]);
+            }
+            if ($keptForOtherSites !== []) {
+                $deleteSourceDraft = false;
+            }
+        }
+
         $workflow = $sourceDraftId !== null ? $plugin->workflow->getByDraftId($sourceDraftId) : null;
         if ($workflow !== null && $workflow->isActive() && !$plugin->workflow->canReview($user, $workflow)) {
             throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::ONLY_ASSIGNED_REVIEWER_MAY_APPLY));
@@ -231,8 +261,8 @@ class DiffController extends Controller
         try {
             // Publish and workflow resolution must commit together; otherwise
             // canonical updates while the workflow stays "pending".
-            $published = Craft::$app->getDb()->transaction(function() use ($plugin, $canonical, $source, $acceptedAtoms, $workflow, $user) {
-                $published = $plugin->merge->merge($canonical, $source, $acceptedAtoms, false);
+            $published = Craft::$app->getDb()->transaction(function() use ($plugin, $canonical, $source, $atomsBySite, $workflow, $user) {
+                $published = $plugin->merge->merge($canonical, $source, $atomsBySite, false);
                 if ($workflow !== null && $workflow->isActive()) {
                     // Resolve BEFORE source-draft delete, or the FK CASCADE
                     // removes the workflow row before we record the decision.
@@ -254,6 +284,7 @@ class DiffController extends Controller
                 'success' => true,
                 'entryId' => $published->id,
                 'entryEditUrl' => $published->getCpEditUrl(),
+                'keptForOtherSites' => array_values($keptForOtherSites),
             ]);
         } catch (StaleAtomException) {
             return $this->staleAtomsResponse();

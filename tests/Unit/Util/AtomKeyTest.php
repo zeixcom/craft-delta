@@ -35,6 +35,22 @@ class AtomKeyTest extends TestCase
         $this->assertSame('blocks', $parsed['fieldHandle']);
     }
 
+    public function testParseMatrixFieldAtom(): void
+    {
+        $parsed = AtomKey::parse('matrix-field:blocks:8a3f-1234:heading');
+
+        $this->assertSame('matrix-field', $parsed['kind']);
+        $this->assertSame('blocks', $parsed['fieldHandle']);
+        $this->assertSame('8a3f-1234', $parsed['blockUid']);
+        $this->assertSame('heading', $parsed['subFieldHandle']);
+    }
+
+    public function testRejectsMalformedMatrixFieldAtom(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        AtomKey::parse('matrix-field:blocks:8a3f-1234'); // missing sub-field handle
+    }
+
     public function testRejectsMalformedAtom(): void
     {
         $this->expectException(\InvalidArgumentException::class);

@@ -39,6 +39,8 @@ return [
     'review.accept' => 'Übernehmen',
     'workflow.reject' => 'Verwerfen',
     'review.decidedOfTotal' => '{decided} von {total} entschieden',
+    'review.otherSitesChanges' => 'Dieser Entwurf enthält auch Änderungen in {sites}. Diese sind nicht Teil dieser Überprüfung — prüfe sie separat, bevor du den Entwurf löschst.',
+    'review.reviewSitesFirst' => 'Entscheide alle Änderungen in diesen Sites, bevor du anwendest: {sites}',
     'review.applyCountAccepted' => '{count} übernommene Änderungen anwenden',
     'error.sourceVersionNotFound' => 'Quellversion nicht gefunden.',
     'review.noChangesToApply' => 'Keine Änderungen zum Anwenden.',

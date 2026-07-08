@@ -18,6 +18,20 @@
 {% set isApproved = workflow is defined and workflow and workflow.isApproved() %}
 
 <div class="delta-review-header{{ isApproved ? ' delta-review-header--approved' : '' }}">
+    {% if otherSiteChanges is defined and otherSiteChanges %}
+        <div class="delta-other-sites-notice" role="status">
+            ⚠ {{ deltaKeys.otherSitesChanges|t('craft-delta', { sites: otherSiteChanges|join(', ') }) }}
+        </div>
+    {% endif %}
+    {% if reviewSites is defined and reviewSites|length > 1 %}
+        <nav class="delta-site-switcher" aria-label="{{ 'Sites'|t('app') }}">
+            {% for s in reviewSites %}
+                <a class="delta-site-tab{{ s.current ? ' delta-site-tab--current' : '' }}"
+                   href="{{ cpUrl('delta-review', { reviewId: workflow.id, siteId: s.siteId }) }}"
+                   {% if s.current %}aria-current="page"{% endif %}>{{ s.name }}</a>
+            {% endfor %}
+        </nav>
+    {% endif %}
     {# Open review shows stats + roster here; an approved review's banner (below) replaces it. #}
     {% if not isApproved %}
     <div class="delta-review-header-top">
@@ -131,7 +145,8 @@
              data-site-id="{{ siteId }}"
              data-source-ref="{{ sourceRef }}"
              data-canonical-updated-at="{{ canonicalUpdatedAt }}"
-             data-source-updated-at="{{ sourceUpdatedAt }}">
+             data-source-updated-at="{{ sourceUpdatedAt }}"
+             {% if reviewSites is defined and reviewSites|length > 1 %}data-review-sites="{{ reviewSites|json_encode|e('html_attr') }}"{% endif %}>
             {# Reviewers who can apply get always-on accept/reject (auto-entered),
                so no Start button. Reviewers who cannot apply keep the explicit
                entry point. #}
@@ -151,8 +166,10 @@
                JS (reviewMode.refreshProgress) reveals them. Hidden by default so
                a fresh review shows just the quiet "decided" counter. #}
             {% if sourceRef starts with 'draft:' %}
-                <label class="delta-review-cleanup" data-review-cleanup hidden>
-                    <input type="checkbox" data-delete-source-draft>
+                {% set blockDelete = otherSiteChanges is defined and otherSiteChanges %}
+                <label class="delta-review-cleanup{{ blockDelete ? ' delta-review-cleanup--blocked' : '' }}" data-review-cleanup hidden>
+                    {# disabled (and server-enforced) while other sites have unreviewed changes #}
+                    <input type="checkbox" data-delete-source-draft{{ blockDelete ? ' disabled' : '' }}>
                     {{ deltaKeys.alsoDeleteSourceDraft|t('craft-delta') }}
                 </label>
             {% endif %}

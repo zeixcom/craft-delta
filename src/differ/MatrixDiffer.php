@@ -29,16 +29,20 @@ class MatrixDiffer implements DifferInterface
         $newById = $this->indexByCanonicalId(MatrixValue::toEntries($newValue));
         /** @var list<MatrixBlockChange> $changes */
         $changes = [];
+        // unchanged blocks are context only, so they don't count as a change
+        $hasRealChange = false;
 
         foreach ($oldById as $id => $entry) {
             if (!isset($newById[$id])) {
                 $changes[] = $this->blockChange($entry, DiffChangeType::Removed, false);
+                $hasRealChange = true;
             }
         }
 
         foreach ($newById as $id => $entry) {
             if (!isset($oldById[$id])) {
                 $changes[] = $this->blockChange($entry, DiffChangeType::Added, true);
+                $hasRealChange = true;
             } elseif ($fieldChanges = $this->collectFieldChanges($entry, fn(FieldInterface $field): array => [
                 $oldById[$id]->getFieldValue($field->handle),
                 $entry->getFieldValue($field->handle),
@@ -50,6 +54,15 @@ class MatrixDiffer implements DifferInterface
                     'summary' => $this->summarizeEntry($entry),
                     'fieldChanges' => $fieldChanges,
                 ];
+                $hasRealChange = true;
+            } else {
+                // context block: no fieldChanges, no atom
+                $changes[] = [
+                    'type' => DiffChangeType::Unchanged->value,
+                    'blockUid' => $entry->canonicalUid,
+                    'blockType' => $entry->type->name ?? Craft::t('craft-delta', TranslationKeys::BLOCK),
+                    'summary' => $this->summarizeEntry($entry),
+                ];
             }
         }
 
@@ -57,9 +70,10 @@ class MatrixDiffer implements DifferInterface
         $newOrder = array_keys($newById);
         if (array_values(array_intersect($oldOrder, $newOrder)) !== array_values(array_intersect($newOrder, $oldOrder))) {
             $changes[] = ['type' => DiffChangeType::Reordered->value];
+            $hasRealChange = true;
         }
 
-        return $changes === [] ? null : json_encode($changes, JSON_THROW_ON_ERROR);
+        return $hasRealChange ? json_encode($changes, JSON_THROW_ON_ERROR) : null;
     }
 
     /** @return DiffStats */

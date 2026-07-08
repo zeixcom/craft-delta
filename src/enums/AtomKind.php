@@ -11,5 +11,7 @@ enum AtomKind: string
 {
     case Field = 'field';
     case MatrixBlock = 'matrix-block';
+    // one changed field inside a modified block; added/removed blocks stay whole
+    case MatrixField = 'matrix-field';
     case MatrixReorder = 'matrix-reorder';
 }

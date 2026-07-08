@@ -25,6 +25,7 @@ use zeixcom\craftdelta\util\AtomKey;
  * canonical entry, saves once.
  *
  * @phpstan-import-type MatrixBlockAtom from \zeixcom\craftdelta\types\ArrayTypes
+ * @phpstan-import-type MatrixFieldAtom from \zeixcom\craftdelta\types\ArrayTypes
  * @phpstan-import-type MatrixCanonicalDraftMap from \zeixcom\craftdelta\types\ArrayTypes
  * @phpstan-import-type MatrixSetValue from \zeixcom\craftdelta\types\ArrayTypes
  * @phpstan-import-type OrderedMatrixBlock from \zeixcom\craftdelta\types\ArrayTypes
@@ -55,8 +56,14 @@ class MergeService extends Component
         }
     }
 
-    /** @param list<SerializedMatrixBlock> $current @param list<SerializedMatrixBlock> $source @param array<int, MatrixBlockAtom> $atoms @return list<SerializedMatrixBlock> */
-    public static function buildMatrixBlockList(array $current, array $source, array $atoms): array
+    /**
+     * @param list<SerializedMatrixBlock> $current
+     * @param list<SerializedMatrixBlock> $source
+     * @param array<int, MatrixBlockAtom> $atoms whole-block decisions (added/removed)
+     * @param array<int, MatrixFieldAtom> $fieldAtoms accepted per-field changes inside modified blocks (#10)
+     * @return list<SerializedMatrixBlock>
+     */
+    public static function buildMatrixBlockList(array $current, array $source, array $atoms, array $fieldAtoms = []): array
     {
         $sourceByUid = array_column($source, null, 'uid');
         $working = array_column($current, null, 'uid');
@@ -73,6 +80,18 @@ class MergeService extends Component
                 case DiffChangeType::Removed->value:
                     unset($working[$uid]);
                     break;
+            }
+        }
+
+        // per-field merge: keep the canonical block, swap in only accepted sub-fields
+        foreach ($fieldAtoms as $atom) {
+            $uid = $atom['blockUid'];
+            $handle = $atom['subFieldHandle'];
+            if (!isset($working[$uid], $sourceByUid[$uid])) {
+                continue;
+            }
+            if (array_key_exists($handle, $sourceByUid[$uid]['payload']['fields'])) {
+                $working[$uid]['payload']['fields'][$handle] = $sourceByUid[$uid]['payload']['fields'][$handle];
             }
         }
 
@@ -209,13 +228,13 @@ class MergeService extends Component
         }
     }
 
-    /** @param array<int, MatrixBlockAtom> $blockAtoms */
-    private function applyMatrixAtoms(Entry $draft, Entry $source, string $fieldHandle, array $blockAtoms, bool $acceptedReorder): void
+    /** @param array<int, MatrixBlockAtom> $blockAtoms @param array<int, MatrixFieldAtom> $fieldAtoms */
+    private function applyMatrixAtoms(Entry $draft, Entry $source, string $fieldHandle, array $blockAtoms, array $fieldAtoms, bool $acceptedReorder): void
     {
         $current = $this->serializeMatrixBlocks($draft->getFieldValue($fieldHandle));
         $sourceBlocks = $this->serializeMatrixBlocks($source->getFieldValue($fieldHandle));
         $ordered = self::orderMatrixBlocks(
-            self::buildMatrixBlockList($current, $sourceBlocks, $blockAtoms),
+            self::buildMatrixBlockList($current, $sourceBlocks, $blockAtoms, $fieldAtoms),
             $current,
             $sourceBlocks,
             $acceptedReorder,
@@ -244,26 +263,33 @@ class MergeService extends Component
         return $result;
     }
 
-    /** @param string[] $acceptedAtoms @return Entry */
-    public function merge(Entry $canonical, Entry $source, array $acceptedAtoms, bool $deleteSourceDraft = false): Entry
+    /**
+     * Apply accepted atoms per site into one merge draft, then publish it once.
+     * A review is decided per site (each site has its own diff + decisions), but a
+     * draft is one element spanning sites, so the merged sites publish together.
+     *
+     * @param array<int, string[]> $atomsBySite siteId => accepted atom keys
+     */
+    public function merge(Entry $canonical, Entry $source, array $atomsBySite, bool $deleteSourceDraft = false): Entry
     {
         $diffService = $this->diffService ?? Delta::getInstance()->diff;
-        self::validateAtoms(self::collectAvailableAtoms($diffService->compare($canonical, $source)), $acceptedAtoms);
+        $revision = Delta::getInstance()->revision;
+        $entryId = (int)$canonical->id;
+        $sourceDraftId = $source->getIsDraft() ? (int)$source->draftId : null;
 
-        $fieldAtoms = [];
-        $matrixBlockAtomsByHandle = [];
-        $reorderAcceptedHandles = [];
-
-        foreach ($acceptedAtoms as $atom) {
-            $parsed = AtomKey::parse($atom);
-            match ($parsed['kind']) {
-                AtomKind::Field->value => $fieldAtoms[] = $atom,
-                AtomKind::MatrixBlock->value => $matrixBlockAtomsByHandle[$parsed['fieldHandle']][] = [
-                    'blockUid' => $parsed['blockUid'],
-                    'changeType' => $parsed['changeType'],
-                ],
-                AtomKind::MatrixReorder->value => $reorderAcceptedHandles[$parsed['fieldHandle']] = true,
-            };
+        // Resolve + validate each site against its own fresh diff.
+        $sourceBySite = [];
+        foreach ($atomsBySite as $siteId => $atoms) {
+            $siteId = (int)$siteId;
+            $canonicalForSite = $revision->getCanonical($entryId, $siteId);
+            $sourceForSite = $sourceDraftId !== null
+                ? $revision->getDraftByDraftId($sourceDraftId, $entryId, $siteId)
+                : ($siteId === (int)$source->siteId ? $source : null);
+            if (!$canonicalForSite instanceof Entry || !$sourceForSite instanceof Entry) {
+                continue;
+            }
+            self::validateAtoms(self::collectAvailableAtoms($diffService->compare($canonicalForSite, $sourceForSite)), $atoms);
+            $sourceBySite[$siteId] = $sourceForSite;
         }
 
         $user = \Craft::$app->getUser()->getIdentity();
@@ -273,20 +299,17 @@ class MergeService extends Component
             \Craft::t('craft-delta', TranslationKeys::REVIEW_OF_REF, ['ref' => $this->humanRefForSource($source)]),
         );
 
-        $this->applyFieldAtoms($draft, $source, $fieldAtoms);
-
-        foreach (array_unique([...array_keys($matrixBlockAtomsByHandle), ...array_keys($reorderAcceptedHandles)]) as $handle) {
-            $this->applyMatrixAtoms(
-                $draft,
-                $source,
-                $handle,
-                $matrixBlockAtomsByHandle[$handle] ?? [],
-                isset($reorderAcceptedHandles[$handle]),
-            );
-        }
-
-        if (!\Craft::$app->getElements()->saveElement($draft)) {
-            throw new \RuntimeException('Draft validation failed: ' . json_encode($draft->getErrors()));
+        foreach ($sourceBySite as $siteId => $sourceForSite) {
+            $draftForSite = $siteId === (int)$draft->siteId
+                ? $draft
+                : Entry::find()->draftId($draft->draftId)->siteId($siteId)->status(null)->one();
+            if (!$draftForSite instanceof Entry) {
+                continue;
+            }
+            $this->applyAtomsToEntry($draftForSite, $sourceForSite, $atomsBySite[$siteId]);
+            if (!\Craft::$app->getElements()->saveElement($draftForSite)) {
+                throw new \RuntimeException('Draft validation failed: ' . json_encode($draftForSite->getErrors()));
+            }
         }
 
         $published = \Craft::$app->getDrafts()->applyDraft($draft);
@@ -299,6 +322,44 @@ class MergeService extends Component
         }
 
         return $published;
+    }
+
+    /** @param string[] $acceptedAtoms */
+    private function applyAtomsToEntry(Entry $draft, Entry $source, array $acceptedAtoms): void
+    {
+        $fieldAtoms = [];
+        $matrixBlockAtomsByHandle = [];
+        $matrixFieldAtomsByHandle = [];
+        $reorderAcceptedHandles = [];
+
+        foreach ($acceptedAtoms as $atom) {
+            $parsed = AtomKey::parse($atom);
+            match ($parsed['kind']) {
+                AtomKind::Field->value => $fieldAtoms[] = $atom,
+                AtomKind::MatrixBlock->value => $matrixBlockAtomsByHandle[$parsed['fieldHandle']][] = [
+                    'blockUid' => $parsed['blockUid'],
+                    'changeType' => $parsed['changeType'],
+                ],
+                AtomKind::MatrixField->value => $matrixFieldAtomsByHandle[$parsed['fieldHandle']][] = [
+                    'blockUid' => $parsed['blockUid'],
+                    'subFieldHandle' => $parsed['subFieldHandle'],
+                ],
+                AtomKind::MatrixReorder->value => $reorderAcceptedHandles[$parsed['fieldHandle']] = true,
+            };
+        }
+
+        $this->applyFieldAtoms($draft, $source, $fieldAtoms);
+
+        foreach (array_unique([...array_keys($matrixBlockAtomsByHandle), ...array_keys($matrixFieldAtomsByHandle), ...array_keys($reorderAcceptedHandles)]) as $handle) {
+            $this->applyMatrixAtoms(
+                $draft,
+                $source,
+                $handle,
+                $matrixBlockAtomsByHandle[$handle] ?? [],
+                $matrixFieldAtomsByHandle[$handle] ?? [],
+                isset($reorderAcceptedHandles[$handle]),
+            );
+        }
     }
 
     /** @return string[] */
@@ -330,7 +391,14 @@ class MergeService extends Component
                 $type = $change['type'] ?? null;
                 if ($type === DiffChangeType::Reordered->value) {
                     $hasReorder = true;
-                } elseif (in_array($type, DiffChangeType::atomValues(), true) && !empty($change['blockUid'])) {
+                } elseif ($type === DiffChangeType::Modified->value && !empty($change['blockUid'])) {
+                    // modified block: decided per field, not whole-block
+                    foreach ($change['fieldChanges'] ?? [] as $fc) {
+                        if (!empty($fc['handle'])) {
+                            $atoms[] = AtomKind::MatrixField->value . ':' . $fd->fieldHandle . ':' . $change['blockUid'] . ':' . $fc['handle'];
+                        }
+                    }
+                } elseif (in_array($type, [DiffChangeType::Added->value, DiffChangeType::Removed->value], true) && !empty($change['blockUid'])) {
                     $atoms[] = AtomKind::MatrixBlock->value . ':' . $fd->fieldHandle . ':' . $change['blockUid'] . ':' . $type;
                 }
             }
