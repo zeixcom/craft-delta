@@ -9,6 +9,8 @@ use craft\base\Component;
 use craft\base\FieldInterface;
 use craft\fields\Table;
 use zeixcom\craftdelta\Delta;
+use zeixcom\craftdelta\differ\AddressesDiffer;
+use zeixcom\craftdelta\differ\ContentBlockDiffer;
 use zeixcom\craftdelta\differ\DifferInterface;
 use zeixcom\craftdelta\differ\HtmlDiffer;
 use zeixcom\craftdelta\differ\LinkDiffer;
@@ -41,10 +43,13 @@ class FieldDiffService extends Component implements NestedFieldDiffInterface
         \spicyweb\tinymce\fields\TinyMCE::class => HtmlDiffer::class,
         \nystudio107\codefield\fields\Code::class => TextDiffer::class,
         \craft\fields\Matrix::class => MatrixDiffer::class,
+        \craft\fields\ContentBlock::class => ContentBlockDiffer::class,
         \benf\neo\Field::class => NeoDiffer::class,
         \craft\fields\Table::class => TableDiffer::class,
         \craft\fields\Entries::class => RelationDiffer::class,
         \craft\fields\Assets::class => RelationDiffer::class,
+        // Addresses are owned nested elements, not relations — see AddressesDiffer.
+        \craft\fields\Addresses::class => AddressesDiffer::class,
         \craft\fields\Categories::class => RelationDiffer::class,
         \craft\fields\Tags::class => RelationDiffer::class,
         \craft\fields\Users::class => RelationDiffer::class,
@@ -143,6 +148,8 @@ class FieldDiffService extends Component implements NestedFieldDiffInterface
             TextDiffer::class => new TextDiffer($context),
             HtmlDiffer::class => new HtmlDiffer($context),
             MatrixDiffer::class => new MatrixDiffer($this),
+            ContentBlockDiffer::class => new ContentBlockDiffer($this),
+            AddressesDiffer::class => new AddressesDiffer($this, new ScalarDiffer()),
             NeoDiffer::class => new NeoDiffer($this),
             StructDiffer::class => new StructDiffer($this->getTextDiffer()),
             LinkDiffer::class => new LinkDiffer($this->getTextDiffer()),

@@ -1,6 +1,10 @@
-{# Block fields (Matrix, Neo) offer per-block atoms instead of a whole-field
-   atom — and Neo is read-only for now — so neither gets a field-level atom. #}
-{% set isBlockField = (diff.fieldType ends with '\\Matrix') or (diff.fieldType == 'benf\\neo\\Field') %}
+{# Block fields (Matrix, Neo, Content Block, Addresses) offer per-block atoms
+   instead of a whole-field atom — and all but Matrix are read-only for now — so
+   none of them gets a field-level atom. #}
+{% set isBlockField = (diff.fieldType ends with '\\Matrix')
+    or (diff.fieldType == 'benf\\neo\\Field')
+    or (diff.fieldType == 'craft\\fields\\ContentBlock')
+    or (diff.fieldType == 'craft\\fields\\Addresses') %}
 <div class="delta-field{{ not diff.hasChanges ? ' delta-field-unchanged' : '' }}"
      data-field-handle="{{ diff.fieldHandle }}"
      {% if diff.hasChanges and not isBlockField %}data-atom-id="field:{{ diff.fieldHandle }}"{% endif %}>

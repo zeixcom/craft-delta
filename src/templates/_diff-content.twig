@@ -18,10 +18,18 @@
    but read-only: per-block accept uses Matrix-only `matrix-block:` atoms, so Neo
    blocks carry no atom-ids or accept/reject controls. #}
 {% set isNeo = fieldType == 'benf\\neo\\Field' %}
+{# A Content Block emits one "modified" block whose fieldChanges are its
+   sub-fields, so it renders through this branch too — read-only, like Neo:
+   accepting a nested block element needs Matrix-specific merge support. #}
+{% set isContentBlock = fieldType == 'craft\\fields\\ContentBlock' %}
+{# Addresses are owned nested elements, so they diff per address like Matrix
+   blocks — read-only, and they keep their per-block header: a field can hold
+   several addresses, so the header is what says which one changed. #}
+{% set isAddresses = fieldType == 'craft\\fields\\Addresses' %}
 {% set blockAtoms = isMatrix and not isNested %}
 {% set atomsEnabled = (reviewMode is defined and reviewMode) and blockAtoms %}
 
-{% if (isMatrix or isNeo) and diffHtml starts with '[' %}
+{% if (isMatrix or isNeo or isContentBlock or isAddresses) and diffHtml starts with '[' %}
     {% set changes = diffHtml|json_decode %}
     {% if changes is iterable %}
         {% for change in changes %}
@@ -33,6 +41,9 @@
                 {% set perFieldAtoms = blockAtoms and isModified %}
                 <div class="delta-block {{ blockClass[change.type] }}"
                      {% if blockAtoms and not isModified %}data-atom-id="matrix-block:{{ fieldHandle }}:{{ change.blockUid }}:{{ change.type }}"{% endif %}>
+                    {# A Content Block is always exactly one block, so a per-block
+                       header would just repeat the field label above it. #}
+                    {% if not isContentBlock %}
                     <div class="delta-block-headerbar">
                         {% if change.fieldChanges is defined and change.fieldChanges is iterable %}
                             <button type="button" class="delta-block-toggle" aria-expanded="true">
@@ -52,6 +63,7 @@
                             {% include 'craft-delta/_atom-actions' only %}
                         {% endif %}
                     </div>
+                    {% endif %}
                     {% if change.fieldChanges is defined and change.fieldChanges is iterable %}
                         <div class="delta-block-subfields">
                             {% for fc in change.fieldChanges %}

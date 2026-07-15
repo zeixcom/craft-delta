@@ -6,6 +6,8 @@ namespace zeixcom\craftdelta\tests\Unit\Service;
 
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
+use zeixcom\craftdelta\differ\AddressesDiffer;
+use zeixcom\craftdelta\differ\ContentBlockDiffer;
 use zeixcom\craftdelta\differ\HtmlDiffer;
 use zeixcom\craftdelta\differ\LinkDiffer;
 use zeixcom\craftdelta\differ\NeoDiffer;
@@ -57,5 +59,32 @@ class FieldDiffServiceTest extends TestCase
         $map = (new ReflectionClass(FieldDiffService::class))->getDefaultProperties()['differMap'];
 
         self::assertSame(LinkDiffer::class, $map['verbb\\hyper\\fields\\HyperField'] ?? null);
+    }
+
+    /**
+     * Content Block (Craft 5.8+) must route to ContentBlockDiffer. Under the
+     * ScalarDiffer fallback its value — a title-less element — stringified to
+     * "Content Block <id>", so a draft's own copy of the block made the diff read
+     * "Content Block 2149 → Content Block 2153": no sub-field content at all.
+     */
+    public function testContentBlockFieldMapsToContentBlockDiffer(): void
+    {
+        $map = (new ReflectionClass(FieldDiffService::class))->getDefaultProperties()['differMap'];
+
+        self::assertSame(ContentBlockDiffer::class, $map['craft\\fields\\ContentBlock'] ?? null);
+    }
+
+    /**
+     * Addresses must route to AddressesDiffer — NOT RelationDiffer (addresses are
+     * owned nested elements, so a draft's copies have fresh ids and an id-based
+     * relation diff would call every address removed-and-re-added), and not the
+     * ScalarDiffer fallback, whose AddressQuery value stringifies to the constant
+     * "craft\elements\db\ElementQuery" — making every address change invisible.
+     */
+    public function testAddressesFieldMapsToAddressesDiffer(): void
+    {
+        $map = (new ReflectionClass(FieldDiffService::class))->getDefaultProperties()['differMap'];
+
+        self::assertSame(AddressesDiffer::class, $map['craft\\fields\\Addresses'] ?? null);
     }
 }
