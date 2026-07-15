@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.2.4 - 2026-07-15
+
+### Fixed
+
+- **Content Block** fields (`craft\fields\ContentBlock`, Craft 5.8+) showed no content changes. The field type was unmapped, so it fell back to a scalar value diff — and because a content block has no title, `Element::__toString()` renders it as `Content Block <id>`. A draft owns its own copy of the block, so the diff read `Content Block 2149 → Content Block 2153`: two element ids, and none of the actual sub-field changes. A new `ContentBlockDiffer` now diffs the block's sub-fields, each recursing through `FieldDiffService` so rich text, Matrix and the rest still get their proper differ.
+- **Addresses** fields (`craft\fields\Addresses`) showed no changes at all — ever. Unmapped, they too fell back to a scalar value diff, whose value is an `AddressQuery`; `ElementQuery::__toString()` returns the same constant string regardless of content, so both sides always compared equal. A new `AddressesDiffer` diffs each address by canonical id (added / removed / modified / reordered), covering both an address's native attributes — street, city, postal code, country, organization, names, coordinates — and any custom fields on its layout. Attribute labels come from Craft, so they stay country-aware (“ZIP code” vs “Postal code”).
+
+Neither field type could reuse an existing differ: a content block is a `craft\base\Element` but not an `Entry`, and addresses are *owned nested elements* rather than relations, so an id-based relation diff would report every address as removed-and-re-added on each draft.
+
+Both render through the existing block-diff UI, and both are **read-only** for now, as Neo is — their changes apply via **publish**, not delta's granular accept/reject, which would need `MergeService` to re-own the nested elements the way it serializes Matrix blocks.
+
 ## 2.2.3 - 2026-07-06
 
 ### Fixed
