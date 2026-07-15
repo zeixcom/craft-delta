@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace zeixcom\craftdelta\tests\Unit\Differ;
 
-use zeixcom\craftdelta\differ\ScalarDiffer;
 use PHPUnit\Framework\TestCase;
+use zeixcom\craftdelta\differ\ScalarDiffer;
 
 class ScalarDifferTest extends TestCase
 {
@@ -90,6 +90,20 @@ class ScalarDifferTest extends TestCase
         $this->assertNotNull($result);
         $this->assertStringContainsString('Yes', $result);
         $this->assertStringContainsString('No', $result);
+    }
+
+    public function testAbsentToFalseIsNoChange(): void
+    {
+        // A lightswitch absent in the old revision and explicitly off in the new
+        // one is the same state — it must not surface as a change (#9).
+        $this->assertNull($this->differ->diff(null, false));
+        $this->assertNull($this->differ->diff(false, null));
+    }
+
+    public function testFalseToTrueStillDiffs(): void
+    {
+        $this->assertNotNull($this->differ->diff(false, true));
+        $this->assertNotNull($this->differ->diff(null, true));
     }
 
     public function testDateTimeFormatted(): void

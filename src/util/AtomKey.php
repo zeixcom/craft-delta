@@ -40,6 +40,14 @@ final class AtomKey
                         'blockUid' => $parts[2],
                         'changeType' => $parts[3],
                     ]),
+            AtomKind::MatrixField->value => count($parts) !== 4 || $parts[1] === '' || $parts[2] === '' || $parts[3] === ''
+                ? throw new \InvalidArgumentException("Malformed matrix-field atom: $key")
+                : [
+                    'kind' => AtomKind::MatrixField->value,
+                    'fieldHandle' => $parts[1],
+                    'blockUid' => $parts[2],
+                    'subFieldHandle' => $parts[3],
+                ],
             AtomKind::MatrixReorder->value => count($parts) !== 2 || $parts[1] === ''
                 ? throw new \InvalidArgumentException("Malformed matrix-reorder atom: $key")
                 : ['kind' => AtomKind::MatrixReorder->value, 'fieldHandle' => $parts[1]],

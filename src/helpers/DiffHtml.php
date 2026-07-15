@@ -15,7 +15,9 @@ final class DiffHtml
      * Allowlist for diff markup (Jfcherng tables, del/ins, relation/asset lines).
      * Used at render time before |raw in Twig.
      */
-    private const DIFF_HTML_ALLOWED = 'div[class],span[class],del,ins,table[class],thead,tbody,tr[class],td[class|rowspan|colspan],th[class],img[class|src|alt|width|height|loading],em[class],p[class],br';
+    // tbody[class] is load-bearing: whole added/removed lines are coloured via the
+    // change-* class jfcherng puts on <tbody>; drop it and they lose their highlight.
+    private const DIFF_HTML_ALLOWED = 'div[class],span[class],del,ins,table[class],thead,tbody[class],tr[class],td[class|rowspan|colspan],th[class],img[class|src|alt|width|height|loading],em[class],p[class],br';
 
     private const PURIFIER_CONFIG = [
         'HTML.Allowed' => self::DIFF_HTML_ALLOWED,

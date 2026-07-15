@@ -366,10 +366,40 @@ class WorkflowController extends Controller
             : null;
 
         $result = null;
+        $otherSiteMap = [];
         if ($draft instanceof Entry) {
             // Canonical-relative order so atom-ids match the merge re-run at apply
             // time, exactly as actionCompare does in review mode.
             $result = $plugin->diff->compare($canonical, $draft);
+            if ($review->draftId !== null) {
+                $otherSiteMap = $plugin->diff->otherSitesWithChanges($review->canonicalEntryId, $review->draftId, $canonical->siteId);
+            }
+        }
+
+        // Site switcher: current site + every other site the draft also changed.
+        // Each carries its atom keys so the client can require all sites decided
+        // before a multi-site apply.
+        $reviewSites = [];
+        if ($otherSiteMap !== [] && $review->draftId !== null) {
+            $sites = Craft::$app->getSites();
+            $reviewSites[] = [
+                'siteId' => $canonical->siteId,
+                'name' => $sites->getSiteById($canonical->siteId)?->name ?? ('#' . $canonical->siteId),
+                'current' => true,
+                'atoms' => $result !== null ? MergeService::collectAvailableAtoms($result) : [],
+            ];
+            foreach ($otherSiteMap as $sid => $name) {
+                $canonicalForSite = $plugin->revision->getCanonical($review->canonicalEntryId, $sid);
+                $draftForSite = $plugin->revision->getDraftByDraftId($review->draftId, $review->canonicalEntryId, $sid);
+                $reviewSites[] = [
+                    'siteId' => $sid,
+                    'name' => $name,
+                    'current' => false,
+                    'atoms' => ($canonicalForSite instanceof Entry && $draftForSite instanceof Entry)
+                        ? MergeService::collectAvailableAtoms($plugin->diff->compare($canonicalForSite, $draftForSite))
+                        : [],
+                ];
+            }
         }
 
         $previewUrl = ($draft instanceof Entry && $plugin->getSettings()->enablePreview)
@@ -391,6 +421,8 @@ class WorkflowController extends Controller
             'entryUrl' => $canonical->getCpEditUrl(),
             'previewUrl' => $previewUrl,
             'isReviewer' => $plugin->workflow->canReview($user, $review),
+            'otherSiteChanges' => array_values($otherSiteMap),
+            'reviewSites' => $reviewSites,
             'entryId' => $review->canonicalEntryId,
             'siteId' => $canonical->siteId,
             'sourceRef' => 'draft:' . $review->draftId,

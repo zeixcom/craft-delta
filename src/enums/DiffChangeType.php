@@ -11,6 +11,8 @@ enum DiffChangeType: string
     case Removed = 'removed';
     case Modified = 'modified';
     case Reordered = 'reordered';
+    // context block shown around changed ones; never an atom (see atomValues)
+    case Unchanged = 'unchanged';
 
     /** @return list<value-of<self>> */
     public static function atomValues(): array

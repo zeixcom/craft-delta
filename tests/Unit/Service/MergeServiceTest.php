@@ -124,6 +124,59 @@ class MergeServiceTest extends TestCase
         $this->assertSame('old', $result[0]['content']);
     }
 
+    // --- #10: per-field merge inside a modified block --------------------------
+
+    public function testFieldAtomSwapsOnlyTheAcceptedSubField(): void
+    {
+        $current = [['uid' => 'A', 'payload' => ['fields' => ['text' => 'old text', 'size' => 'small']]]];
+        $source = [['uid' => 'A', 'payload' => ['fields' => ['text' => 'new text', 'size' => 'large']]]];
+
+        // Accept only 'size'; 'text' stays canonical.
+        $result = MergeService::buildMatrixBlockList($current, $source, [], [
+            ['blockUid' => 'A', 'subFieldHandle' => 'size'],
+        ]);
+
+        $fields = $result[0]['payload']['fields'];
+        $this->assertSame('large', $fields['size'], 'accepted sub-field takes the source value');
+        $this->assertSame('old text', $fields['text'], 'rejected sub-field keeps the canonical value');
+    }
+
+    public function testNoFieldAtomsLeavesTheBlockCanonical(): void
+    {
+        $current = [['uid' => 'A', 'payload' => ['fields' => ['text' => 'old', 'size' => 'small']]]];
+        $source = [['uid' => 'A', 'payload' => ['fields' => ['text' => 'new', 'size' => 'large']]]];
+
+        $result = MergeService::buildMatrixBlockList($current, $source, [], []);
+
+        $this->assertSame(['text' => 'old', 'size' => 'small'], $result[0]['payload']['fields']);
+    }
+
+    public function testAllFieldAtomsMatchWholeBlockAcceptance(): void
+    {
+        $current = [['uid' => 'A', 'payload' => ['fields' => ['text' => 'old', 'size' => 'small']]]];
+        $source = [['uid' => 'A', 'payload' => ['fields' => ['text' => 'new', 'size' => 'large']]]];
+
+        $result = MergeService::buildMatrixBlockList($current, $source, [], [
+            ['blockUid' => 'A', 'subFieldHandle' => 'text'],
+            ['blockUid' => 'A', 'subFieldHandle' => 'size'],
+        ]);
+
+        $this->assertSame(['text' => 'new', 'size' => 'large'], $result[0]['payload']['fields']);
+    }
+
+    public function testFieldAtomForAbsentBlockIsIgnored(): void
+    {
+        $current = [['uid' => 'A', 'payload' => ['fields' => ['text' => 'old']]]];
+        $source = [['uid' => 'A', 'payload' => ['fields' => ['text' => 'old']]]];
+
+        // A field atom pointing at a block that isn't on both sides must not crash.
+        $result = MergeService::buildMatrixBlockList($current, $source, [], [
+            ['blockUid' => 'GHOST', 'subFieldHandle' => 'text'],
+        ]);
+
+        $this->assertSame('old', $result[0]['payload']['fields']['text']);
+    }
+
     public function testOrderNoReorderPreservesCurrentOrder(): void
     {
         $survivors = [
@@ -349,7 +402,7 @@ class MergeServiceTest extends TestCase
                 'diffHtml' => json_encode([
                     ['type' => 'added', 'blockUid' => 'A'],
                     ['type' => 'removed', 'blockUid' => 'B'],
-                    ['type' => 'modified', 'blockUid' => 'C'],
+                    ['type' => 'modified', 'blockUid' => 'C', 'fieldChanges' => [['handle' => 'heading'], ['handle' => 'body']]],
                     ['type' => 'reordered'],
                 ]),
             ]),
@@ -360,7 +413,10 @@ class MergeServiceTest extends TestCase
         $this->assertContains('field:title', $atoms);
         $this->assertContains('matrix-block:blocks:A:added', $atoms);
         $this->assertContains('matrix-block:blocks:B:removed', $atoms);
-        $this->assertContains('matrix-block:blocks:C:modified', $atoms);
+        // A modified block is decided per field (#10), not as a whole block.
+        $this->assertContains('matrix-field:blocks:C:heading', $atoms);
+        $this->assertContains('matrix-field:blocks:C:body', $atoms);
+        $this->assertNotContains('matrix-block:blocks:C:modified', $atoms);
         $this->assertContains('matrix-reorder:blocks', $atoms);
     }
 

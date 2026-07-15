@@ -67,23 +67,59 @@ class DiffService extends Component
         ]);
     }
 
+    /**
+     * Site names (excluding $excludeSiteId) where the draft differs from
+     * canonical. A review + apply are single-site, so this powers the reviewer
+     * warning and the source-draft delete guard that stop another language's
+     * edits from being silently discarded (#7).
+     *
+     * @return array<int, string> siteId => site name
+     */
+    public function otherSitesWithChanges(int $entryId, int $draftId, int $excludeSiteId): array
+    {
+        $revision = Delta::getInstance()->revision;
+        $anchor = $revision->getCanonical($entryId, $excludeSiteId);
+        if (!$anchor instanceof ElementInterface) {
+            return [];
+        }
+
+        $names = [];
+        foreach ($anchor->getSupportedSites() as $info) {
+            $siteId = (int)(is_array($info) ? $info['siteId'] : $info);
+            if ($siteId === $excludeSiteId) {
+                continue;
+            }
+            $canonical = $revision->getCanonical($entryId, $siteId);
+            $draft = $revision->getDraftByDraftId($draftId, $entryId, $siteId);
+            if ($canonical instanceof ElementInterface
+                && $draft instanceof ElementInterface
+                && $this->compare($canonical, $draft)->hasChanges()) {
+                $names[$siteId] = Craft::$app->getSites()->getSiteById($siteId)?->name ?? ('#' . $siteId);
+            }
+        }
+        return $names;
+    }
+
     /** @return FieldDiff[] */
     private function compareAttributes(ElementInterface $older, ElementInterface $newer, FieldDiffService $fieldDiffService): array
     {
         $diffs = [];
         foreach (['title', 'slug'] as $attr) {
-            $oldVal = $older->$attr ?? '';
-            $newVal = $newer->$attr ?? '';
-            if ($oldVal === $newVal) {
+            $oldVal = (string)($older->$attr ?? '');
+            $newVal = (string)($newer->$attr ?? '');
+            $changed = $oldVal !== $newVal;
+            // emit unchanged attributes too (like custom fields) so the "all" view lists
+            // them; skip only when empty on both sides to avoid a blank row
+            if (!$changed && $oldVal === '' && $newVal === '') {
                 continue;
             }
             $diffs[] = new FieldDiff([
                 'fieldHandle' => $attr,
                 'fieldLabel' => ucfirst($attr),
                 'fieldType' => 'attribute',
-                'hasChanges' => true,
-                'diffHtml' => $fieldDiffService->getTextDiffer()->diff((string)$oldVal, (string)$newVal),
-                'stats' => ['additions' => 1, 'deletions' => 1],
+                'hasChanges' => $changed,
+                'diffHtml' => $changed ? $fieldDiffService->getTextDiffer()->diff($oldVal, $newVal) : '',
+                'stats' => $changed ? ['additions' => 1, 'deletions' => 1] : ['additions' => 0, 'deletions' => 0],
             ]);
         }
         return $diffs;

@@ -18,18 +18,32 @@
    but read-only: per-block accept uses Matrix-only `matrix-block:` atoms, so Neo
    blocks carry no atom-ids or accept/reject controls. #}
 {% set isNeo = fieldType == 'benf\\neo\\Field' %}
+{# A Content Block emits one "modified" block whose fieldChanges are its
+   sub-fields, so it renders through this branch too — read-only, like Neo:
+   accepting a nested block element needs Matrix-specific merge support. #}
+{% set isContentBlock = fieldType == 'craft\\fields\\ContentBlock' %}
+{# Addresses are owned nested elements, so they diff per address like Matrix
+   blocks — read-only, and they keep their per-block header: a field can hold
+   several addresses, so the header is what says which one changed. #}
+{% set isAddresses = fieldType == 'craft\\fields\\Addresses' %}
 {% set blockAtoms = isMatrix and not isNested %}
 {% set atomsEnabled = (reviewMode is defined and reviewMode) and blockAtoms %}
 
-{% if (isMatrix or isNeo) and diffHtml starts with '[' %}
+{% if (isMatrix or isNeo or isContentBlock or isAddresses) and diffHtml starts with '[' %}
     {% set changes = diffHtml|json_decode %}
     {% if changes is iterable %}
         {% for change in changes %}
             {% if change.type in ['added', 'removed', 'modified'] %}
                 {% set blockClass = {added: 'delta-block-added', removed: 'delta-block-removed', modified: 'delta-block-modified'} %}
                 {% set blockIcon = {added: '+', removed: '-', modified: '&bull;'} %}
+                {# modified block: decided per sub-field, so the block itself is not an atom #}
+                {% set isModified = change.type == 'modified' %}
+                {% set perFieldAtoms = blockAtoms and isModified %}
                 <div class="delta-block {{ blockClass[change.type] }}"
-                     {% if blockAtoms %}data-atom-id="matrix-block:{{ fieldHandle }}:{{ change.blockUid }}:{{ change.type }}"{% endif %}>
+                     {% if blockAtoms and not isModified %}data-atom-id="matrix-block:{{ fieldHandle }}:{{ change.blockUid }}:{{ change.type }}"{% endif %}>
+                    {# A Content Block is always exactly one block, so a per-block
+                       header would just repeat the field label above it. #}
+                    {% if not isContentBlock %}
                     <div class="delta-block-headerbar">
                         {% if change.fieldChanges is defined and change.fieldChanges is iterable %}
                             <button type="button" class="delta-block-toggle" aria-expanded="true">
@@ -45,15 +59,22 @@
                                 <span class="delta-block-summary">{{ change.summary|default('')|e }}</span>
                             </div>
                         {% endif %}
-                        {% if atomsEnabled %}
+                        {% if atomsEnabled and not isModified %}
                             {% include 'craft-delta/_atom-actions' only %}
                         {% endif %}
                     </div>
+                    {% endif %}
                     {% if change.fieldChanges is defined and change.fieldChanges is iterable %}
                         <div class="delta-block-subfields">
                             {% for fc in change.fieldChanges %}
-                                <div class="delta-block-subfield">
-                                    <div class="delta-block-subfield-label">{{ fc.label ?? fc.handle }}</div>
+                                <div class="delta-block-subfield"
+                                     {% if perFieldAtoms %}data-atom-id="matrix-field:{{ fieldHandle }}:{{ change.blockUid }}:{{ fc.handle }}"{% endif %}>
+                                    <div class="delta-block-subfield-label">
+                                        <span class="delta-block-subfield-name">{{ fc.label ?? fc.handle }}</span>
+                                        {% if atomsEnabled and perFieldAtoms %}
+                                            {% include 'craft-delta/_atom-actions' only %}
+                                        {% endif %}
+                                    </div>
                                     {% if fc.diffHtml is defined and fc.diffHtml is not null %}
                                         {% include 'craft-delta/_diff-content' with {
                                             diffHtml: fc.diffHtml,
@@ -78,6 +99,17 @@
                         {% if atomsEnabled %}
                             {% include 'craft-delta/_atom-actions' only %}
                         {% endif %}
+                    </div>
+                </div>
+            {% elseif change.type == 'unchanged' %}
+                <div class="delta-block delta-block-unchanged">
+                    <div class="delta-block-headerbar">
+                        <div class="delta-block-heading">
+                            <span class="delta-block-icon" aria-hidden="true">=</span>
+                            <span class="delta-block-type">{{ change.blockType ?? deltaKeys.block|t('craft-delta') }}</span>
+                            <span class="delta-block-summary">{{ change.summary|default('')|e }}</span>
+                            <span class="delta-block-unchanged-tag">{{ deltaKeys.noChanges|t('craft-delta') }}</span>
+                        </div>
                     </div>
                 </div>
             {% endif %}

@@ -16,10 +16,12 @@ namespace zeixcom\craftdelta\types;
  * @phpstan-type AuthenticatedReviewTuple array{0: \zeixcom\craftdelta\Delta, 1: \zeixcom\craftdelta\models\Review, 2: \craft\elements\User}
  * @phpstan-type EntryPair array{0: \craft\elements\Entry, 1: \craft\elements\Entry}
  * @phpstan-type MatrixBlockAtom array{blockUid: string, changeType: value-of<\zeixcom\craftdelta\enums\DiffChangeType>}
+ * @phpstan-type MatrixFieldAtom array{blockUid: string, subFieldHandle: string}
  * @phpstan-type ParsedFieldAtom array{kind: 'field', handle: string}
  * @phpstan-type ParsedMatrixBlockAtom array{kind: 'matrix-block', fieldHandle: string, blockUid: string, changeType: value-of<\zeixcom\craftdelta\enums\DiffChangeType>}
+ * @phpstan-type ParsedMatrixFieldAtom array{kind: 'matrix-field', fieldHandle: string, blockUid: string, subFieldHandle: string}
  * @phpstan-type ParsedMatrixReorderAtom array{kind: 'matrix-reorder', fieldHandle: string}
- * @phpstan-type ParsedAtomKey ParsedFieldAtom|ParsedMatrixBlockAtom|ParsedMatrixReorderAtom
+ * @phpstan-type ParsedAtomKey ParsedFieldAtom|ParsedMatrixBlockAtom|ParsedMatrixFieldAtom|ParsedMatrixReorderAtom
  * @phpstan-type ReviewBuckets array{assigned: \zeixcom\craftdelta\models\Review[], submitted: \zeixcom\craftdelta\models\Review[], all: \zeixcom\craftdelta\models\Review[]}
  * @phpstan-type ScalarFieldValue bool|\DateTime|\Money\Money|float|int|object|string|null
  * @phpstan-type TableCellValue string|int|float|bool|null

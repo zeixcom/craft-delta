@@ -52,6 +52,18 @@ class HtmlDiffer implements DifferInterface
 
     private function htmlToText(string $html): string
     {
+        // strip_tags() drops <a href>; project each link to "text [href]" so link changes still diff
+        $html = preg_replace_callback(
+            '/<a\b([^>]*)>(.*?)<\/a>/is',
+            static function(array $m): string {
+                if (preg_match('/href\s*=\s*("|\')(.*?)\1/i', $m[1], $h) && trim($h[2]) !== '') {
+                    return $m[2] . ' [' . trim($h[2]) . ']';
+                }
+                return $m[2];
+            },
+            $html,
+        ) ?? $html;
+
         $html = (string)preg_replace('/<\/(p|div|h[1-6]|li|tr|blockquote)>/i', "\n", $html);
         $html = (string)preg_replace('/<br\s*\/?>/i', "\n", $html);
         $text = html_entity_decode(strip_tags($html), ENT_QUOTES, 'UTF-8');

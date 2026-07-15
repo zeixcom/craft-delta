@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.2.4 - 2026-07-15
+
+### Added
+
+- **Multi-site review** (#7). Reviewing an entry that propagates to several sites no longer silently drops the other sites' changes: the review header warns when a draft carries changes beyond the site being viewed, a site switcher moves between them, and granular apply merges every site's accepted atoms into a single publish — gated on all sites having been decided.
+- **Per-field accept/reject inside modified Matrix blocks** (#10). A modified block is decided field by field rather than all-or-nothing, via a new `matrix-field:` atom and a field-level merge.
+- **Unchanged Matrix blocks are shown as context** (#12), hidden by default, so a changed block can be read in the surrounding order rather than in isolation.
+- **Rejecting an atom opens its comment thread inline** (#11), so the reason for a rejection is captured where the rejection happens.
+- **Unchanged native attributes** (Title, Slug) now appear in the all-fields view (#8), instead of being omitted only because they hadn't changed.
+
+### Fixed
+
+- **Link changes inside rich text** now surface even when the visible anchor text is unchanged (#4) — `HtmlDiffer` projects each `<a href>` to `text [href]` before stripping tags, so an add, removal or retarget is a real diff instead of an invisible one.
+- **Whole added/removed lines keep their green/red highlight** (#5): the line-level change class on `<tbody>` is allowed through the diff purifier again.
+- **An absent-vs-off lightswitch no longer reads as a change** (#9) — `null` (never set) and `false` (explicitly off) are the same state.
+- **The apply button gives immediate feedback** instead of reading as a no-op (#6).
+- **Content Block** fields (`craft\fields\ContentBlock`, Craft 5.8+) showed no content changes. The field type was unmapped, so it fell back to a scalar value diff — and because a content block has no title, `Element::__toString()` renders it as `Content Block <id>`. A draft owns its own copy of the block, so the diff read `Content Block 2149 → Content Block 2153`: two element ids, and none of the actual sub-field changes. A new `ContentBlockDiffer` now diffs the block's sub-fields, each recursing through `FieldDiffService` so rich text, Matrix and the rest still get their proper differ.
+- **Addresses** fields (`craft\fields\Addresses`) showed no changes at all — ever. Unmapped, they too fell back to a scalar value diff, whose value is an `AddressQuery`; `ElementQuery::__toString()` returns the same constant string regardless of content, so both sides always compared equal. A new `AddressesDiffer` diffs each address by canonical id (added / removed / modified / reordered), covering both an address's native attributes — street, city, postal code, country, organization, names, coordinates — and any custom fields on its layout. Attribute labels come from Craft, so they stay country-aware (“ZIP code” vs “Postal code”).
+
+Neither of those two field types could reuse an existing differ: a content block is a `craft\base\Element` but not an `Entry`, and addresses are *owned nested elements* rather than relations, so an id-based relation diff would report every address as removed-and-re-added on each draft. Both render through the existing block-diff UI, and both are **read-only** for now, as Neo is — their changes apply via **publish**, not delta's granular accept/reject, which would need `MergeService` to re-own the nested elements the way it serializes Matrix blocks.
+
 ## 2.2.3 - 2026-07-06
 
 ### Fixed

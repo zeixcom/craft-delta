@@ -539,6 +539,19 @@ button.delta-field-header {
     display: none;
 }
 
+.delta-block-unchanged { opacity: 0.5; }
+
+.delta-changed-only .delta-block-unchanged {
+    display: none;
+}
+
+.delta-block-unchanged-tag {
+    margin-left: auto;
+    font-size: var(--delta-font-md);
+    font-style: italic;
+    color: var(--delta-text-muted);
+}
+
 .delta-unchanged-msg {
     color: var(--delta-text-muted);
     font-size: var(--delta-font-md);
@@ -653,12 +666,17 @@ button.delta-field-header {
 .delta-block-subfield:first-child { border-top: none; }
 
 .delta-block-subfield-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: var(--delta-font-sm);
     font-weight: 600;
     color: var(--text-color);
     margin-bottom: var(--delta-radius);
     letter-spacing: 0.01em;
 }
+
+.delta-block-subfield-name { flex: 1 1 auto; }
 
 .delta-block-subfield .delta-field-body-padded {
     padding: var(--delta-radius) 0;
@@ -952,6 +970,8 @@ a.delta-workflow-status {
 
 .delta-review-cleanup input[type="checkbox"] { margin: 0; }
 
+.delta-review-cleanup--blocked { opacity: 0.5; cursor: not-allowed; }
+
 .delta-review-banner {
     padding: 12px 16px;
     background: var(--delta-banner-bg);
@@ -1040,7 +1060,8 @@ a.delta-workflow-status {
 }
 
 [data-atom-id].delta-atom-state-rejected .delta-field-body,
-[data-atom-id].delta-atom-state-rejected .delta-block-subfields {
+[data-atom-id].delta-atom-state-rejected .delta-block-subfields,
+.delta-block-subfield[data-atom-id].delta-atom-state-rejected .diff-html {
     text-decoration: line-through;
     opacity: 0.6;
 }
@@ -1387,6 +1408,40 @@ a.delta-workflow-status {
 }
 
 /* ─── Dedicated review page (delta-review) ─── */
+.delta-other-sites-notice {
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    border-radius: var(--delta-radius-sm, 4px);
+    border: 1px solid var(--delta-mod-border);
+    background: color-mix(in srgb, var(--delta-mod-border) 12%, transparent);
+    color: var(--delta-mod-text);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.delta-site-switcher {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.delta-site-tab {
+    padding: 4px 12px;
+    border-radius: var(--delta-radius-sm, 4px);
+    border: 1px solid var(--delta-border, #ddd);
+    font-size: 13px;
+    color: var(--delta-text-muted, #5d6f7d);
+    text-decoration: none;
+}
+
+.delta-site-tab--current {
+    background: var(--delta-accent, #5a67d8);
+    border-color: var(--delta-accent, #5a67d8);
+    color: #fff;
+    font-weight: 600;
+}
+
 .delta-review-header {
     position: sticky;
     top: 0;

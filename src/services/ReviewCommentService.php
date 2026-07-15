@@ -43,6 +43,7 @@ class ReviewCommentService extends Component
         return match ($parsed['kind']) {
             AtomKind::Field->value => ['anchorType' => ReviewComment::ANCHOR_FIELD, 'fieldHandle' => $parsed['handle'], 'blockUid' => null, 'atomId' => $atomId],
             AtomKind::MatrixBlock->value => ['anchorType' => ReviewComment::ANCHOR_ATOM, 'fieldHandle' => $parsed['fieldHandle'], 'blockUid' => $parsed['blockUid'], 'atomId' => $atomId],
+            AtomKind::MatrixField->value => ['anchorType' => ReviewComment::ANCHOR_ATOM, 'fieldHandle' => $parsed['fieldHandle'], 'blockUid' => $parsed['blockUid'], 'atomId' => $atomId],
             AtomKind::MatrixReorder->value => ['anchorType' => ReviewComment::ANCHOR_ATOM, 'fieldHandle' => $parsed['fieldHandle'], 'blockUid' => null, 'atomId' => $atomId],
         };
     }

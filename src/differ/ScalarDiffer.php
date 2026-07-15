@@ -36,7 +36,8 @@ class ScalarDiffer implements DifferInterface
     {
         return match (true) {
             $value === null => '',
-            is_bool($value) => $value ? '1' : '0',
+            // treat "off" (false) and "absent" (null) as the same state
+            is_bool($value) => $value ? '1' : '',
             $value instanceof DateTime => $value->format('Y-m-d H:i:s'),
             $value instanceof Money => $value->getAmount() . ' ' . $value->getCurrency()->getCode(),
             is_object($value) => $this->stringifyObject($value, false),
