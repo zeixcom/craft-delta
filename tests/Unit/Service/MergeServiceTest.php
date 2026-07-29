@@ -164,6 +164,32 @@ class MergeServiceTest extends TestCase
         $this->assertSame(['text' => 'new', 'size' => 'large'], $result[0]['payload']['fields']);
     }
 
+    /** #15: the block Title lives beside 'fields' in the payload, not inside it. */
+    public function testTitleFieldAtomSwapsTheNativeTitleAttribute(): void
+    {
+        $current = [['uid' => 'A', 'payload' => ['title' => 'Old title', 'fields' => ['text' => 'old']]]];
+        $source = [['uid' => 'A', 'payload' => ['title' => 'New title', 'fields' => ['text' => 'new']]]];
+
+        $result = MergeService::buildMatrixBlockList($current, $source, [], [
+            ['blockUid' => 'A', 'subFieldHandle' => 'title'],
+        ]);
+
+        $this->assertSame('New title', $result[0]['payload']['title'], 'accepted title takes the source value');
+        $this->assertSame('old', $result[0]['payload']['fields']['text'], 'rejected sub-field keeps the canonical value');
+    }
+
+    public function testTitleFieldAtomWithoutATitleInTheSourcePayloadLeavesTheBlockAlone(): void
+    {
+        $current = [['uid' => 'A', 'payload' => ['title' => 'Keep me', 'fields' => []]]];
+        $source = [['uid' => 'A', 'payload' => ['fields' => []]]];
+
+        $result = MergeService::buildMatrixBlockList($current, $source, [], [
+            ['blockUid' => 'A', 'subFieldHandle' => 'title'],
+        ]);
+
+        $this->assertSame('Keep me', $result[0]['payload']['title'], 'a missing source title must not blank the block');
+    }
+
     public function testFieldAtomForAbsentBlockIsIgnored(): void
     {
         $current = [['uid' => 'A', 'payload' => ['fields' => ['text' => 'old']]]];

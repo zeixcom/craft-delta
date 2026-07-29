@@ -147,7 +147,7 @@ class FieldDiffService extends Component implements NestedFieldDiffInterface
         return match ($differClass) {
             TextDiffer::class => new TextDiffer($context),
             HtmlDiffer::class => new HtmlDiffer($context),
-            MatrixDiffer::class => new MatrixDiffer($this),
+            MatrixDiffer::class => new MatrixDiffer($this, new ScalarDiffer()),
             ContentBlockDiffer::class => new ContentBlockDiffer($this),
             AddressesDiffer::class => new AddressesDiffer($this, new ScalarDiffer()),
             NeoDiffer::class => new NeoDiffer($this),

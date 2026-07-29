@@ -20,6 +20,7 @@ class MatrixDiffer implements DifferInterface
 {
     public function __construct(
         private readonly NestedFieldDiffInterface $nestedFieldDiff,
+        private readonly ScalarDiffer $scalarDiffer,
     ) {
     }
 
@@ -43,10 +44,18 @@ class MatrixDiffer implements DifferInterface
             if (!isset($oldById[$id])) {
                 $changes[] = $this->blockChange($entry, DiffChangeType::Added, true);
                 $hasRealChange = true;
-            } elseif ($fieldChanges = $this->collectFieldChanges($entry, fn(FieldInterface $field): array => [
-                $oldById[$id]->getFieldValue($field->handle),
-                $entry->getFieldValue($field->handle),
-            ])) {
+                continue;
+            }
+
+            $fieldChanges = [
+                ...$this->titleChange($oldById[$id], $entry),
+                ...$this->collectFieldChanges($entry, fn(FieldInterface $field): array => [
+                    $oldById[$id]->getFieldValue($field->handle),
+                    $entry->getFieldValue($field->handle),
+                ]),
+            ];
+
+            if ($fieldChanges) {
                 $changes[] = [
                     'type' => DiffChangeType::Modified->value,
                     'blockUid' => $entry->canonicalUid,
@@ -107,6 +116,36 @@ class MatrixDiffer implements DifferInterface
     private function summarizeEntry(Entry $entry): string
     {
         return $entry->title ?? mb_substr(strip_tags((string)$entry), 0, 80);
+    }
+
+    /**
+     * A Matrix block's Title is a native entry attribute, not a custom field, so
+     * the field-layout walk in collectFieldChanges() never sees it and a
+     * title-only edit read as "no changes" (#15).
+     *
+     * Only block types with "Show the Title field" enabled are diffed: otherwise
+     * the title is generated from the entry type's title format, so a change is
+     * just an echo of the field changes already listed below it.
+     *
+     * @return list<MatrixBlockFieldChange>
+     */
+    private function titleChange(Entry $old, Entry $new): array
+    {
+        if (!$new->type->hasTitleField) {
+            return [];
+        }
+        $diffHtml = $this->scalarDiffer->diff($old->title, $new->title);
+        if ($diffHtml === null) {
+            return [];
+        }
+        return [[
+            'handle' => 'title',
+            'label' => $new->getAttributeLabel('title'),
+            // No field class: the template renders this through its plain
+            // diff-HTML branch, which is what ScalarDiffer emits.
+            'fieldType' => '',
+            'diffHtml' => $diffHtml,
+        ]];
     }
 
     /** @return MatrixBlockChange */
