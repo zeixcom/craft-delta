@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.5 - 2026-07-29
+
+### Fixed
+
+- **Titles of nested entries are diffed again** (#15). A Matrix block whose entry type has “Show the Title field” enabled reported *no changes* when only its title was edited: a block's Title is a native entry attribute, not a custom field, so `MatrixDiffer`'s walk over the block's field layout (`getCustomFields()`) never saw it and the block was classified as unchanged context. The title is now diffed explicitly — for block types that show a Title field only, since a title generated from a title format would just echo the field changes listed below it — and it is accept/reject-able like any other sub-field via a `matrix-field:<field>:<blockUid>:title` atom, which `MergeService` applies to the block's native `title` rather than looking for a custom field of that handle.
+
 ## 2.2.4 - 2026-07-15
 
 ### Added

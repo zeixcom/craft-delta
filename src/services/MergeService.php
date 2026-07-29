@@ -90,7 +90,15 @@ class MergeService extends Component
             if (!isset($working[$uid], $sourceByUid[$uid])) {
                 continue;
             }
-            if (array_key_exists($handle, $sourceByUid[$uid]['payload']['fields'])) {
+            // The block Title is a native entry attribute, not a custom field (#15).
+            // Craft reserves the `title` handle, so this can't shadow a real field.
+            // Guarded like the fields branch: a payload without a title key must
+            // leave the block's title alone, not blank it.
+            if ($handle === 'title') {
+                if (array_key_exists('title', $sourceByUid[$uid]['payload'])) {
+                    $working[$uid]['payload']['title'] = $sourceByUid[$uid]['payload']['title'];
+                }
+            } elseif (array_key_exists($handle, $sourceByUid[$uid]['payload']['fields'])) {
                 $working[$uid]['payload']['fields'][$handle] = $sourceByUid[$uid]['payload']['fields'][$handle];
             }
         }

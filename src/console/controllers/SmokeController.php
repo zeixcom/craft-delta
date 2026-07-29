@@ -58,6 +58,25 @@ class SmokeController extends Controller
     }
 
     /**
+     * Regression check for #15: a Matrix block whose entry type shows the Title
+     * field, where only that title changed, must diff, expose a
+     * `matrix-field:…:title` atom, and apply.
+     */
+    public function actionNestedTitle(): int
+    {
+        return $this->runScript('nested-title-smoke.php');
+    }
+
+    /**
+     * Leaves a draft behind that changes a Matrix block's Title *and* one of
+     * its sub-fields, for eyeballing the #15 fix in the CP. Merges nothing.
+     */
+    public function actionNestedTitleDemo(): int
+    {
+        return $this->runScript('nested-title-demo.php');
+    }
+
+    /**
      * Runs the Matrix `added` + `removed` end-to-end smoke test. Seeds
      * canonical with 3 known blocks, then drafts a state where one is
      * removed and one new one is added, and verifies the apply.
