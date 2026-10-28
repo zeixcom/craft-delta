@@ -46,6 +46,8 @@ return [
     'review.ofRef' => 'Révision de {ref}',
     'settings.enableReviewMode' => 'Activer le mode révision',
     'settings.enablePreview' => 'Activer l’aperçu',
+    'settings.reviewerGroups' => 'Groupes de relecteurs',
+    'settings.reviewerGroupsInstructions' => 'Seuls les membres de ces groupes d’utilisateurs apparaissent dans le choix des relecteurs. Laissez vide pour lister toutes les personnes ayant la permission « Réviser les brouillons soumis », y compris tous les administrateurs.',
     'settings.approvalPolicy' => 'Politique d’approbation',
     'settings.approvalPolicyInstructions' => 'Combien de relecteurs doivent approuver avant qu’une révision puisse être publiée.',
     'settings.approvalAny' => 'N’importe quel relecteur',

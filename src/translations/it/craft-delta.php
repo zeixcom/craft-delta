@@ -46,6 +46,8 @@ return [
     'review.ofRef' => 'Revisione di {ref}',
     'settings.enableReviewMode' => 'Abilita modalità revisione',
     'settings.enablePreview' => 'Abilita anteprima',
+    'settings.reviewerGroups' => 'Gruppi di revisori',
+    'settings.reviewerGroupsInstructions' => 'Solo i membri di questi gruppi di utenti compaiono nella scelta dei revisori. Lascia vuoto per elencare tutti coloro che hanno il permesso «Revisiona le bozze inviate», inclusi tutti gli amministratori.',
     'settings.approvalPolicy' => 'Criterio di approvazione',
     'settings.approvalPolicyInstructions' => 'Quanti revisori devono approvare prima che una revisione possa essere pubblicata.',
     'settings.approvalAny' => 'Un revisore qualsiasi',

@@ -28,6 +28,13 @@ class Settings extends Model
     public bool $enableWorkflow = true;
 
     /**
+     * Limit the reviewer picker to members of these user groups. Empty = no limit.
+     *
+     * @var string[] user group UIDs
+     */
+    public array $reviewerGroups = [];
+
+    /**
      * How many approvals move a review to "approved":
      * `any` (one reviewer), `all` (every assigned reviewer), or `count` (at least
      * `approvalsRequired`, clamped to the number of assigned reviewers). Default
@@ -67,6 +74,7 @@ class Settings extends Model
             [['maxFieldLength'], 'integer', 'min' => 1000],
             [['approvalPolicy'], 'in', 'range' => [self::APPROVAL_ANY, self::APPROVAL_ALL, self::APPROVAL_COUNT]],
             [['approvalsRequired'], 'integer', 'min' => 1, 'max' => 20],
+            [['reviewerGroups'], 'each', 'rule' => ['string']],
         ];
     }
 }

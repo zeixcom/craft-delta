@@ -48,6 +48,8 @@ return [
     'review.ofRef' => 'Überprüfung von {ref}',
     'settings.enableReviewMode' => 'Review-Modus aktivieren',
     'settings.enablePreview' => 'Vorschau aktivieren',
+    'settings.reviewerGroups' => 'Prüfer-Gruppen',
+    'settings.reviewerGroupsInstructions' => 'Nur Mitglieder dieser Benutzergruppen erscheinen in der Prüferauswahl. Leer lassen, um alle mit der Berechtigung „Eingereichte Entwürfe überprüfen“ aufzulisten, inklusive aller Admins.',
     'settings.approvalPolicy' => 'Freigaberichtlinie',
     'settings.approvalPolicyInstructions' => 'Wie viele Prüfer:innen zustimmen müssen, bevor eine Überprüfung veröffentlicht werden kann.',
     'settings.approvalAny' => 'Eine beliebige Person',

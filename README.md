@@ -124,6 +124,8 @@ Section access is **not** handled by the plugin. Give each role the native Craft
 
 The reviewer dropdown only lists users who hold **Review submitted drafts** *and* can view peer drafts in the draft's section, so an assignee can always open what they're given.
 
+Admins hold every permission, so by default every admin is listed too. To keep developer or agency admins out of the picker, set **Reviewer groups**: only members of the selected user groups are then listed. An admin who is in one of those groups still appears. The setting controls who can be picked and assigned; any admin can still open a review and give a verdict to unblock a stuck workflow.
+
 Users with none of the plugin permissions still see the read-only diff. Admins have everything implicitly.
 
 ### Settings
@@ -137,6 +139,7 @@ Users with none of the plugin permissions still see the read-only diff. Admins h
 | Show Unchanged Fields | Off | Whether unchanged fields are shown by default. |
 | Enable Review Mode | On | Show the per-change accept/reject/apply controls on the review page. Off = the review page shows verdicts + comments only. |
 | Enable Workflow | On | Show the submit-for-review workflow (and its endpoints). Off = v1.1 behavior. |
+| Reviewer groups | None (all reviewers) | Only members of these user groups appear in the reviewer picker and can be assigned. Empty = everyone with **Review submitted drafts**, including all admins. |
 | Enable Preview | On | Show the live draft preview beside the diff (sections with front-end URLs). Off drops the pane for everyone; reviewers can also hide it per-user. |
 | Approval policy | Any one reviewer | How many approvals move a review to **Approved**: any one reviewer, all assigned reviewers, or at least a set number (clamped to the number assigned). |
 

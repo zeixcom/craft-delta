@@ -46,6 +46,8 @@ return [
     'review.ofRef' => 'Beoordeling van {ref}',
     'settings.enableReviewMode' => 'Beoordelingsmodus inschakelen',
     'settings.enablePreview' => 'Voorbeeld inschakelen',
+    'settings.reviewerGroups' => 'Reviewergroepen',
+    'settings.reviewerGroupsInstructions' => 'Alleen leden van deze gebruikersgroepen verschijnen in de reviewerkiezer. Laat leeg om iedereen met de rechten „Ingediende concepten beoordelen” te tonen, inclusief alle beheerders.',
     'settings.approvalPolicy' => 'Goedkeuringsbeleid',
     'settings.approvalPolicyInstructions' => 'Hoeveel reviewers moeten goedkeuren voordat een revisie kan worden gepubliceerd.',
     'settings.approvalAny' => 'Eén willekeurige reviewer',
