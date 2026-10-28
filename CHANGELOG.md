@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.0 - 2026-10-28
+
+### Added
+
+- **Reviewer groups setting** (#16). Limit the reviewer picker, and the reviewer check on submit, to members of selected user groups. Admins hold every permission, so before this every admin was listed, including developer and agency accounts. Empty (the default) keeps the old behaviour; if none of the selected groups exist any more, all reviewers are listed again.
+
 ## 2.2.5 - 2026-07-29
 
 ### Fixed

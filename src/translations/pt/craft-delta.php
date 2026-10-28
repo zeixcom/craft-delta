@@ -46,6 +46,8 @@ return [
     'review.ofRef' => 'Revisão de {ref}',
     'settings.enableReviewMode' => 'Ativar modo de revisão',
     'settings.enablePreview' => 'Ativar pré-visualização',
+    'settings.reviewerGroups' => 'Grupos de revisores',
+    'settings.reviewerGroupsInstructions' => 'Apenas membros destes grupos de utilizadores aparecem no seletor de revisores. Deixe vazio para listar todos com a permissão «Rever rascunhos submetidos», incluindo todos os administradores.',
     'settings.approvalPolicy' => 'Política de aprovação',
     'settings.approvalPolicyInstructions' => 'Quantos revisores devem aprovar antes de uma revisão poder ser publicada.',
     'settings.approvalAny' => 'Qualquer revisor',

@@ -46,6 +46,8 @@ return [
     'review.ofRef' => 'Revisión de {ref}',
     'settings.enableReviewMode' => 'Activar modo de revisión',
     'settings.enablePreview' => 'Activar vista previa',
+    'settings.reviewerGroups' => 'Grupos de revisores',
+    'settings.reviewerGroupsInstructions' => 'Solo los miembros de estos grupos de usuarios aparecen en el selector de revisores. Déjelo vacío para listar a todos con el permiso «Revisar borradores enviados», incluidos todos los administradores.',
     'settings.approvalPolicy' => 'Política de aprobación',
     'settings.approvalPolicyInstructions' => 'Cuántos revisores deben aprobar antes de poder publicar una revisión.',
     'settings.approvalAny' => 'Cualquier revisor',

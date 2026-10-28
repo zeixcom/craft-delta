@@ -26,6 +26,10 @@ return [
     // Submit-for-review workflow (Submit button, workflow toolbar + endpoints).
     'enableWorkflow' => true,
 
+    // Limit the reviewer picker to members of these user groups (UIDs). Empty =
+    // everyone with the "Review submitted drafts" permission, including all admins.
+    'reviewerGroups' => [],
+
     // How many approvals move a review to "approved":
     //   'any'   — one reviewer approving is enough (default)
     //   'all'   — every assigned reviewer must approve

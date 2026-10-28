@@ -91,6 +91,8 @@ final class TranslationKeys
     public const ENABLE_REVIEW_MODE_INSTRUCTIONS = 'settings.enableReviewModeInstructions';
     public const ENABLE_PREVIEW = 'settings.enablePreview';
     public const ENABLE_PREVIEW_INSTRUCTIONS = 'settings.enablePreviewInstructions';
+    public const REVIEWER_GROUPS = 'settings.reviewerGroups';
+    public const REVIEWER_GROUPS_INSTRUCTIONS = 'settings.reviewerGroupsInstructions';
     public const APPROVAL_POLICY = 'settings.approvalPolicy';
     public const APPROVAL_POLICY_INSTRUCTIONS = 'settings.approvalPolicyInstructions';
     public const APPROVAL_ANY = 'settings.approvalAny';

@@ -46,6 +46,8 @@ return [
     'review.ofRef' => 'Przegląd {ref}',
     'settings.enableReviewMode' => 'Włącz tryb przeglądu',
     'settings.enablePreview' => 'Włącz podgląd',
+    'settings.reviewerGroups' => 'Grupy recenzentów',
+    'settings.reviewerGroupsInstructions' => 'Tylko członkowie tych grup użytkowników pojawiają się w wyborze recenzentów. Pozostaw puste, aby wyświetlić wszystkich z uprawnieniem „Przeglądanie przesłanych szkiców”, w tym wszystkich administratorów.',
     'settings.approvalPolicy' => 'Zasada zatwierdzania',
     'settings.approvalPolicyInstructions' => 'Ilu recenzentów musi zatwierdzić, zanim recenzja będzie mogła zostać opublikowana.',
     'settings.approvalAny' => 'Dowolny recenzent',

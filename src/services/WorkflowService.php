@@ -6,6 +6,7 @@ namespace zeixcom\craftdelta\services;
 
 use Craft;
 use craft\base\Component;
+use craft\db\Table;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\helpers\Db;
@@ -236,9 +237,20 @@ class WorkflowService extends Component
     public function getEligibleAssignees(string $sectionUid, ?int $excludeUserId = null): array
     {
         // Holders of the general review permission who can actually reach this
-        // section's drafts. ->can() already returns true for admins.
+        // section's drafts. ->can() is always true for admins, so reviewerGroups
+        // is the only way to keep them out.
+        $query = User::find()->status(User::STATUS_ACTIVE)->can(Permissions::REVIEW)->orderBy(['fullName' => SORT_ASC]);
+
+        // Deleted groups resolve to nothing; if none remain, fall back to all
+        // reviewers rather than an empty picker that blocks every submit.
+        $groupUids = $this->delta()->getSettings()->reviewerGroups;
+        $groupIds = $groupUids === [] ? [] : Db::idsByUids(Table::USERGROUPS, $groupUids);
+        if ($groupIds !== []) {
+            $query->groupId($groupIds);
+        }
+
         return array_values(array_filter(
-            User::find()->status(User::STATUS_ACTIVE)->can(Permissions::REVIEW)->orderBy(['fullName' => SORT_ASC])->all(),
+            $query->all(),
             fn(User $u) => $u->can("viewPeerEntryDrafts:{$sectionUid}") && ($excludeUserId === null || $u->id !== $excludeUserId),
         ));
     }

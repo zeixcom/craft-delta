@@ -80,6 +80,8 @@ return [
     'review.ofRef' => 'Review of {ref}',
     'settings.enableReviewMode' => 'Enable Review Mode',
     'settings.enablePreview' => 'Enable Preview',
+    'settings.reviewerGroups' => 'Reviewer groups',
+    'settings.reviewerGroupsInstructions' => 'Only members of these user groups appear in the reviewer picker. Leave empty to list everyone with the “Review submitted drafts” permission, including all admins.',
     'settings.approvalPolicy' => 'Approval policy',
     'settings.approvalPolicyInstructions' => 'How many reviewers must approve before a review can be published.',
     'settings.approvalAny' => 'Any one reviewer',

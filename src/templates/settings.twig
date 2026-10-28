@@ -12,6 +12,20 @@
     }) }}
 </div>
 
+{% set userGroups = craft.app.userGroups.getAllGroups() %}
+{% if userGroups|length %}
+<div class="field">
+    {{ forms.checkboxSelectField({
+        label: deltaKeys.reviewerGroups|t('craft-delta'),
+        instructions: deltaKeys.reviewerGroupsInstructions|t('craft-delta'),
+        id: 'reviewerGroups',
+        name: 'reviewerGroups',
+        values: settings.reviewerGroups,
+        options: userGroups|map(g => { label: g.name|t('site'), value: g.uid }),
+    }) }}
+</div>
+{% endif %}
+
 <div class="field">
     {{ forms.textField({
         first: true,

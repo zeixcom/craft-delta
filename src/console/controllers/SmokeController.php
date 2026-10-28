@@ -68,6 +68,15 @@ class SmokeController extends Controller
     }
 
     /**
+     * Regression check for #16: `reviewerGroups` keeps admins outside the
+     * configured groups out of the eligible reviewers. Read-only.
+     */
+    public function actionReviewerGroups(): int
+    {
+        return $this->runScript('reviewer-groups-smoke.php');
+    }
+
+    /**
      * Leaves a draft behind that changes a Matrix block's Title *and* one of
      * its sub-fields, for eyeballing the #15 fix in the CP. Merges nothing.
      */
