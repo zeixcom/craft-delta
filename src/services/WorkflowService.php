@@ -551,11 +551,16 @@ class WorkflowService extends Component
     /**
      * An edit to a draft under review invalidates approvals given before it.
      * The editor's own approval stays: they approved what they just saved.
+     * A save without a user (console, queue) resets every approval.
      */
-    public function resetApprovalsAfterEdit(int $draftId, int $editorId): void
+    public function resetApprovalsAfterEdit(int $draftId, ?int $editorId): void
     {
-        $review = $this->getByDraftId($draftId);
-        if ($review === null || !$review->isActive()) {
+        $review = ReviewRecord::find()
+            ->select(['id', 'round'])
+            ->where(['draftId' => $draftId, 'appliedAt' => null, 'state' => self::DERIVABLE_STATES])
+            ->asArray()
+            ->one();
+        if ($review === null) {
             return;
         }
 
@@ -564,12 +569,12 @@ class WorkflowService extends Component
                 ['verdict' => ReviewReviewer::VERDICT_PENDING, 'decidedAt' => null],
                 [
                     'and',
-                    ['reviewId' => $review->id, 'round' => $review->round, 'verdict' => ReviewReviewer::VERDICT_APPROVED],
+                    ['reviewId' => $review['id'], 'round' => $review['round'], 'verdict' => ReviewReviewer::VERDICT_APPROVED],
                     ['not', ['userId' => $editorId]],
                 ],
             );
             if ($reset > 0) {
-                $this->recomputeState($review->id, $review->round);
+                $this->recomputeState((int)$review['id'], (int)$review['round']);
             }
         });
     }

@@ -94,9 +94,13 @@ class Delta extends Plugin
         Event::on(Entry::class, Element::EVENT_AFTER_SAVE, function(ModelEvent $event) {
             /** @var Entry $entry */
             $entry = $event->sender;
-            $user = Craft::$app->getRequest()->getIsConsoleRequest() ? null : Craft::$app->getUser()->getIdentity();
-            if ($user && $entry->getIsDraft() && $entry->draftId && !$entry->propagating && !$entry->resaving) {
-                $this->workflow->resetApprovalsAfterEdit((int)$entry->draftId, (int)$user->id);
+            if ($entry->propagating || $entry->resaving || $entry->mergingCanonicalChanges) {
+                return;
+            }
+            // A nested entry (Matrix) saved on its own counts as an edit of its owner draft.
+            $draftId = $entry->getRootOwner()->draftId;
+            if ($draftId) {
+                $this->workflow->resetApprovalsAfterEdit($draftId, Craft::$app->getUser()->getIdentity()?->id);
             }
         });
 

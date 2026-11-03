@@ -4,7 +4,7 @@
 
 ### Changed
 
-- **An edit resets earlier approvals.** When a user saves a draft that is under review, the approvals of the other reviewers go back to pending, and the review state is calculated again. An approved review goes back to open, and a scheduled publish is cancelled. The approval of the user who saved stays. Before this, a draft could be changed after approval and published without a new review.
+- **An edit resets earlier approvals.** When a user saves a draft that is under review, the approvals of the other reviewers go back to pending, and the review state is calculated again. An approved review goes back to open, and a scheduled publish is cancelled. The approval of the user who saved stays. A save without a user (console, queue) resets all approvals. A save of a nested entry (Matrix) counts as an edit of its draft. A save that only merges in changes from the live entry does not reset anything. Before this, a draft could be changed after approval and published without a new review.
 
 ## 2.4.0 - 2026-11-03
 
