@@ -67,6 +67,15 @@ class Settings extends Model
      */
     public bool $skipReviewerSelection = false;
 
+    public const NOTIFICATIONS = ['submitted', 'approved', 'declined', 'comment', 'published'];
+
+    /**
+     * Notification emails to send. A type not in the list is never sent.
+     *
+     * @var string[]
+     */
+    public array $notifications = self::NOTIFICATIONS;
+
     /**
      * Override the built-in notification email templates. Maps an email key to a
      * template path resolved against your site `templates/` folder; an unmapped
@@ -101,6 +110,7 @@ class Settings extends Model
             [['approvalPolicy'], 'in', 'range' => [self::APPROVAL_ANY, self::APPROVAL_ALL, self::APPROVAL_COUNT]],
             [['approvalsRequired'], 'integer', 'min' => 1, 'max' => 20],
             [['reviewerGroups'], 'each', 'rule' => ['string']],
+            [['notifications'], 'each', 'rule' => ['in', 'range' => self::NOTIFICATIONS]],
         ];
     }
 }

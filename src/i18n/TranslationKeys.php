@@ -114,6 +114,13 @@ final class TranslationKeys
     public const DEFAULT_REVIEWER_INSTRUCTIONS = 'settings.defaultReviewerInstructions';
     public const SKIP_REVIEWER_SELECTION = 'settings.skipReviewerSelection';
     public const SKIP_REVIEWER_SELECTION_INSTRUCTIONS = 'settings.skipReviewerSelectionInstructions';
+    public const NOTIFICATIONS = 'settings.notifications';
+    public const NOTIFICATIONS_INSTRUCTIONS = 'settings.notificationsInstructions';
+    public const NOTIFICATION_SUBMITTED = 'settings.notificationSubmitted';
+    public const NOTIFICATION_APPROVED = 'settings.notificationApproved';
+    public const NOTIFICATION_DECLINED = 'settings.notificationDeclined';
+    public const NOTIFICATION_COMMENT = 'settings.notificationComment';
+    public const NOTIFICATION_PUBLISHED = 'settings.notificationPublished';
     public const JUMP_TO_SECTION = 'diff.jumpToSection';
     public const TAB = 'diff.tab';
     public const BLOCK = 'diff.block';
@@ -185,6 +192,7 @@ final class TranslationKeys
     public const WORKFLOW_GENERAL_DISCUSSION = 'workflow.generalDiscussion';
     public const WORKFLOW_OPEN_REVIEW = 'workflow.openReview';
     public const WORKFLOW_OPEN_ENTRY = 'workflow.openEntry';
+    public const WORKFLOW_EDIT_DRAFT = 'workflow.editDraft';
     public const WORKFLOW_POST_COMMENT = 'workflow.postComment';
     public const WORKFLOW_COMMENT_PLACEHOLDER = 'workflow.commentPlaceholder';
     public const WORKFLOW_REPLY = 'workflow.reply';

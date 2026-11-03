@@ -50,6 +50,10 @@ return [
     // to the dialog when the default reviewer isn't eligible for the draft.
     'skipReviewerSelection' => false,
 
+    // Notification emails to send. Remove a type to never send it.
+    // Types: submitted, approved, declined, comment, published.
+    'notifications' => ['submitted', 'approved', 'declined', 'comment', 'published'],
+
     /**
      * Override the notification email templates with your own.
      *
