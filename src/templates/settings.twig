@@ -57,13 +57,10 @@
             id: 'notifications',
             name: 'notifications',
             values: settings.notifications,
-            options: [
-                { value: 'submitted', label: deltaKeys.notificationSubmitted|t('craft-delta') },
-                { value: 'approved', label: deltaKeys.notificationApproved|t('craft-delta') },
-                { value: 'declined', label: deltaKeys.notificationDeclined|t('craft-delta') },
-                { value: 'comment', label: deltaKeys.notificationComment|t('craft-delta') },
-                { value: 'published', label: deltaKeys.notificationPublished|t('craft-delta') },
-            ],
+            options: constant('zeixcom\\craftdelta\\models\\Settings::NOTIFICATIONS')|map(type => {
+                value: type,
+                label: attribute(deltaKeys, 'notification' ~ type|capitalize)|t('craft-delta'),
+            }),
         }) }}
     </div>
 </div>

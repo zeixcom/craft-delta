@@ -419,7 +419,7 @@ class WorkflowController extends Controller
             // isn't a wall of "no changes" rows; a toggle reveals unchanged fields.
             'showUnchanged' => $plugin->getSettings()->defaultShowUnchanged,
             'entryUrl' => $canonical->getCpEditUrl(),
-            'draftEditUrl' => $draft instanceof Entry && $review->isActive() && Craft::$app->getElements()->canSave($draft, $user)
+            'draftEditUrl' => $draft instanceof Entry && $review->isActive() && $draft->canSave($user)
                 ? $draft->getCpEditUrl()
                 : null,
             'previewUrl' => $previewUrl,
