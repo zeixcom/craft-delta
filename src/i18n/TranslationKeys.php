@@ -110,6 +110,10 @@ final class TranslationKeys
     public const ENABLE_REVIEW_WORKFLOW = 'settings.enableReviewWorkflow';
     public const ENABLE_REVIEW_WORKFLOW_INSTRUCTIONS = 'settings.enableReviewWorkflowInstructions';
     public const REVIEW_KEYBOARD_HINT = 'review.keyboardHint';
+    public const DEFAULT_REVIEWER = 'settings.defaultReviewer';
+    public const DEFAULT_REVIEWER_INSTRUCTIONS = 'settings.defaultReviewerInstructions';
+    public const SKIP_REVIEWER_SELECTION = 'settings.skipReviewerSelection';
+    public const SKIP_REVIEWER_SELECTION_INSTRUCTIONS = 'settings.skipReviewerSelectionInstructions';
     public const JUMP_TO_SECTION = 'diff.jumpToSection';
     public const TAB = 'diff.tab';
     public const BLOCK = 'diff.block';

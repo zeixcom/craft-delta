@@ -20,4 +20,17 @@ class SettingsTest extends TestCase
         $settings = new Settings(['enableWorkflow' => false]);
         $this->assertFalse($settings->enableWorkflow);
     }
+
+    public function testDefaultReviewerIdNormalisesElementSelectPost(): void
+    {
+        $settings = new Settings();
+        $settings->setAttributes(['defaultReviewerId' => ['12']], false);
+        $this->assertSame(12, $settings->defaultReviewerId);
+
+        $settings->setAttributes(['defaultReviewerId' => ''], false);
+        $this->assertNull($settings->defaultReviewerId);
+
+        $settings->setAttributes(['defaultReviewerId' => 7], false);
+        $this->assertSame(7, $settings->defaultReviewerId);
+    }
 }

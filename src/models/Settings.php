@@ -55,6 +55,18 @@ class Settings extends Model
     public bool $enablePreview = true;
 
     /**
+     * Reviewer preselected in the submit modal. Ignored for a draft when this
+     * user isn't an eligible assignee (author, no section access, outside reviewerGroups).
+     */
+    public ?int $defaultReviewerId = null;
+
+    /**
+     * Submit straight to the default reviewer, without the modal. Falls back to
+     * the modal when the default reviewer isn't eligible for the draft.
+     */
+    public bool $skipReviewerSelection = false;
+
+    /**
      * Override the built-in notification email templates. Maps an email key to a
      * template path resolved against your site `templates/` folder; an unmapped
      * key (or one whose template is missing) falls back to the bundled default.
@@ -65,6 +77,20 @@ class Settings extends Model
      * @var array<string, string>
      */
     public array $emailTemplates = [];
+
+    /**
+     * The CP element select posts `''` or `['12']`; the typed property needs ?int.
+     *
+     * @param array<string, mixed> $values
+     */
+    public function setAttributes($values, $safeOnly = true): void
+    {
+        if (array_key_exists('defaultReviewerId', $values)) {
+            $id = is_array($values['defaultReviewerId']) ? reset($values['defaultReviewerId']) : $values['defaultReviewerId'];
+            $values['defaultReviewerId'] = is_numeric($id) ? (int)$id : null;
+        }
+        parent::setAttributes($values, $safeOnly);
+    }
 
     protected function defineRules(): array
     {

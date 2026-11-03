@@ -105,8 +105,12 @@ class Delta extends Plugin
 
     protected function settingsHtml(): ?string
     {
+        $settings = $this->getSettings();
         return Craft::$app->getView()->renderTemplate('craft-delta/settings', [
-            'settings' => $this->getSettings(),
+            'settings' => $settings,
+            'defaultReviewer' => $settings->defaultReviewerId !== null
+                ? User::find()->id($settings->defaultReviewerId)->status(null)->one()
+                : null,
         ]);
     }
 
@@ -246,7 +250,7 @@ class Delta extends Plugin
                 . ',isDraft:' . ($isDraft ? 'true' : 'false')
                 . ',draftId:' . ($entry->draftId ?? 'null')
                 . ',siteId:' . $entry->siteId . '});'
-                . "(function(){var \$btn=$('#delta-submit-btn');if(\$btn.length){\$btn.on('click',function(){Craft.Delta.openSubmitModal(\$btn.data('draft-id'),\$btn.data('section-uid'));});}})();",
+                . "(function(){var \$btn=$('#delta-submit-btn');if(\$btn.length){\$btn.on('click',function(){if(\$btn.data('skip')){Craft.Delta.submitReview(\$btn,\$btn.data('draft-id'),[]);}else{Craft.Delta.openSubmitModal(\$btn.data('draft-id'),\$btn.data('section-uid'));}});}})();",
             );
 
             $workflowHtml = '';
@@ -270,8 +274,11 @@ class Delta extends Plugin
                                 . htmlspecialchars($wf->statusLabel())
                                 . '</a>'
                             : '';
+                        $skip = $settings->skipReviewerSelection
+                            && $this->workflow->defaultReviewerFor($section->uid, $user->id) !== null;
                         $workflowHtml .= '<button id="delta-submit-btn" type="button"'
                             . ' data-draft-id="' . (int)$entry->draftId . '"'
+                            . ($skip ? ' data-skip="1"' : '')
                             . ' data-section-uid="' . htmlspecialchars($section->uid) . '">'
                             . htmlspecialchars(Craft::t('craft-delta', TranslationKeys::SUBMIT_FOR_REVIEW))
                             . '</button>';

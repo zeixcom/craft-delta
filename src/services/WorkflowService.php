@@ -255,6 +255,21 @@ class WorkflowService extends Component
         ));
     }
 
+    /** The configured default reviewer, or null when unset or not eligible for this section and author. */
+    public function defaultReviewerFor(string $sectionUid, int $authorId): ?int
+    {
+        $id = $this->delta()->getSettings()->defaultReviewerId;
+        if ($id === null) {
+            return null;
+        }
+        foreach ($this->getEligibleAssignees($sectionUid, $authorId) as $user) {
+            if ($user->id === $id) {
+                return $id;
+            }
+        }
+        return null;
+    }
+
     /**
      * Open a review on a draft, requesting one or more reviewers.
      *

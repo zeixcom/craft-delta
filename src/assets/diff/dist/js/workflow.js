@@ -50,10 +50,11 @@
                 resp.assignees.forEach(function(u) {
                     // Build via .val()/.text() — never concatenate the user-controlled name into HTML (stored-XSS vector).
                     var $opt = $('<label class="delta-assignee-option"></label>');
-                    $opt.append($('<input type="checkbox">').val(u.id));
+                    $opt.append($('<input type="checkbox">').val(u.id).prop('checked', u.id === resp.defaultId));
                     $opt.append($('<span></span>').text(u.name));
                     $list.append($opt);
                 });
+                $modal.find('.btn.submit').toggleClass('disabled', resp.defaultId == null);
                 $list.on('change', 'input[type="checkbox"]', function() {
                     var any = $list.find('input[type="checkbox"]:checked').length > 0;
                     $modal.find('.btn.submit').toggleClass('disabled', !any);
@@ -67,36 +68,44 @@
 
         $modal.find('.btn.submit').on('click', function() {
             var $btn = $(this);
-            // 'loading' doubles as the in-flight guard: a double-click must not
-            // fire a second POST (the duplicate would 422 as "already exists").
-            if ($btn.hasClass('disabled') || $btn.hasClass('loading')) return;
+            if ($btn.hasClass('disabled')) return;
             var reviewerIds = $modal.find('.delta-assignee input[type="checkbox"]:checked').map(function() {
                 return this.value;
             }).get();
             if (!reviewerIds || !reviewerIds.length) return;
-            $btn.addClass('loading');
-            Craft.sendActionRequest('POST', 'craft-delta/workflow/submit', {
-                data: { draftId: draftId, reviewerIds: reviewerIds },
-            }).then(function(response) {
+            Craft.Delta.submitReview($btn, draftId, reviewerIds, function(review) {
                 closeModal();
-                var data = response.data || {};
-                // No reload (it would wipe the notice), so swap the sidebar button for the in-review status pill in place.
-                if (data.message) { Craft.cp.displayNotice(data.message); }
-                var review = data.review;
-                var sidebarBtn = document.getElementById('delta-submit-btn');
-                if (sidebarBtn && review && review.statusLabel) {
-                    var pill = document.createElement('p');
-                    pill.className = 'delta-workflow-status' + (review.state ? ' delta-workflow-status--' + review.state : '');
-                    pill.textContent = review.statusLabel;
-                    sidebarBtn.replaceWith(pill);
-                } else if (sidebarBtn) {
-                    sidebarBtn.remove();
-                }
                 if (typeof onSuccess === 'function') onSuccess(review);
-            }).catch(function() {
-                $btn.removeClass('loading');
-                Craft.cp.displayError(Craft.t('craft-delta', Craft.Delta._keys.failedSubmitForReview));
             });
+        });
+    };
+
+    // POST the submit. An empty reviewerIds list means skip mode: the server picks the default reviewer.
+    Craft.Delta.submitReview = function($btn, draftId, reviewerIds, onSuccess) {
+        // 'loading' doubles as the in-flight guard: a double-click must not
+        // fire a second POST (the duplicate would 422 as "already exists").
+        if ($btn.hasClass('loading')) return;
+        $btn.addClass('loading');
+        Craft.sendActionRequest('POST', 'craft-delta/workflow/submit', {
+            data: { draftId: draftId, reviewerIds: reviewerIds },
+        }).then(function(response) {
+            var data = response.data || {};
+            // No reload (it would wipe the notice), so swap the sidebar button for the in-review status pill in place.
+            if (data.message) { Craft.cp.displayNotice(data.message); }
+            var review = data.review;
+            var sidebarBtn = document.getElementById('delta-submit-btn');
+            if (sidebarBtn && review && review.statusLabel) {
+                var pill = document.createElement('p');
+                pill.className = 'delta-workflow-status' + (review.state ? ' delta-workflow-status--' + review.state : '');
+                pill.textContent = review.statusLabel;
+                sidebarBtn.replaceWith(pill);
+            } else if (sidebarBtn) {
+                sidebarBtn.remove();
+            }
+            if (typeof onSuccess === 'function') onSuccess(review);
+        }).catch(function() {
+            $btn.removeClass('loading');
+            Craft.cp.displayError(Craft.t('craft-delta', Craft.Delta._keys.failedSubmitForReview));
         });
     };
 

@@ -482,6 +482,13 @@ class WorkflowController extends Controller
             throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NO_PERMISSION_SUBMIT_SECTION));
         }
 
+        // Skip mode posts no reviewers; resolve the default here, never from the client.
+        $section = $draft->getSection();
+        if ($reviewerIds === [] && $plugin->getSettings()->skipReviewerSelection && $section !== null) {
+            $defaultId = $plugin->workflow->defaultReviewerFor($section->uid, $user->id);
+            $reviewerIds = $defaultId !== null ? [$defaultId] : [];
+        }
+
         try {
             $review = $plugin->workflow->submit($draft, array_map('intval', $reviewerIds), $user);
         } catch (InvalidArgumentException) {
@@ -564,12 +571,16 @@ class WorkflowController extends Controller
             throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NOT_AUTHORIZED));
         }
 
+        $sectionUid = Craft::$app->getRequest()->getRequiredParam('sectionUid');
+        $workflow = Delta::getInstance()->workflow;
+
         return $this->asJson([
             'success' => true,
             'assignees' => array_map(
                 static fn(User $u) => ['id' => $u->id, 'name' => UserName::of($u)],
-                Delta::getInstance()->workflow->getEligibleAssignees(Craft::$app->getRequest()->getRequiredParam('sectionUid'), $user->id),
+                $workflow->getEligibleAssignees($sectionUid, $user->id),
             ),
+            'defaultId' => $workflow->defaultReviewerFor($sectionUid, $user->id),
         ]);
     }
 
