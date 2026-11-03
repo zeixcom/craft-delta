@@ -564,12 +564,16 @@ class WorkflowController extends Controller
             throw new ForbiddenHttpException(Craft::t('craft-delta', TranslationKeys::NOT_AUTHORIZED));
         }
 
+        $plugin = Delta::getInstance();
+
         return $this->asJson([
             'success' => true,
             'assignees' => array_map(
                 static fn(User $u) => ['id' => $u->id, 'name' => UserName::of($u)],
-                Delta::getInstance()->workflow->getEligibleAssignees(Craft::$app->getRequest()->getRequiredParam('sectionUid'), $user->id),
+                $plugin->workflow->getEligibleAssignees(Craft::$app->getRequest()->getRequiredParam('sectionUid'), $user->id),
             ),
+            // Raw setting: the client only checks it if it is in the eligible list above.
+            'defaultId' => $plugin->getSettings()->defaultReviewerId,
         ]);
     }
 

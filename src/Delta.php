@@ -105,8 +105,12 @@ class Delta extends Plugin
 
     protected function settingsHtml(): ?string
     {
+        $settings = $this->getSettings();
         return Craft::$app->getView()->renderTemplate('craft-delta/settings', [
-            'settings' => $this->getSettings(),
+            'settings' => $settings,
+            'defaultReviewer' => $settings->defaultReviewerId !== null
+                ? Craft::$app->getUsers()->getUserById($settings->defaultReviewerId)
+                : null,
         ]);
     }
 
@@ -246,7 +250,7 @@ class Delta extends Plugin
                 . ',isDraft:' . ($isDraft ? 'true' : 'false')
                 . ',draftId:' . ($entry->draftId ?? 'null')
                 . ',siteId:' . $entry->siteId . '});'
-                . "(function(){var \$btn=$('#delta-submit-btn');if(\$btn.length){\$btn.on('click',function(){Craft.Delta.openSubmitModal(\$btn.data('draft-id'),\$btn.data('section-uid'));});}})();",
+                . "Craft.Delta.mountSubmitButton($('#delta-submit-btn'));",
             );
 
             $workflowHtml = '';
@@ -270,8 +274,12 @@ class Delta extends Plugin
                                 . htmlspecialchars($wf->statusLabel())
                                 . '</a>'
                             : '';
+                        $skipTo = $settings->skipReviewerSelection
+                            ? $this->workflow->defaultReviewerFor($section->uid, $user->id)
+                            : null;
                         $workflowHtml .= '<button id="delta-submit-btn" type="button"'
                             . ' data-draft-id="' . (int)$entry->draftId . '"'
+                            . ($skipTo !== null ? ' data-reviewer-id="' . $skipTo . '"' : '')
                             . ' data-section-uid="' . htmlspecialchars($section->uid) . '">'
                             . htmlspecialchars(Craft::t('craft-delta', TranslationKeys::SUBMIT_FOR_REVIEW))
                             . '</button>';

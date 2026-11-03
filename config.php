@@ -41,6 +41,15 @@ return [
     // False drops the preview pane everywhere; reviewers can also hide it per-user.
     'enablePreview' => true,
 
+    // User ID preselected in the Submit for review dialog. Ignored for a draft
+    // when this user is the author, can't view drafts in the section, or is
+    // outside `reviewerGroups`.
+    'defaultReviewerId' => null,
+
+    // Submit straight to the default reviewer, without the dialog. Falls back
+    // to the dialog when the default reviewer isn't eligible for the draft.
+    'skipReviewerSelection' => false,
+
     /**
      * Override the notification email templates with your own.
      *

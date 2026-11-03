@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace zeixcom\craftdelta\models;
 
 use craft\base\Model;
+use craft\helpers\ArrayHelper;
 
 class Settings extends Model
 {
@@ -55,6 +56,18 @@ class Settings extends Model
     public bool $enablePreview = true;
 
     /**
+     * Reviewer preselected in the submit modal. Ignored for a draft when this
+     * user isn't an eligible assignee (author, no section access, outside reviewerGroups).
+     */
+    public ?int $defaultReviewerId = null;
+
+    /**
+     * Submit straight to the default reviewer, without the modal. Falls back to
+     * the modal when the default reviewer isn't eligible for the draft.
+     */
+    public bool $skipReviewerSelection = false;
+
+    /**
      * Override the built-in notification email templates. Maps an email key to a
      * template path resolved against your site `templates/` folder; an unmapped
      * key (or one whose template is missing) falls back to the bundled default.
@@ -65,6 +78,19 @@ class Settings extends Model
      * @var array<string, string>
      */
     public array $emailTemplates = [];
+
+    /**
+     * The CP element select posts `['12']`; Craft's typecast handles the rest.
+     *
+     * @param array<string, mixed> $values
+     */
+    public function setAttributes($values, $safeOnly = true): void
+    {
+        if (is_array($values['defaultReviewerId'] ?? null)) {
+            $values['defaultReviewerId'] = ArrayHelper::firstValue($values['defaultReviewerId']);
+        }
+        parent::setAttributes($values, $safeOnly);
+    }
 
     protected function defineRules(): array
     {
