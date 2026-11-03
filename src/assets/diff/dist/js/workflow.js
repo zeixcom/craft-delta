@@ -54,11 +54,12 @@
                     $opt.append($('<span></span>').text(u.name));
                     $list.append($opt);
                 });
-                $modal.find('.btn.submit').toggleClass('disabled', resp.defaultId == null);
-                $list.on('change', 'input[type="checkbox"]', function() {
+                function syncSubmit() {
                     var any = $list.find('input[type="checkbox"]:checked').length > 0;
                     $modal.find('.btn.submit').toggleClass('disabled', !any);
-                });
+                }
+                $list.on('change', 'input[type="checkbox"]', syncSubmit);
+                syncSubmit();
             })
             .fail(function() {
                 $modal.find('.delta-assignee').empty().append($('<p class="delta-assignee-empty"></p>').text(Craft.t('craft-delta', Craft.Delta._keys.failedLoadReviewers)));
@@ -80,7 +81,18 @@
         });
     };
 
-    // POST the submit. An empty reviewerIds list means skip mode: the server picks the default reviewer.
+    // Sidebar button: skip mode (data-reviewer-id) submits straight away, else open the picker.
+    Craft.Delta.mountSubmitButton = function($btn) {
+        $btn.on('click', function() {
+            var reviewerId = $btn.data('reviewer-id');
+            if (reviewerId) {
+                Craft.Delta.submitReview($btn, $btn.data('draft-id'), [reviewerId]);
+            } else {
+                Craft.Delta.openSubmitModal($btn.data('draft-id'), $btn.data('section-uid'));
+            }
+        });
+    };
+
     Craft.Delta.submitReview = function($btn, draftId, reviewerIds, onSuccess) {
         // 'loading' doubles as the in-flight guard: a double-click must not
         // fire a second POST (the duplicate would 422 as "already exists").

@@ -30,7 +30,7 @@ class SettingsTest extends TestCase
         $settings->setAttributes(['defaultReviewerId' => ''], false);
         $this->assertNull($settings->defaultReviewerId);
 
-        $settings->setAttributes(['defaultReviewerId' => 7], false);
-        $this->assertSame(7, $settings->defaultReviewerId);
+        $settings->setAttributes(['defaultReviewerId' => []], false);
+        $this->assertNull($settings->defaultReviewerId);
     }
 }

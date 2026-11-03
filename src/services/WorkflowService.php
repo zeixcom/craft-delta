@@ -7,6 +7,7 @@ namespace zeixcom\craftdelta\services;
 use Craft;
 use craft\base\Component;
 use craft\db\Table;
+use craft\elements\db\UserQuery;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\helpers\Db;
@@ -236,21 +237,8 @@ class WorkflowService extends Component
     /** @return list<User> */
     public function getEligibleAssignees(string $sectionUid, ?int $excludeUserId = null): array
     {
-        // Holders of the general review permission who can actually reach this
-        // section's drafts. ->can() is always true for admins, so reviewerGroups
-        // is the only way to keep them out.
-        $query = User::find()->status(User::STATUS_ACTIVE)->can(Permissions::REVIEW)->orderBy(['fullName' => SORT_ASC]);
-
-        // Deleted groups resolve to nothing; if none remain, fall back to all
-        // reviewers rather than an empty picker that blocks every submit.
-        $groupUids = $this->delta()->getSettings()->reviewerGroups;
-        $groupIds = $groupUids === [] ? [] : Db::idsByUids(Table::USERGROUPS, $groupUids);
-        if ($groupIds !== []) {
-            $query->groupId($groupIds);
-        }
-
         return array_values(array_filter(
-            $query->all(),
+            $this->reviewerQuery()->orderBy(['fullName' => SORT_ASC])->all(),
             fn(User $u) => $u->can("viewPeerEntryDrafts:{$sectionUid}") && ($excludeUserId === null || $u->id !== $excludeUserId),
         ));
     }
@@ -259,15 +247,27 @@ class WorkflowService extends Component
     public function defaultReviewerFor(string $sectionUid, int $authorId): ?int
     {
         $id = $this->delta()->getSettings()->defaultReviewerId;
-        if ($id === null) {
+        if ($id === null || $id === $authorId) {
             return null;
         }
-        foreach ($this->getEligibleAssignees($sectionUid, $authorId) as $user) {
-            if ($user->id === $id) {
-                return $id;
-            }
+        $user = $this->reviewerQuery()->id($id)->one();
+        return $user instanceof User && $user->can("viewPeerEntryDrafts:{$sectionUid}") ? $id : null;
+    }
+
+    private function reviewerQuery(): UserQuery
+    {
+        // Holders of the general review permission. ->can() is always true for
+        // admins, so reviewerGroups is the only way to keep them out.
+        $query = User::find()->status(User::STATUS_ACTIVE)->can(Permissions::REVIEW);
+
+        // Deleted groups resolve to nothing; if none remain, fall back to all
+        // reviewers rather than an empty picker that blocks every submit.
+        $groupUids = $this->delta()->getSettings()->reviewerGroups;
+        $groupIds = $groupUids === [] ? [] : Db::idsByUids(Table::USERGROUPS, $groupUids);
+        if ($groupIds !== []) {
+            $query->groupId($groupIds);
         }
-        return null;
+        return $query;
     }
 
     /**

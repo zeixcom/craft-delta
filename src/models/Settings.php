@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace zeixcom\craftdelta\models;
 
 use craft\base\Model;
+use craft\helpers\ArrayHelper;
 
 class Settings extends Model
 {
@@ -79,15 +80,14 @@ class Settings extends Model
     public array $emailTemplates = [];
 
     /**
-     * The CP element select posts `''` or `['12']`; the typed property needs ?int.
+     * The CP element select posts `['12']`; Craft's typecast handles the rest.
      *
      * @param array<string, mixed> $values
      */
     public function setAttributes($values, $safeOnly = true): void
     {
-        if (array_key_exists('defaultReviewerId', $values)) {
-            $id = is_array($values['defaultReviewerId']) ? reset($values['defaultReviewerId']) : $values['defaultReviewerId'];
-            $values['defaultReviewerId'] = is_numeric($id) ? (int)$id : null;
+        if (is_array($values['defaultReviewerId'] ?? null)) {
+            $values['defaultReviewerId'] = ArrayHelper::firstValue($values['defaultReviewerId']);
         }
         parent::setAttributes($values, $safeOnly);
     }

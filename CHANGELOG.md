@@ -5,7 +5,7 @@
 ### Added
 
 - **Default reviewer.** A new `defaultReviewerId` setting preselects one reviewer in the Submit for review dialog.
-- **Skip reviewer selection.** With `skipReviewerSelection` on, the Submit for review button sends the review to the default reviewer directly, without the dialog. The server resolves the reviewer. If the default reviewer is the author or cannot view drafts in the section, the dialog opens as usual.
+- **Skip reviewer selection.** With `skipReviewerSelection` on, the Submit for review button sends the review to the default reviewer directly, without the dialog. If the default reviewer is the author or cannot view drafts in the section, the dialog opens as usual.
 
 ## 2.3.0 - 2026-10-28
 
