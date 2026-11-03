@@ -13,6 +13,7 @@ use craft\elements\User;
 use craft\events\CreateTwigEvent;
 use craft\events\DefineAttributeHtmlEvent;
 use craft\events\DefineHtmlEvent;
+use craft\events\ModelEvent;
 use craft\events\RegisterCpNavItemsEvent;
 use craft\events\RegisterElementTableAttributesEvent;
 use craft\events\RegisterUrlRulesEvent;
@@ -79,16 +80,26 @@ class Delta extends Plugin
         $this->registerEditorAssets();
         $this->registerPermissions();
         $this->registerWorkflowColumn();
-        $this->registerDraftDeleteCleanup();
+        $this->registerDraftHooks();
     }
 
     /**
      * Cancel active reviews when their draft is deleted outside the workflow.
      * BEFORE delete, because the reviews.draftId FK SET NULLs on deletion and
      * the rows would otherwise be stranded as zombie "open" reviews.
+     * A user's save of a draft under review resets earlier approvals.
      */
-    private function registerDraftDeleteCleanup(): void
+    private function registerDraftHooks(): void
     {
+        Event::on(Entry::class, Element::EVENT_AFTER_SAVE, function(ModelEvent $event) {
+            /** @var Entry $entry */
+            $entry = $event->sender;
+            $user = Craft::$app->getRequest()->getIsConsoleRequest() ? null : Craft::$app->getUser()->getIdentity();
+            if ($user && $entry->getIsDraft() && $entry->draftId && !$entry->propagating && !$entry->resaving) {
+                $this->workflow->resetApprovalsAfterEdit((int)$entry->draftId, (int)$user->id);
+            }
+        });
+
         Event::on(Entry::class, Element::EVENT_BEFORE_DELETE, function(Event $event) {
             /** @var Entry $entry */
             $entry = $event->sender;

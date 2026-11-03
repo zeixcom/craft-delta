@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **An edit resets earlier approvals.** When a user saves a draft that is under review, the approvals of the other reviewers go back to pending, and the review state is calculated again. An approved review goes back to open, and a scheduled publish is cancelled. The approval of the user who saved stays. Before this, a draft could be changed after approval and published without a new review.
+
 ## 2.4.0 - 2026-11-03
 
 ### Added

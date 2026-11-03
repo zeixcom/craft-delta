@@ -549,6 +549,32 @@ class WorkflowService extends Component
     }
 
     /**
+     * An edit to a draft under review invalidates approvals given before it.
+     * The editor's own approval stays: they approved what they just saved.
+     */
+    public function resetApprovalsAfterEdit(int $draftId, int $editorId): void
+    {
+        $review = $this->getByDraftId($draftId);
+        if ($review === null || !$review->isActive()) {
+            return;
+        }
+
+        Craft::$app->getDb()->transaction(function() use ($review, $editorId) {
+            $reset = ReviewReviewerRecord::updateAll(
+                ['verdict' => ReviewReviewer::VERDICT_PENDING, 'decidedAt' => null],
+                [
+                    'and',
+                    ['reviewId' => $review->id, 'round' => $review->round, 'verdict' => ReviewReviewer::VERDICT_APPROVED],
+                    ['not', ['userId' => $editorId]],
+                ],
+            );
+            if ($reset > 0) {
+                $this->recomputeState($review->id, $review->round);
+            }
+        });
+    }
+
+    /**
      * Atomically move a review from one of `$fromStates` to `$to`, writing the
      * extra columns in the same conditional UPDATE. The `state IN (...)`
      * predicate is the lock: a concurrent transition that already moved the row
