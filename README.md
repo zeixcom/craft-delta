@@ -39,7 +39,7 @@ php craft plugin/install craft-delta
 - Approved reviews publish wholesale — immediately or scheduled via a queued job — or granularly through Review Mode
 - A **Reviews** dashboard in the CP nav (assigned to me / my submissions / all for admins) and a **Workflow** status column on entry index pages
 - A **live draft preview** beside the diff on the review page (sections with front-end URLs) — toggleable globally, hideable per reviewer
-- Email notifications on every transition, sent in the recipient's preferred language
+- Email notifications on every transition, sent in the recipient's preferred language; each email type can be turned off
 - Section-agnostic permissions that compose with Craft's native section access
 - `EVENT_AFTER_SUBMIT`, `EVENT_AFTER_APPROVE`, `EVENT_AFTER_DECLINE`, `EVENT_AFTER_WITHDRAW`, and `EVENT_AFTER_PUBLISH` events for third-party integration
 
@@ -169,6 +169,16 @@ A differ implements `zeixcom\craftdelta\differ\DifferInterface`:
 - `getStats(mixed $old, mixed $new): array{additions: int, deletions: int}`
 
 Field types without a registered differ fall back to the scalar differ.
+
+### Turn off notification emails
+
+In the plugin settings, select which emails Delta sends. An email type that is not selected is never sent. All five are on by default. In `config/craft-delta.php`:
+
+```php
+'notifications' => ['submitted', 'published'],
+```
+
+`comment` covers comments in both directions (author to reviewers and reviewers to author). `published` also covers the "approved — scheduled" email.
 
 ### Custom email templates
 

@@ -123,6 +123,10 @@ class EmailService extends Component
      */
     private function dispatch(User $recipient, callable $subject, string $template, array $vars): void
     {
+        if (!in_array($template, Delta::getInstance()?->getSettings()->notifications ?? [], true)) {
+            return;
+        }
+
         $originalLanguage = Craft::$app->language;
         Craft::$app->language = $recipient->preferredLanguage ?? $originalLanguage;
 

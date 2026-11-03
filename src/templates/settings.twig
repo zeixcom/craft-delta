@@ -49,6 +49,20 @@
             on: settings.skipReviewerSelection,
         }) }}
     </div>
+
+    <div class="field">
+        {{ forms.checkboxSelectField({
+            label: deltaKeys.notifications|t('craft-delta'),
+            instructions: deltaKeys.notificationsInstructions|t('craft-delta'),
+            id: 'notifications',
+            name: 'notifications',
+            values: settings.notifications,
+            options: constant('zeixcom\\craftdelta\\models\\Settings::NOTIFICATIONS')|map(type => {
+                value: type,
+                label: attribute(deltaKeys, 'notification' ~ type|capitalize)|t('craft-delta'),
+            }),
+        }) }}
+    </div>
 </div>
 
 <div class="field">

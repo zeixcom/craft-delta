@@ -1,11 +1,13 @@
 # Changelog
 
-## Unreleased
+## 2.4.0 - 2026-11-03
 
 ### Added
 
 - **Default reviewer.** A new `defaultReviewerId` setting preselects one reviewer in the Submit for review dialog.
 - **Skip reviewer selection.** With `skipReviewerSelection` on, the Submit for review button sends the review to the default reviewer directly, without the dialog. If the default reviewer is the author or cannot view drafts in the section, the dialog opens as usual.
+- **Notification settings.** A new `notifications` setting selects which emails Delta sends: submitted, approved, declined, comment, published. All are on by default.
+- **Edit draft from the review page.** An open review shows an "Edit draft" button when the user can save the draft. A reviewer can now correct the content directly before they approve or publish.
 
 ## 2.3.0 - 2026-10-28
 
